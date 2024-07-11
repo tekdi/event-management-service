@@ -21,9 +21,9 @@ import { Type } from 'class-transformer';
 
 export class MeetingDetailsDto {
   @ApiProperty({ description: 'Meeting ID', example: 94292617 })
-  @IsInt()
+  @IsString()
   @IsNotEmpty()
-  id: number;
+  id: string;
 
   @ApiProperty({ description: 'Meeting url', example: 'https://example.com/meeting' })
   @IsString()
@@ -66,15 +66,6 @@ export class CreateEventDto {
   @IsString()
   @IsNotEmpty()
   description: string;
-
-  @ApiProperty({
-    type: String,
-    description: 'image',
-    example: 'https://example.com/sample-image.jpg',
-  })
-  @IsString()
-  @IsNotEmpty()
-  image: string;
 
   @ApiProperty({
     type: String,
@@ -129,6 +120,7 @@ export class CreateEventDto {
   })
   @ValidateIf(o => o.eventType === 'offline')
   @IsLongitude()
+  @IsOptional()
   longitude: number;
 
   @ApiProperty({
@@ -138,6 +130,7 @@ export class CreateEventDto {
   })
   @ValidateIf(o => o.eventType === 'offline')
   @IsLatitude()
+  @IsOptional()
   latitude: number;
 
   @ApiProperty({
@@ -145,6 +138,7 @@ export class CreateEventDto {
     description: 'Online Provider',
     example: 'Zoom',
   })
+  @ValidateIf((o) => o.eventType === 'online')
   @IsString()
   @IsNotEmpty()
   onlineProvider: string;
@@ -271,6 +265,7 @@ export class CreateEventDto {
     example: '2024-03-18T10:00:00Z',
   })
   @IsDateString()
+  @ValidateIf((o) => o.isRecurring === true)
   recurrenceEndDate: Date;
 
   @ApiProperty({
@@ -279,6 +274,7 @@ export class CreateEventDto {
     example: { frequency: 'daily', interval: 1 },
   })
   @IsObject()
+  @ValidateIf((o) => o.isRecurring === true)
   recurrencePattern: any;
 
   @ApiProperty({
@@ -287,5 +283,6 @@ export class CreateEventDto {
     example: '',
   })
   @IsObject()
+  @IsOptional()
   metaData: any;
 }

@@ -1,14 +1,27 @@
-import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PipeTransform, Injectable, BadRequestException, forwardRef, Inject } from '@nestjs/common';
 import { CreateEventDto } from 'src/modules/event/dto/create-event.dto';
+import { getTimezoneCurrentDate } from '../utils/pipe.util';
+import { get } from 'http';
 
 @Injectable()
 export class DateValidationPipe implements PipeTransform {
+  // constructor(@Inject(forwardRef(() => ConfigService)) private configService: ConfigService) { 
+
+  // }
+
   transform(createEventDto: CreateEventDto) {
+    const timeZone = 'Asia/Kolkata';
     const startDate = new Date(createEventDto.startDatetime);
     const endDate = new Date(createEventDto.endDatetime);
-    const currentDate = new Date(); // Current date
-    // Check if start date is today or in the future
-    if (startDate < currentDate) {
+    const currentDate = getTimezoneCurrentDate(timeZone) // Current date
+    //  this.configService.get<string>('TIMEZONE'); // Get the timezone from the config service
+
+    console.log('currentDate', currentDate);
+    console.log('startDate', startDate);
+    console.log('endDate', endDate);
+
+    if (startDate <= currentDate) {
       throw new BadRequestException(
         'Start date must be today or a future date',
       );
@@ -23,9 +36,9 @@ export class DateValidationPipe implements PipeTransform {
 }
 
 @Injectable()
-export class DeadlineValidationPipe implements PipeTransform {
+export class RegistrationDateValidationPipe implements PipeTransform {
   transform(createEventDto: CreateEventDto) {
-    const now = new Date();
+    const currentDate = getTimezoneCurrentDate('Asia/Kolkata');
     const startDate = new Date(createEventDto.startDatetime);
     const endDate = new Date(createEventDto.endDatetime);
     const registrationStartDate = new Date(
@@ -34,13 +47,13 @@ export class DeadlineValidationPipe implements PipeTransform {
     const registrationEndDate = new Date(createEventDto.registrationEndDate);
 
     // Ensure registration dates are not in the past
-    if (registrationStartDate < now) {
+    if (registrationStartDate < currentDate) {
       throw new BadRequestException(
         'Registration start date must not be in the past',
       );
     }
 
-    if (registrationEndDate < now) {
+    if (registrationEndDate < currentDate) {
       throw new BadRequestException(
         'Registration end date must not be in the past',
       );
@@ -49,11 +62,12 @@ export class DeadlineValidationPipe implements PipeTransform {
     // Validate registration dates
     if (registrationStartDate > registrationEndDate) {
       throw new BadRequestException(
-        'Registration start date must be before registration end date or same',
+        'Registration start date must be before registration end date',
       );
     }
 
     // Registration period must fall between the event period
+    console.log(registrationStartDate,"rrrrr", startDate, registrationStartDate > startDate ,registrationStartDate < startDate)
     if (registrationStartDate > startDate) {
       throw new BadRequestException(
         'Registration start date must be before the event start date',
@@ -70,6 +84,30 @@ export class DeadlineValidationPipe implements PipeTransform {
   }
 }
 
+export class RecurringEndDateValidationPipe implements PipeTransform {
+  transform(createEventDto: CreateEventDto) {
+    const currentDate = getTimezoneCurrentDate('Asia/Kolkata');
+    if (createEventDto.isRecurring) {
+      const recurrenceEndDate = new Date(createEventDto.recurrenceEndDate);
+      const startDate = new Date(createEventDto.startDatetime);
+
+      if (recurrenceEndDate < startDate) {
+        throw new BadRequestException(
+          'Recurrence end date must be after the event start date',
+        );
+      }
+
+      if(recurrenceEndDate < currentDate){
+        throw new BadRequestException(
+          'Recurrence end date must be in the future',
+        );
+      }
+    }
+
+    return createEventDto;
+  }
+}
+
 @Injectable()
 export class ParamsValidationPipe implements PipeTransform {
   transform(createEventDto: CreateEventDto) {
@@ -79,23 +117,23 @@ export class ParamsValidationPipe implements PipeTransform {
         throw new BadRequestException('Invalid params object');
       }
 
-      if (!params.cohortIds && !params.userIds) {
-        throw new BadRequestException(
-          'Either cohortIds or userIds must be provided in params',
-        );
-      }
+      // if (!params.cohortIds && !params.userIds) {
+      //   throw new BadRequestException(
+      //     'Either cohortIds or userIds must be provided in params',
+      //   );
+      // }
 
-      if (params.cohortIds && params.userIds) {
-        throw new BadRequestException(
-          'Only one of cohortIds or userIds should be provided in params',
-        );
-      }
+      // if (params.cohortIds && params.userIds) {
+      //   throw new BadRequestException(
+      //     'Only one of cohortIds or userIds should be provided in params',
+      //   );
+      // }
 
-      if (params.cohortIds) {
-        this.validateUUIDs(params.cohortIds);
-      } else if (params.userIds) {
-        this.validateUUIDs(params.userIds);
-      }
+      // if (params.cohortIds) {
+      //   this.validateUUIDs(params.cohortIds);
+      // } else if (params.userIds) {
+      //   this.validateUUIDs(params.userIds);
+      // }
     } else if (!createEventDto.isRestricted) {
       createEventDto.params = {};
     }
