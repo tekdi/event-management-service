@@ -108,7 +108,7 @@ export class AttendeesService {
                     apiId,
                     { status: `Event Attendees for event ID ${eventId} deleted successfully.${deleteAttendees.affected} rows affected` },
                     HttpStatus.OK,
-                    'OK',
+                    'deleted successfully',
                 )
             }
             else if (userId && !eventId) {
@@ -120,7 +120,7 @@ export class AttendeesService {
                         status: `Event Attendees for user ID ${userId} deleted successfully.${deleteAttendees.affected} rows affected`
                     },
                     HttpStatus.OK,
-                    'OK',
+                    'deleted successfully',
                 );
             }
             else if (userId && eventId) {
@@ -133,7 +133,7 @@ export class AttendeesService {
                     apiId,
                     { status: `Event Attendees deleted successfully.` },
                     HttpStatus.OK,
-                    'OK',
+                    'deleted successfully',
                 )
             }
         }

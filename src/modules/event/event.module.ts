@@ -14,11 +14,6 @@ import { Users } from './entities/Users.entity';
 import { MeetingsService } from '../meetings/meetings.service';
 import { MeetingAdapterFactory } from '../meetings/meetingadapter';
 import { ZoomMeetingAdapter } from '../meetings/adapter/zoom.adapter';
-import { GoogleMeetingAdapter } from '../meetings/adapter/googleMeet.adapter';
-
-
-
-
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -30,6 +25,6 @@ import { GoogleMeetingAdapter } from '../meetings/adapter/googleMeet.adapter';
     ])
   ],
   controllers: [EventController],
-  providers: [EventService, ConfigService, AttendeesService, MeetingsService, MeetingAdapterFactory, ZoomMeetingAdapter, GoogleMeetingAdapter],
+  providers: [EventService, ConfigService, AttendeesService, MeetingsService, MeetingAdapterFactory, ZoomMeetingAdapter],
 })
 export class EventModule { }

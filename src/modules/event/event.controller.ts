@@ -13,7 +13,7 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { SearchFilterDto } from './dto/search-event.dto';
-import { DateValidationPipe, DeadlineValidationPipe, ParamsValidationPipe, ValidateMeetingType } from 'src/common/pipes/event-validation.pipe';
+import { DateValidationPipe, DeadlineValidationPipe, ParamsValidationPipe } from 'src/common/pipes/event-validation.pipe';
 import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
 import { APIID } from 'src/common/utils/api-id.config';
 
@@ -25,7 +25,7 @@ export class EventController {
   @UseFilters(new AllExceptionsFilter(APIID.EVENT_CREATE))
   @Post('/create')
   @ApiBody({ type: CreateEventDto })
-  @UsePipes(new DateValidationPipe, new DeadlineValidationPipe, new ParamsValidationPipe, new ValidateMeetingType, new ValidationPipe({ transform: true }))
+  @UsePipes(new DateValidationPipe, new DeadlineValidationPipe, new ParamsValidationPipe, new ValidationPipe({ transform: true }))
   @ApiCreatedResponse({
     description: 'Created Event',
   })

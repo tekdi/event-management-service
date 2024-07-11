@@ -1,6 +1,8 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum, IsLongitude, IsLatitude, IsBoolean, IsInt, Min, IsDateString, IsObject } from 'class-validator';
-
+import { IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum, IsLongitude, IsLatitude, IsBoolean, IsInt, Min, IsDateString, IsObject, ValidateIf, ValidateNested } from 'class-validator';
+import { MeetingDetailsDto } from "./create-event.dto";
+import { Type } from "class-transformer";
+import { Optional } from "@nestjs/common";
 export class UpdateEventDto {
 
     @ApiProperty({
@@ -50,8 +52,8 @@ export class UpdateEventDto {
         description: 'Event Type',
         example: 'online'
     })
-    @IsEnum(['online', 'offline', 'onlineandoffline'], {
-        message: 'Event Type must be one of: online, offline, onlineandoffline'
+    @IsEnum(['online', 'offline'], {
+        message: 'Event Type must be one of: online, offline'
     }
     )
     @IsString()
@@ -93,7 +95,8 @@ export class UpdateEventDto {
     })
     @IsString()
     @IsNotEmpty()
-    @IsOptional()
+    @ValidateIf(o => o.eventType === 'offline')
+    // @IsOptional()
     location: string;
 
 
@@ -103,7 +106,9 @@ export class UpdateEventDto {
         example: 18.508345134886994
     })
     @IsLongitude()
-    @IsOptional()
+    @IsNotEmpty()
+    // @IsOptional()
+    @ValidateIf(o => o.eventType === 'offline')
     longitude: number;
 
     @ApiProperty({
@@ -112,18 +117,30 @@ export class UpdateEventDto {
         example: 18.508345134886994
     })
     @IsLatitude()
-    @IsOptional()
+    @IsNotEmpty()
+    @ValidateIf(o => o.eventType === 'offline')
+    // @IsOptional()
     latitude: number;
 
     @ApiProperty({
         type: String,
         description: 'Online Provider',
-        example: 'Zoom'
+        example: 'zoom'
     })
     @IsString()
     @IsNotEmpty()
-    @IsOptional()
+    // @IsOptional()
+    @ValidateIf(o => o.eventType === 'online')
     onlineProvider: string;
+
+    // @ApiProperty({
+    //     type: String,
+    //     description: 'Registration Deadline',
+    //     example: '2024-03-18T10:00:00Z'
+    // })
+    // @IsDateString()
+    // @IsOptional()
+    // registrationDeadline: Date;
 
     @ApiProperty({
         type: String,
@@ -132,7 +149,19 @@ export class UpdateEventDto {
     })
     @IsDateString()
     @IsOptional()
-    registrationDeadline: Date;
+    registrationStartDate: Date;
+
+
+    @ApiProperty({
+        type: String,
+        description: 'Registration Deadline',
+        example: '2024-03-18T10:00:00Z'
+    })
+    @IsOptional()
+    @IsDateString()
+    registrationEndDate: Date;
+
+
 
     @ApiProperty({
         type: Number,
@@ -176,6 +205,23 @@ export class UpdateEventDto {
     @IsOptional()
     @IsNotEmpty()
     status: string;
+
+    @ApiProperty({
+        type: Boolean,
+        description: 'isMeetingNew',
+        example: false
+    })
+    @IsNotEmpty()
+    @ValidateIf(o => o.eventType === 'online')
+    isMeetingNew: boolean;
+
+    @ApiProperty({ type: MeetingDetailsDto, description: 'Filters for search' })
+    @IsObject()
+    @ValidateIf(o => o.isMeetingNew === false)
+    @ValidateIf(o => o.eventType === 'online')
+    @ValidateNested({ each: true })
+    @Type(() => MeetingDetailsDto)
+    meetingDetails: any;
 
 
     @IsString()

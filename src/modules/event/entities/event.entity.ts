@@ -3,7 +3,7 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 @Entity('Events')
 export class Events {
     @PrimaryGeneratedColumn('uuid')
-    eventID: string;
+    eventId: string;
 
     @Column({ nullable: false })
     title: string;
@@ -45,7 +45,10 @@ export class Events {
     onlineProvider: string;
 
     @Column({ nullable: false, type: 'timestamp' })
-    registrationDeadline: Date;
+    registrationStartDate: Date;
+
+    @Column({ nullable: false, type: 'timestamp' })
+    registrationEndDate: Date;
 
     @Column({ nullable: false, default: 0 })
     maxAttendees: number;

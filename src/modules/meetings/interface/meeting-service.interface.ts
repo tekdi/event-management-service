@@ -1,8 +1,9 @@
 import { CreateMeetingDto } from "../dto/create-Meeting.dto";
-import { Response } from "express";
+import { UpdateeMeetingDto } from "../dto/update-Meeting.dto";
+
 export interface MeetingServiceInterface {
     createMeeting(createMeetingDto: CreateMeetingDto)
     getMeetingList();
-    updateMeeting(meetingId, updateDto);
+    updateMeeting(meetingId, updateeMeetingDto: UpdateeMeetingDto);
     getToken();
 }
