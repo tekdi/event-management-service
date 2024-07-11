@@ -7,356 +7,156 @@ import { Events } from './entities/event.entity';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
 import { SearchFilterDto } from './dto/search-event.dto';
-import { DateValidationPipe, DeadlineValidationPipe, ParamsValidationPipe } from 'src/common/pipes/event-validation.pipe';
+import {
+  DateValidationPipe,
+  DeadlineValidationPipe,
+  ParamsValidationPipe,
+} from 'src/common/pipes/event-validation.pipe';
 import { AttendeesService } from '../attendees/attendees.service';
 import { EventAttendeesDTO } from '../attendees/dto/EventAttendance.dto';
-import { CohortMember } from './entities/CohortMembers.entity';
-import { Cohort } from './entities/Cohort.entity';
-import { Users } from './entities/Users.entity';
+import { EventDetail } from './entities/eventDetail.entity';
 @Injectable()
 export class EventService {
   constructor(
     @InjectRepository(Events)
     private readonly eventRespository: Repository<Events>,
-    @InjectRepository(CohortMember)
-    private readonly cohortMemberRepo: Repository<CohortMember>,
-    @InjectRepository(Cohort)
-    private readonly cohortRepo: Repository<Cohort>,
-    @InjectRepository(Users)
-    private readonly usersRepo: Repository<Users>,
-    private readonly attendeesService: AttendeesService
+    @InjectRepository(EventDetail)
+    private readonly eventDetailRepository: Repository<EventDetail>,
+    private readonly attendeesService: AttendeesService,
   ) { }
-  async createEvent(createEventDto: CreateEventDto, userId: string, response: Response): Promise<Response> {
+
+  async createEvent(
+    createEventDto: CreateEventDto,
+    userId: string,
+    response: Response,
+  ): Promise<Response> {
     const apiId = 'api.create.event';
     try {
-      // checkl if isRistricted true then check cohorts id or user id present in db or not
+      this.validateCreateEventDto(createEventDto);
+      // true for private, false for public
       if (createEventDto.isRestricted === true) {
-        if (createEventDto.params.userIds) {
-          await this.validateUserIds(createEventDto.params.userIds);
+        // private event
+
+        if (createEventDto.eventType === 'online') {
+          // create online event
+          this.createOnlineEvent(createEventDto);
+        } else if (createEventDto.eventType === 'offline') {
+          // create offline event
+          this.createOfflineEvent(createEventDto);
         }
-        else if (createEventDto.params.cohortIds) {
-          await this.validateCohortIds(createEventDto.params.cohortIds)
+
+        // if event is private then invitees are required
+        // add invitees to attendees table
+
+      } else {
+        // if event is public then registrationDate is required
+        if (createEventDto.eventType === 'online') {
+          // create online event
+          this.createOnlineEvent(createEventDto);
+        } else if (createEventDto.eventType === 'offline') {
+          // create offline event
+          this.createOfflineEvent(createEventDto);
         }
       }
-      createEventDto.createdBy = userId;
-      createEventDto.updatedBy = userId;
-      if (createEventDto.isRestricted === true) {
-        createEventDto.autoEnroll = true;
-      }
-      const created = await this.eventRespository.save(createEventDto);
-      // Create attendees if isRsetricted true and event status is live
-      if (created.eventID && createEventDto.isRestricted === true && createEventDto.status == 'live') {
-        await this.CreateAttendeedforRestrictedEvent(createEventDto, created, userId, response)
-      }
-      return response
-        .status(HttpStatus.CREATED)
-        .send(APIResponse.success(apiId, { event_ID: created.eventID }, 'CREATED'));
-    }
-    catch (e) {
+
+      const eventDetail = await this.createEventDetail(createEventDto);
+    } catch (error) {
       return response
         .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong in event creation',
-          JSON.stringify(e),
-          'INTERNAL_SERVER_ERROR',
-        ))
+        .json(APIResponse.error(apiId, 'Internal Server Error', error, '500'));
     }
   }
 
-  async getEvents(response: Response, requestBody: SearchFilterDto) {
-    const apiId = 'api.Search.Event'
-    try {
-      let finalquery = `SELECT * FROM "Events"`;
-      const { filters } = requestBody;
-      if (filters && Object.keys(filters).length > 0) {
-        finalquery = await this.createSearchQuery(filters, finalquery);
-      }
-      const result = await this.eventRespository.query(finalquery);
-      if (result.length === 0) {
-        return response
-          .status(HttpStatus.NOT_FOUND)
-          .send(
-            APIResponse.error(
-              apiId,
-              `No event found`,
-              'No records found.',
-              'NOT_FOUND',
-            ),
-          );
-      }
-      return response
-        .status(HttpStatus.OK)
-        .send(APIResponse.success(apiId, result, "OK"));
-    }
-    catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong to search event',
-          JSON.stringify(e),
-          'INTERNAL_SERVER_ERROR',
-        ))
-    }
+  async createEvents(createEventDto, response) { }
+
+  async createEventDetail(
+    createEventDto: CreateEventDto,
+  ): Promise<EventDetail> {
+    const eventDetail = new EventDetail();
+    eventDetail.title = createEventDto.title;
+    eventDetail.description = createEventDto.description;
+    eventDetail.shortDescription = createEventDto.shortDescription;
+    eventDetail.eventType = createEventDto.eventType;
+    eventDetail.isRestricted = createEventDto.isRestricted;
+    eventDetail.location = createEventDto.location;
+    eventDetail.longitude = createEventDto.longitude;
+    eventDetail.latitude = createEventDto.latitude;
+    eventDetail.onlineProvider = createEventDto.onlineProvider;
+    eventDetail.maxAttendees = createEventDto.maxAttendees;
+    eventDetail.recordings = createEventDto.recordings;
+    eventDetail.status = createEventDto.status;
+    eventDetail.params = createEventDto.params;
+    eventDetail.meetingDetails = createEventDto.meetingDetails;
+    eventDetail.idealTime = createEventDto.idealTime;
+    eventDetail.metadata = createEventDto.metaData;
+    eventDetail.createdBy = createEventDto.createdBy;
+    eventDetail.updatedBy = createEventDto.updatedBy;
+    eventDetail.createdAt = new Date();
+    eventDetail.updatedAt = new Date();
+
+    return this.eventDetailRepository.save(eventDetail);
   }
 
-  async getEventByID(eventID: string, response: Response) {
-    const apiId = 'api.get.event.byId'
-    try {
-      const getEventById = await this.eventRespository.findOne({ where: { eventID } });
-      if (!getEventById) {
-        return response
-          .status(HttpStatus.NOT_FOUND)
-          .send(
-            APIResponse.error(
-              apiId,
-              `No event found for: ${eventID}`,
-              'No records found.',
-              'NOT_FOUND',
-            ),
-          );
+  validateCreateEventDto(createEventDto: CreateEventDto) {
+    if (createEventDto.isRestricted === true) {
+      // private event
+
+      // if event is private then invitees are required
+      if (!createEventDto?.params?.invitees.length) {
+        throw new BadRequestException('Invitees required for private event');
       }
-      return response
-        .status(HttpStatus.OK)
-        .send(APIResponse.success(apiId, getEventById, 'OK'))
+    } else {
+      // if event is public then registration is required
+      if (createEventDto?.params?.invitees.length) {
+        throw new BadRequestException('Invitees not required for public event');
+      }
 
-    }
-    catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong to get event by id',
-          `Failure Retrieving event. Error is: ${e}`,
-          'INTERNAL_SERVER_ERROR',
-        ))
-    }
-  }
-
-  async updateEvent(eventID: string, updateEventDto: UpdateEventDto, userId: string, response: Response) {
-    const apiId = 'api.update.event';
-    try {
-      const event = await this.eventRespository.findOne({ where: { eventID } })
-      if (!event) {
-        return response.status(HttpStatus.NOT_FOUND).send(
-          APIResponse.error(
-            apiId,
-            `No event found for: ${eventID}`,
-            'records not found.',
-            'NOT_FOUND',
-          ),
+      if (!createEventDto.registrationStartDate) {
+        throw new BadRequestException(
+          'Registration Start Date required for event',
         );
       }
-
-      // convert public event into private event if status is draft
-      if (updateEventDto.isRestricted == true && event.isRestricted == false) {
-        if (event.status == 'draft') {
-          if (updateEventDto.params && Object.keys(updateEventDto.params.length > 0)) {
-            if (updateEventDto.params.userIds) {
-              await this.validateUserIds(updateEventDto.params.userIds);
-            }
-            else if (updateEventDto.params.cohortIds) {
-              await this.validateCohortIds(updateEventDto.params.cohortIds)
-            }
-            await this.CreateAttendeedforRestrictedEvent(updateEventDto, event, userId, response)
-          }
-        }
-        else {
-          throw new BadRequestException('You can not update public into private event beacuse event is live');
-        }
-      }
-      // You can update private event again private 
-      if (updateEventDto.isRestricted == true && event.isRestricted == true) {
-        throw new BadRequestException('You can not update private event as private');
-      }
-
-      // Convert private event to public if status is draft
-      if (updateEventDto.isRestricted == false && event.isRestricted == true) {
-        if (event.status == 'draft') {
-          event.params = {};
-        }
-        else {
-          throw new BadRequestException('You can not update private into public event beacuse event is live');
-        }
-      }
-
-      //if event created as draft and private and now event become live then automatic entry will go in attenddes table of private atendees
-      if (event.status == 'draft' && updateEventDto.status == 'live' && event.isRestricted == true) {
-        if (event.params && Object.keys(event.params.length > 0)) {
-          if (event.params.userIds) {
-            await this.CreateAttendeedforRestrictedEvent(event, event, userId, response)
-          }
-          else if (event.params.cohortIds) {
-            await this.CreateAttendeedforRestrictedEvent(event, event, userId, response)
-          }
-        }
-      }
-      Object.assign(event, updateEventDto);
-
-      //validation pipe for check start date and end date  or only start date
-      if (updateEventDto.startDatetime && updateEventDto.endDatetime || updateEventDto.startDatetime) {
-        new DateValidationPipe().transform(event);
-      }
-      //validation pipe for if user want to change only end date
-      if (updateEventDto.endDatetime) {
-        const startDate = new Date(event.startDatetime);
-        const endDate = new Date(updateEventDto.endDatetime);
-        if (startDate > endDate) {
-          throw new BadRequestException('End date should be greater than or equal to start date')
-        }
-      }
-      //validation pipe for registration deadline date
-      new DeadlineValidationPipe().transform(event);
-      // validation pipe for empty param object
-      new ParamsValidationPipe().transform(event);
-      event.updatedBy = userId;
-      const updated_result = await this.eventRespository.save(event);
-      if (!updated_result) {
-        throw new BadRequestException('Event update failed');
-      }
-      return response
-        .status(HttpStatus.CREATED)
-        .send(APIResponse.success(apiId, { id: eventID, status: 'updated Successfully' }, 'OK'))
     }
-    catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong to update the event',
-          `Failure to update event Error is: ${e}`,
-          'INTERNAL_SERVER_ERROR',
-        ))
-    }
-  }
 
-  async deleteEvent(eventID: string, response: Response) {
-    const apiId = 'api.delete.event'
-    try {
-      const event_id = await this.eventRespository.findOne({ where: { eventID } })
-      if (!event_id) {
-        return response.status(HttpStatus.NOT_FOUND).send(
-          APIResponse.error(
-            apiId,
-            `No event id found: ${eventID}`,
-            'records not found.',
-            'NOT_FOUND',
-          ),
+    if (createEventDto.isRecurring) {
+      // recurring event
+      if (!createEventDto.recurrencePattern) {
+        throw new BadRequestException('Recurrence Pattern required for event');
+      }
+
+    } else {
+      // non recurring event
+
+    }
+
+    if (createEventDto.eventType === 'offline') {
+      if (!createEventDto.location) {
+        throw new BadRequestException('Location required for offline event');
+      }
+    } else if (createEventDto.eventType === 'online') {
+      if (!createEventDto.onlineProvider) {
+        throw new BadRequestException(
+          'Online Provider required for online event',
         );
       }
-      const deletedEvent = await this.eventRespository.delete({ eventID });
-      if (deletedEvent.affected !== 1) {
-        throw new BadRequestException('Event not deleted');
-      }
-      return response
-        .status(HttpStatus.OK)
-        .send(
-          APIResponse.success(
-            apiId,
-            { status: `Event with ID ${eventID} deleted successfully.` },
-            'OK',
-          ),
-        );
-    }
-    catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong to get event by id',
-          `Failure Retrieving event. Error is: ${e}`,
-          'INTERNAL_SERVER_ERROR',
-        ))
     }
   }
 
-  async createSearchQuery(filters, finalquery) {
-    let whereClause = false;
-    if (filters.title && filters.title !== "") {
-      finalquery += ` WHERE "title" LIKE '%${filters.title}%'`;
-      whereClause = true;
-    }
-    if (filters.eventType && filters.eventType.length > 0) {
-      let eventTypeConditions = [];
-      filters.eventType.forEach((eventType) => {
-        eventTypeConditions.push(`"eventType" = '${eventType}'`);
-      });
-      finalquery += whereClause ? ` AND (${eventTypeConditions.join(' OR ')})` : ` WHERE (${eventTypeConditions.join(' OR ')})`;
-      whereClause = true;
-    }
-    if (filters.status && filters.status.length > 0) {
-      let statusConditions = [];
-      filters.status.forEach((status) => {
-        statusConditions.push(`"status" = '${status}'`);
-      });
-      finalquery += whereClause ? ` AND (${statusConditions.join(' OR ')})` : ` WHERE (${statusConditions.join(' OR ')})`;
-      whereClause = true;
-    }
-    if (filters.startDate && filters.endDate) {
-      finalquery += whereClause ? ` AND "startDatetime" >= TIMESTAMP '${filters.startDate}' AND "endDatetime" <= '${filters.endDate}'` : ` WHERE "startDatetime" >= '${filters.startDate}' AND "endDatetime" <= '${filters.endDate}'`;
-    } else if (filters.startDate) {
-      finalquery += whereClause ? ` AND "startDatetime" >= TIMESTAMP '${filters.startDate}'` : ` WHERE "startDatetime" >= TIMESTAMP '${filters.startDate}'`;
-    } else if (filters.endDate) {
-      finalquery += whereClause ? ` AND "endDatetime" <=  TIMESTAMP '${filters.endDate}'` : ` WHERE "endDatetime" TIMESTAMP <= '${filters.endDate}'`;
-    }
-    if (filters.createdBy && filters.createdBy !== "") {
-      finalquery += whereClause ? ` AND "createdBy" LIKE '%${filters.createdBy}%'` : ` WHERE "createdBy" = '${filters.createdBy}'`;
-    }
-    return finalquery;
+  createOnlineEvent(createEventDto: CreateEventDto) {
+    // recurring & non-recurring
   }
 
-  // check userids present in user table or not
-  async validateUserIds(userIds: string[]) {
-    const queryBuilder = this.usersRepo.createQueryBuilder('Users')
-      .select('Users.userId', 'userId')
-      .where('Users.userId IN (:...userIds)', { userIds });
-    const users = await queryBuilder.getRawMany();
-    const existingUserIds = users.map(user => user.userId);
-    const missingUserIds = userIds.filter(userId => !existingUserIds.includes(userId));
-    if (missingUserIds.length > 0) {
-      throw new BadRequestException(`The following user IDs are not present: ${missingUserIds.join(', ')}`);
-    }
+  createOfflineEvent(createEventDto: CreateEventDto) {
+    // recurring & non-recurring
   }
 
-  // check cohortids present in cohort table or not
-  async validateCohortIds(cohortIds: string[]) {
-    const queryBuilder = this.cohortRepo.createQueryBuilder('Cohort')
-      .select('Cohort.cohortId', 'cohortId')
-      .where('Cohort.cohortId IN (:...cohortIds)', { cohortIds });
-    const cohorts = await queryBuilder.getRawMany();
-    const existingCohortIds = cohorts.map(cohort => cohort.cohortId);
-    const missingCohortIds = cohortIds.filter(cohortId => !existingCohortIds.includes(cohortId));
-    if (missingCohortIds.length > 0) {
-      throw new BadRequestException(`The following cohort IDs are not present: ${missingCohortIds.join(', ')}`);
-    }
-  }
+  createRecurringEvent(createEventDto: CreateEventDto) { }
 
-  async CreateAttendeedforRestrictedEvent(createEventDto, created, userId, response) {
-    const attendeedDto: EventAttendeesDTO = {
-      eventId: created.eventID,
-      enrolledBy: userId,
-      status: 'published'
-    }
-    const cohortsIdsOruserIds = createEventDto?.params; //{ cohortIds: [ 'eff008a8-2573-466d-b877-fddf6a4fc13e' ] }
-    const cohortIds = cohortsIdsOruserIds.cohortIds || [];
-    const userIds = cohortsIdsOruserIds.userIds || [];
-    if (cohortIds?.length > 0) {
-      const userIds: string[] = [];
-      const queryBuilder = this.cohortMemberRepo.createQueryBuilder('CohortMembers')
-        .select('CohortMembers.userId', 'userId')
-        .where('CohortMembers.cohortId IN (:...cohortIds)', { cohortIds });
-      const cohortMembers = await queryBuilder.getRawMany();
-      for (const member of cohortMembers) {
-        userIds.push(member.userId);
-      }
-      if (userIds.length > 0) {
-        await this.attendeesService.createAttendees(attendeedDto, response, userId, userIds);
-      }
-    }
-    else if (userIds?.length > 0) {
-      await this.attendeesService.createAttendees(attendeedDto, response, userId, userIds);
-    }
-  }
+  createNonRecurringEvent(createEventDto: CreateEventDto) { }
 
+  generateEventOccurences(createEventDto: CreateEventDto) { }
+
+  // async getEventOccurrences(eventId: string): Promise<EventOccurrence[]> {
+  //   return this.eventOccurrenceRepository.find({ where: { event: eventId } });
+  // }
 }
