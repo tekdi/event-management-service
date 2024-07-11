@@ -22,13 +22,35 @@ export class DateValidationPipe implements PipeTransform {
 @Injectable()
 export class DeadlineValidationPipe implements PipeTransform {
     transform(createEventDto: CreateEventDto) {
+        const now = new Date();
         const startDate = new Date(createEventDto.startDatetime);
         const endDate = new Date(createEventDto.endDatetime);
-        const registrationDeadline = new Date(createEventDto.registrationDeadline);
+        const registrationStartDate = new Date(createEventDto.registrationStartDate);
+        const registrationEndDate = new Date(createEventDto.registrationEndDate);
 
-        if (registrationDeadline < startDate || registrationDeadline > endDate) {
-            throw new BadRequestException('Registration deadline should be between start date and end date');
+        // Ensure registration dates are not in the past
+        if (registrationStartDate < now) {
+            throw new BadRequestException('Registration start date must not be in the past');
         }
+
+        if (registrationEndDate < now) {
+            throw new BadRequestException('Registration end date must not be in the past');
+        }
+
+        // Validate registration dates
+        if (registrationStartDate > registrationEndDate) {
+            throw new BadRequestException('Registration start date must be before registration end date or same');
+        }
+
+        // Registration period must fall between the event period
+        if (registrationStartDate > startDate) {
+            throw new BadRequestException('Registration start date must be before the event start date');
+        }
+
+        if (registrationEndDate > startDate) {
+            throw new BadRequestException('Registration end date must be on or before the event start date');
+        }
+
         return createEventDto;
     }
 }

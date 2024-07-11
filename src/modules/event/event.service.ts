@@ -2,7 +2,7 @@ import { BadRequestException, HttpStatus, Injectable } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Events } from './entities/event.entity';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
@@ -13,6 +13,10 @@ import { EventAttendeesDTO } from '../attendees/dto/EventAttendance.dto';
 import { CohortMember } from './entities/CohortMembers.entity';
 import { Cohort } from './entities/Cohort.entity';
 import { Users } from './entities/Users.entity';
+import { MeetingsService } from '../meetings/meetings.service';
+import { CreateMeetingDto } from '../meetings/dto/create-Meeting.dto';
+import { APIID } from 'src/common/utils/api-id.config';
+
 @Injectable()
 export class EventService {
   constructor(
@@ -24,10 +28,11 @@ export class EventService {
     private readonly cohortRepo: Repository<Cohort>,
     @InjectRepository(Users)
     private readonly usersRepo: Repository<Users>,
-    private readonly attendeesService: AttendeesService
+    private readonly attendeesService: AttendeesService,
+    private readonly meetingsService: MeetingsService
   ) { }
-  async createEvent(createEventDto: CreateEventDto, userId: string, response: Response): Promise<Response> {
-    const apiId = 'api.create.event';
+  async createEvent(createEventDto: CreateEventDto, userId: string, response: Response): Promise<void> {
+    const apiId = APIID.EVENT_CREATE;
     try {
       // checkl if isRistricted true then check cohorts id or user id present in db or not
       if (createEventDto.isRestricted === true) {
@@ -43,29 +48,59 @@ export class EventService {
       if (createEventDto.isRestricted === true) {
         createEventDto.autoEnroll = true;
       }
+
+      //api call for zoom/googlemeet if new or existing event is created by user
+      if (createEventDto.eventType === 'online') {
+        if (createEventDto.isMeetingNew) {
+          const meeting: CreateMeetingDto = {
+            meetingType: createEventDto.onlineProvider,
+            topic: createEventDto.title,
+            type: 2,
+            start_time: createEventDto.startDatetime,
+            duration: 60,
+            timezone: 'Asia/Kolkata',
+          }
+          const result = await this.meetingsService.createMeeting(meeting);
+          if (result) {
+            createEventDto.meetingDetails = result;
+          }
+          else {
+            return APIResponse.error(response, apiId, "Internal Server Error", `Event Not Created`, HttpStatus.INTERNAL_SERVER_ERROR);
+          }
+        }
+        // Ensure offline fields are null for online events
+        createEventDto.location = null;
+        createEventDto.latitude = null;
+        createEventDto.longitude = null;
+      }
+      // Handle offline event
+      if (createEventDto.eventType === 'offline') {
+        // Ensure online fields are null for offline events
+        createEventDto.isMeetingNew = null;
+        createEventDto.meetingDetails = null;
+        createEventDto.onlineProvider = null;
+      }
       const created = await this.eventRespository.save(createEventDto);
       // Create attendees if isRsetricted true and event status is live
-      if (created.eventID && createEventDto.isRestricted === true && createEventDto.status == 'live') {
-        await this.CreateAttendeedforRestrictedEvent(createEventDto, created, userId, response)
+      if (created.eventId && createEventDto.isRestricted === true && createEventDto.status == 'live') {
+        const attendeesEnrolledResult = await this.CreateAttendeedforRestrictedEvent(createEventDto, created, userId)
+        // Check if attendees were successfully registered
+        if (attendeesEnrolledResult && attendeesEnrolledResult.length > 0) {
+          return APIResponse.success(response, apiId, { event_ID: created.eventId, attendeesEnrolled: true }, HttpStatus.CREATED, 'Event and attendees registered successfully');
+        } else {
+          return APIResponse.success(response, apiId, { event_ID: created.eventId, attendeesEnrolled: false }, HttpStatus.CREATED, 'Event created but attendees not registered');
+        }
       }
-      return response
-        .status(HttpStatus.CREATED)
-        .send(APIResponse.success(apiId, { event_ID: created.eventID }, 'CREATED'));
+      return APIResponse.success(response, apiId, { event_ID: created.eventId, attendeesEnrolled: true }, HttpStatus.OK, 'Event and attendees registered successfully');
     }
     catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong in event creation',
-          JSON.stringify(e),
-          'INTERNAL_SERVER_ERROR',
-        ))
+      const errorMessage = e.message || 'Internal server error';
+      return APIResponse.error(response, apiId, "Internal Server Error", errorMessage, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
   async getEvents(response: Response, requestBody: SearchFilterDto) {
-    const apiId = 'api.Search.Event'
+    const apiId = APIID.EVENT_LIST;
     try {
       let finalquery = `SELECT * FROM "Events"`;
       const { filters } = requestBody;
@@ -74,80 +109,120 @@ export class EventService {
       }
       const result = await this.eventRespository.query(finalquery);
       if (result.length === 0) {
-        return response
-          .status(HttpStatus.NOT_FOUND)
-          .send(
-            APIResponse.error(
-              apiId,
-              `No event found`,
-              'No records found.',
-              'NOT_FOUND',
-            ),
-          );
+        return APIResponse.error(
+          response,
+          apiId,
+          `No event found`,
+          'records not found.',
+          HttpStatus.NOT_FOUND
+        )
       }
-      return response
-        .status(HttpStatus.OK)
-        .send(APIResponse.success(apiId, result, "OK"));
+      return APIResponse.success(response, apiId, result, HttpStatus.OK, "Event fetched successfully");
     }
     catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong to search event',
-          JSON.stringify(e),
-          'INTERNAL_SERVER_ERROR',
-        ))
+      const errorMessage = e.message || 'Internal server error';
+      return APIResponse.error(response, apiId, "Internal Server Error", errorMessage, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  async getEventByID(eventID: string, response: Response) {
-    const apiId = 'api.get.event.byId'
+  async getEventByID(eventId: string, response: Response) {
+    const apiId = APIID.EVENT_GET;
     try {
-      const getEventById = await this.eventRespository.findOne({ where: { eventID } });
+      const getEventById = await this.eventRespository.findOne({ where: { eventId } });
       if (!getEventById) {
-        return response
-          .status(HttpStatus.NOT_FOUND)
-          .send(
-            APIResponse.error(
-              apiId,
-              `No event found for: ${eventID}`,
-              'No records found.',
-              'NOT_FOUND',
-            ),
-          );
+        return APIResponse.error(
+          response,
+          apiId,
+          `No event found for: ${eventId}`,
+          'records not found',
+          HttpStatus.NOT_FOUND
+        )
       }
-      return response
-        .status(HttpStatus.OK)
-        .send(APIResponse.success(apiId, getEventById, 'OK'))
+      return APIResponse.success(response, apiId, getEventById, HttpStatus.OK, 'Event fetched successfully')
 
     }
     catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong to get event by id',
-          `Failure Retrieving event. Error is: ${e}`,
-          'INTERNAL_SERVER_ERROR',
-        ))
+      const errorMessage = e.message || 'Internal server error';
+      return APIResponse.error(response, apiId, "Internal Server Error", errorMessage, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  async updateEvent(eventID: string, updateEventDto: UpdateEventDto, userId: string, response: Response) {
-    const apiId = 'api.update.event';
+  async updateEvent(eventId: string, updateEventDto: UpdateEventDto, userId: string, response: Response) {
+    const apiId = APIID.EVENT_UPDATE;
     try {
-      const event = await this.eventRespository.findOne({ where: { eventID } })
+      const event = await this.eventRespository.findOne({ where: { eventId } })
       if (!event) {
-        return response.status(HttpStatus.NOT_FOUND).send(
-          APIResponse.error(
-            apiId,
-            `No event found for: ${eventID}`,
-            'records not found.',
-            'NOT_FOUND',
-          ),
-        );
+        return APIResponse.error(
+          response,
+          apiId,
+          `No event found for: ${eventId}`,
+          'records not found.',
+          HttpStatus.NOT_FOUND
+        )
       }
+
+      //convert online into offiline 
+      if (event.eventType === 'online' && updateEventDto.eventType === 'offline') {
+        const today = new Date();
+        if (new Date(updateEventDto.startDatetime) <= today) {
+          throw new Error('You cannot convert an online event to offline if it is scheduled for a future date.');
+        } else if (new Date(event.startDatetime) <= today) {
+          throw new Error('You cannot convert an online event to offline if it is scheduled for a future date.');
+        }
+        // Ensure online fields are null for offline events
+        updateEventDto.isMeetingNew = null;
+        updateEventDto.meetingDetails = null;
+        updateEventDto.onlineProvider = null;
+      }
+      //convert offline into online
+      if (event.eventType === 'offline' && updateEventDto.eventType === 'online') {
+        const today = new Date();
+        if (new Date(updateEventDto.startDatetime) <= today) {
+          throw new Error('You cannot convert an online event to offline if it is scheduled for a future date.');
+        } else if (new Date(event.startDatetime) <= today) {
+          throw new Error('You cannot convert an online event to offline if it is scheduled for a future date.');
+        }
+        else {
+          //need to call zoom create API
+          if (updateEventDto.isMeetingNew) {
+            const meeting: CreateMeetingDto = {
+              meetingType: updateEventDto.onlineProvider,
+              topic: updateEventDto.title || event.title,
+              type: 2,
+              start_time: updateEventDto.startDatetime || event.startDatetime,
+              duration: 60, // need to remove this value
+              timezone: 'Asia/Kolkata',
+            }
+            const result = await this.meetingsService.createMeeting(meeting);
+            if (result) {
+              updateEventDto.meetingDetails = result;
+            }
+            else {
+              return APIResponse.error(response, apiId, "Internal Server Error", `Event Not Created`, HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+          }
+          // Ensure offline fields are null for online events
+          updateEventDto.location = null;
+          updateEventDto.latitude = null;
+          updateEventDto.longitude = null;
+        }
+      }
+
+      // if user only update start date or title or somthing which need to chage in create zoom meeting
+      // if ((updateEventDto.startDatetime || updateEventDto.title) && event.eventType === 'online') {
+      //   // need to call update zoom API
+      //   const id = event.meetingDetails.id;
+      //   const newUpdateObject = {
+      //     meetingType: event.onlineProvider,
+      //     topic: updateEventDto.title || event.title,
+      //     start_time: updateEventDto.startDatetime || event.startDatetime,
+      //   }
+      //   //call if meeting is created by my account
+      //   const result = await this.meetingsService.updateMeeting(id, newUpdateObject);
+      //   if (result.status != 204) {
+      //     throw new BadRequestException('Meeting is not updating')
+      //   }
+      // }
 
       // convert public event into private event if status is draft
       if (updateEventDto.isRestricted == true && event.isRestricted == false) {
@@ -159,7 +234,7 @@ export class EventService {
             else if (updateEventDto.params.cohortIds) {
               await this.validateCohortIds(updateEventDto.params.cohortIds)
             }
-            await this.CreateAttendeedforRestrictedEvent(updateEventDto, event, userId, response)
+            await this.CreateAttendeedforRestrictedEvent(updateEventDto, event, userId)
           }
         }
         else {
@@ -185,17 +260,17 @@ export class EventService {
       if (event.status == 'draft' && updateEventDto.status == 'live' && event.isRestricted == true) {
         if (event.params && Object.keys(event.params.length > 0)) {
           if (event.params.userIds) {
-            await this.CreateAttendeedforRestrictedEvent(event, event, userId, response)
+            await this.CreateAttendeedforRestrictedEvent(event, event, userId)
           }
           else if (event.params.cohortIds) {
-            await this.CreateAttendeedforRestrictedEvent(event, event, userId, response)
+            await this.CreateAttendeedforRestrictedEvent(event, event, userId)
           }
         }
       }
       Object.assign(event, updateEventDto);
 
       //validation pipe for check start date and end date  or only start date
-      if (updateEventDto.startDatetime && updateEventDto.endDatetime || updateEventDto.startDatetime) {
+      if ((updateEventDto.startDatetime && updateEventDto.endDatetime) || updateEventDto.startDatetime) {
         new DateValidationPipe().transform(event);
       }
       //validation pipe for if user want to change only end date
@@ -206,6 +281,7 @@ export class EventService {
           throw new BadRequestException('End date should be greater than or equal to start date')
         }
       }
+
       //validation pipe for registration deadline date
       new DeadlineValidationPipe().transform(event);
       // validation pipe for empty param object
@@ -215,59 +291,43 @@ export class EventService {
       if (!updated_result) {
         throw new BadRequestException('Event update failed');
       }
-      return response
-        .status(HttpStatus.CREATED)
-        .send(APIResponse.success(apiId, { id: eventID, status: 'updated Successfully' }, 'OK'))
+      APIResponse.success(response, apiId, { id: eventId }, HttpStatus.OK, 'updated Successfully')
     }
     catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong to update the event',
-          `Failure to update event Error is: ${e}`,
-          'INTERNAL_SERVER_ERROR',
-        ))
+      const errorMessage = e.message || 'Internal server error';
+      return APIResponse.error(response, apiId, "Internal Server Error", errorMessage, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  async deleteEvent(eventID: string, response: Response) {
-    const apiId = 'api.delete.event'
+  async deleteEvent(eventId: string, response: Response) {
+    const apiId = APIID.EVENT_DELETE;
     try {
-      const event_id = await this.eventRespository.findOne({ where: { eventID } })
+      const event_id = await this.eventRespository.findOne({ where: { eventId } })
       if (!event_id) {
-        return response.status(HttpStatus.NOT_FOUND).send(
-          APIResponse.error(
-            apiId,
-            `No event id found: ${eventID}`,
-            'records not found.',
-            'NOT_FOUND',
-          ),
-        );
+        APIResponse.error(
+          response,
+          apiId,
+          `No event found for: ${eventId}`,
+          'records not found.',
+          HttpStatus.NOT_FOUND
+        )
       }
-      const deletedEvent = await this.eventRespository.delete({ eventID });
+      const deletedEvent = await this.eventRespository.delete({ eventId });
       if (deletedEvent.affected !== 1) {
         throw new BadRequestException('Event not deleted');
       }
-      return response
-        .status(HttpStatus.OK)
-        .send(
-          APIResponse.success(
-            apiId,
-            { status: `Event with ID ${eventID} deleted successfully.` },
-            'OK',
-          ),
-        );
+
+      return APIResponse.success(
+        response,
+        apiId,
+        { status: `Event with ID ${eventId} deleted successfully.` },
+        HttpStatus.OK,
+        'Deleted successfully',
+      )
     }
     catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(APIResponse.error(
-          apiId,
-          'Something went wrong to get event by id',
-          `Failure Retrieving event. Error is: ${e}`,
-          'INTERNAL_SERVER_ERROR',
-        ))
+      const errorMessage = e.message || 'Internal server error';
+      return APIResponse.error(response, apiId, "Internal Server Error", errorMessage, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -300,9 +360,9 @@ export class EventService {
     } else if (filters.endDate) {
       finalquery += whereClause ? ` AND "endDatetime" <=  TIMESTAMP '${filters.endDate}'` : ` WHERE "endDatetime" TIMESTAMP <= '${filters.endDate}'`;
     }
-    if (filters.createdBy && filters.createdBy !== "") {
-      finalquery += whereClause ? ` AND "createdBy" LIKE '%${filters.createdBy}%'` : ` WHERE "createdBy" = '${filters.createdBy}'`;
-    }
+    // if (filters.createdBy && filters.createdBy !== "") {
+    //   finalquery += whereClause ? ` AND "createdBy" LIKE '%${filters.createdBy}%'` : ` WHERE "createdBy" = '${filters.createdBy}'`;
+    // }
     return finalquery;
   }
 
@@ -332,9 +392,9 @@ export class EventService {
     }
   }
 
-  async CreateAttendeedforRestrictedEvent(createEventDto, created, userId, response) {
+  async CreateAttendeedforRestrictedEvent(createEventDto, created, userId) {
     const attendeedDto: EventAttendeesDTO = {
-      eventId: created.eventID,
+      eventId: created.eventId,
       enrolledBy: userId,
       status: 'published'
     }
@@ -351,12 +411,20 @@ export class EventService {
         userIds.push(member.userId);
       }
       if (userIds.length > 0) {
-        await this.attendeesService.createAttendees(attendeedDto, response, userId, userIds);
+        try {
+          return await this.attendeesService.saveattendessRecord(attendeedDto, userIds);
+        } catch (e) {
+          return e
+        }
       }
     }
     else if (userIds?.length > 0) {
-      await this.attendeesService.createAttendees(attendeedDto, response, userId, userIds);
+      try {
+        return await this.attendeesService.saveattendessRecord(attendeedDto, userIds);
+      } catch (e) {
+        console.error(`Failed to create event attendees: ${e.message || e}`);
+        throw e
+      }
     }
   }
-
 }

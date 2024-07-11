@@ -1,4 +1,3 @@
-// structure for server responses
 export interface ServerResponse {
     // api id
     id: string;
@@ -19,6 +18,8 @@ export interface ServerResponse {
     ver: string;
 
     headers?: any;
+
+    response: any;
 }
 
 export interface Params {
@@ -26,4 +27,5 @@ export interface Params {
     err?: any;
     status: string;
     errmsg?: any;
+    successmessage?: string;
 }

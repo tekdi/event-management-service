@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, Res, ValidationPipe, BadRequestException, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, Res, ValidationPipe, BadRequestException, ParseUUIDPipe, UseFilters } from '@nestjs/common';
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -14,12 +14,15 @@ import {
 import { Response } from 'express';
 import { SearchFilterDto } from './dto/search-event.dto';
 import { DateValidationPipe, DeadlineValidationPipe, ParamsValidationPipe } from 'src/common/pipes/event-validation.pipe';
+import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
+import { APIID } from 'src/common/utils/api-id.config';
 
 @Controller('event/v1')
 @ApiTags('Create Event')
 export class EventController {
   constructor(private readonly eventService: EventService) { }
 
+  @UseFilters(new AllExceptionsFilter(APIID.EVENT_CREATE))
   @Post('/create')
   @ApiBody({ type: CreateEventDto })
   @UsePipes(new DateValidationPipe, new DeadlineValidationPipe, new ParamsValidationPipe, new ValidationPipe({ transform: true }))
@@ -33,6 +36,7 @@ export class EventController {
     return this.eventService.createEvent(createEventDto, userId, response);
   }
 
+  @UseFilters(new AllExceptionsFilter(APIID.EVENT_LIST))
   @Post('/list')
   @ApiBody({ type: SearchFilterDto })
   @ApiInternalServerErrorResponse({ description: 'Server Error.' })
@@ -45,6 +49,7 @@ export class EventController {
     return this.eventService.getEvents(response, requestBody);
   }
 
+  @UseFilters(new AllExceptionsFilter(APIID.EVENT_GET))
   @Get('/:id')
   @ApiOkResponse({
     description: 'Get event details by id',
@@ -55,6 +60,7 @@ export class EventController {
     return this.eventService.getEventByID(id, response);
   }
 
+  @UseFilters(new AllExceptionsFilter(APIID.EVENT_UPDATE))
   @Patch('/:id')
   @ApiBody({ type: UpdateEventDto })
   @ApiResponse({ status: 200, description: 'Event updated successfully' })
@@ -68,6 +74,7 @@ export class EventController {
     return this.eventService.updateEvent(id, updateEventDto, userId, response);
   }
 
+  @UseFilters(new AllExceptionsFilter(APIID.EVENT_DELETE))
   @Delete('/:id')
   @ApiResponse({ status: 200, description: 'Event deleted successfully' })
   @ApiResponse({ status: 404, description: 'Event not found' })

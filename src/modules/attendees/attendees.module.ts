@@ -9,6 +9,12 @@ import { Events } from '../event/entities/event.entity';
 import { CohortMember } from '../event/entities/CohortMembers.entity';
 import { Cohort } from '../event/entities/Cohort.entity';
 import { Users } from '../event/entities/Users.entity';
+import { MeetingsService } from '../meetings/meetings.service';
+import { ZoomMeetingAdapter } from '../meetings/adapter/zoom.adapter';
+import { MeetingAdapterFactory } from '../meetings/meetingadapter';
+import { MeetingsModule } from '../meetings/meetings.module';
+
+
 
 @Module({
   imports: [
@@ -18,9 +24,10 @@ import { Users } from '../event/entities/Users.entity';
       CohortMember,
       Cohort,
       Users
-    ])
+    ]),
+    MeetingsModule
   ],
   controllers: [AttendeesController],
-  providers: [AttendeesService, ConfigService, EventService]
+  providers: [AttendeesService, ConfigService, EventService, MeetingsService, ZoomMeetingAdapter, MeetingAdapterFactory]
 })
 export class AttendeesModule { }

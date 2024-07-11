@@ -35,10 +35,10 @@ export class FilterDto {
     @IsString()
     title?: string;
 
-    @ApiProperty({ example: 'John Doe', description: 'Created by user' })
-    @IsOptional()
-    @IsString()
-    createdBy?: string;
+    // @ApiProperty({ example: 'John Doe', description: 'Created by user' })
+    // @IsOptional()
+    // @IsString()
+    // createdBy?: string;
 }
 
 export class SearchFilterDto {
