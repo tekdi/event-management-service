@@ -3,7 +3,8 @@ import { PipeTransform, Injectable, BadRequestException, forwardRef, Inject } fr
 import { CreateEventDto } from 'src/modules/event/dto/create-event.dto';
 import { getTimezoneCurrentDate } from '../utils/pipe.util';
 import { get } from 'http';
-
+import { ERROR_MESSAGES } from '../utils/constants.util';
+import { ValidatorConstraint, ValidatorConstraintInterface, ValidationArguments } from 'class-validator';
 @Injectable()
 export class DateValidationPipe implements PipeTransform {
   // constructor(@Inject(forwardRef(() => ConfigService)) private configService: ConfigService) { 
@@ -49,34 +50,34 @@ export class RegistrationDateValidationPipe implements PipeTransform {
     // Ensure registration dates are not in the past
     if (registrationStartDate < currentDate) {
       throw new BadRequestException(
-        'Registration start date must not be in the past',
+        ERROR_MESSAGES.REGISTRATION_START_DATE_INVALID,
       );
     }
 
     if (registrationEndDate < currentDate) {
       throw new BadRequestException(
-        'Registration end date must not be in the past',
+        ERROR_MESSAGES.REGISTRATION_END_DATE_INVALID,
       );
     }
 
     // Validate registration dates
     if (registrationStartDate > registrationEndDate) {
       throw new BadRequestException(
-        'Registration start date must be before registration end date',
+        ERROR_MESSAGES.REGISTRATION_START_DATE_BEFORE_END_DATE,
       );
     }
 
     // Registration period must fall between the event period
-    console.log(registrationStartDate,"rrrrr", startDate, registrationStartDate > startDate ,registrationStartDate < startDate)
+    console.log(registrationStartDate, "rrrrr", startDate, registrationStartDate > startDate, registrationStartDate < startDate)
     if (registrationStartDate > startDate) {
       throw new BadRequestException(
-        'Registration start date must be before the event start date',
+        ERROR_MESSAGES.REGISTRATION_START_DATE_BEFORE_EVENT_DATE,
       );
     }
 
     if (registrationEndDate > startDate) {
       throw new BadRequestException(
-        'Registration end date must be on or before the event start date',
+        ERROR_MESSAGES.REGISTRATION_END_DATE_BEFORE_EVENT_DATE,
       );
     }
 
@@ -91,15 +92,15 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
       const recurrenceEndDate = new Date(createEventDto.recurrenceEndDate);
       const startDate = new Date(createEventDto.startDatetime);
 
-      if (recurrenceEndDate < startDate) {
+      if (recurrenceEndDate < currentDate) {
         throw new BadRequestException(
-          'Recurrence end date must be after the event start date',
+          ERROR_MESSAGES.RECURRENCE_END_DATE_INVALID,
         );
       }
 
-      if(recurrenceEndDate < currentDate){
+      if (recurrenceEndDate < startDate) {
         throw new BadRequestException(
-          'Recurrence end date must be in the future',
+          ERROR_MESSAGES.RECURRENCE_END_DATE_BEFORE_EVENT_DATE,
         );
       }
     }
@@ -148,5 +149,16 @@ export class ParamsValidationPipe implements PipeTransform {
         throw new BadRequestException(`Invalid UUID format: ${id}`);
       }
     }
+  }
+}
+
+@ValidatorConstraint({ name: 'endsWithZ', async: false })
+export class EndsWithZConstraint implements ValidatorConstraintInterface {
+  validate(text: string, args: ValidationArguments) {
+    return typeof text === 'string' && text.endsWith('Z');
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return '($value) must end with "Z"';
   }
 }

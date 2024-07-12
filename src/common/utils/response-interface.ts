@@ -23,7 +23,7 @@ export interface ServerResponse {
 
 export interface Params {
     resmsgid: string;
-    err?: any;
+    error?: string;
     status: string;
-    errmsg?: any;
+    errmsg?: string;
 }

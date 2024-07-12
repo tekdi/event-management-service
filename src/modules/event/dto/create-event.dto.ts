@@ -8,16 +8,18 @@ import {
   IsUUID,
   Max,
   Min,
-  IsJSON,
   IsLatitude,
   IsLongitude,
   IsDateString,
   IsObject,
   ValidateIf,
   ValidateNested,
+  Validate
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { EventTypes } from 'src/common/utils/types';
+import { EndsWithZConstraint } from 'src/common/pipes/event-validation.pipe';
 
 export class MeetingDetailsDto {
   @ApiProperty({ description: 'Meeting ID', example: 94292617 })
@@ -35,6 +37,11 @@ export class MeetingDetailsDto {
   @IsNotEmpty()
   password: string;
 }
+
+/**
+  * All Datetime properties
+  * should be in ISO 8601 format (e.g., '2024-03-18T10:00:00Z').
+*/
 
 export class CreateEventDto {
   // @IsUUID()
@@ -68,11 +75,11 @@ export class CreateEventDto {
   description: string;
 
   @ApiProperty({
-    type: String,
+    enum: EventTypes,
     description: 'Event Type',
     example: 'online',
   })
-  @IsEnum(['online', 'offline'], {
+  @IsEnum(EventTypes, {
     message: 'Event Type must be one of: online, offline',
   })
   @IsString()
@@ -92,7 +99,8 @@ export class CreateEventDto {
     description: 'Start Datetime',
     example: '2024-03-18T10:00:00Z',
   })
-  @IsDateString()
+  @Validate(EndsWithZConstraint)
+  @IsDateString({ strict: true, strictSeparator: true })
   startDatetime: Date;
 
   @ApiProperty({
@@ -100,7 +108,8 @@ export class CreateEventDto {
     description: 'End Datetime',
     example: '2024-03-18T10:00:00Z',
   })
-  @IsDateString()
+  @Validate(EndsWithZConstraint)
+  @IsDateString({ strict: true, strictSeparator: true })
   endDatetime: Date;
 
   @ApiProperty({
@@ -108,7 +117,7 @@ export class CreateEventDto {
     description: 'Location',
     example: 'Event Location',
   })
-  @ValidateIf(o => o.eventType === 'offline')
+  @ValidateIf(o => o.eventType === EventTypes.offline)
   @IsString()
   @IsNotEmpty()
   location: string;
@@ -118,7 +127,7 @@ export class CreateEventDto {
     description: 'Latitude',
     example: 18.508345134886994,
   })
-  @ValidateIf(o => o.eventType === 'offline')
+  @ValidateIf(o => o.eventType === EventTypes.offline)
   @IsLongitude()
   @IsOptional()
   longitude: number;
@@ -128,7 +137,7 @@ export class CreateEventDto {
     description: 'Latitude',
     example: 18.508345134886994,
   })
-  @ValidateIf(o => o.eventType === 'offline')
+  @ValidateIf(o => o.eventType === EventTypes.offline)
   @IsLatitude()
   @IsOptional()
   latitude: number;
@@ -138,7 +147,7 @@ export class CreateEventDto {
     description: 'Online Provider',
     example: 'Zoom',
   })
-  @ValidateIf((o) => o.eventType === 'online')
+  @ValidateIf((o) => o.eventType === EventTypes.online)
   @IsString()
   @IsNotEmpty()
   onlineProvider: string;
@@ -148,7 +157,7 @@ export class CreateEventDto {
     description: 'isMeetingNew',
     example: false,
   })
-  @ValidateIf((o) => o.eventType === 'online')
+  @ValidateIf((o) => o.eventType === EventTypes.online)
   @IsNotEmpty()
   isMeetingNew: boolean;
 
@@ -240,7 +249,8 @@ export class CreateEventDto {
     description: 'registrationStartDate',
     example: '2024-03-18T10:00:00Z',
   })
-  @IsDateString()
+  @Validate(EndsWithZConstraint)
+  @IsDateString({ strict: true, strictSeparator: true })
   registrationStartDate: Date;
 
   @ApiProperty({
@@ -248,7 +258,8 @@ export class CreateEventDto {
     description: 'registrationEndDate',
     example: '2024-03-18T10:00:00Z',
   })
-  @IsDateString()
+  @Validate(EndsWithZConstraint)
+  @IsDateString({ strict: true, strictSeparator: true })
   registrationEndDate: Date;
 
   @ApiProperty({
@@ -264,7 +275,8 @@ export class CreateEventDto {
     description: 'recurrenceEndDate',
     example: '2024-03-18T10:00:00Z',
   })
-  @IsDateString()
+  @Validate(EndsWithZConstraint)
+  @IsDateString({ strict: true, strictSeparator: true })
   @ValidateIf((o) => o.isRecurring === true)
   recurrenceEndDate: Date;
 

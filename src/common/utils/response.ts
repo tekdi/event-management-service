@@ -11,7 +11,7 @@ export default class APIResponse {
             const params: Params = {
                 resmsgid: v4(),
                 status: 'successful',
-                err: null,
+                error: null,
                 errmsg: null,
             };
 
@@ -39,8 +39,8 @@ export default class APIResponse {
             const params: Params = {
                 resmsgid: v4(),
                 status: 'failed',
-                err: error,
                 errmsg: errmsg,
+                error,
             };
 
             const resObj: ServerResponse = {
@@ -49,7 +49,7 @@ export default class APIResponse {
                 ts: new Date().toISOString(),
                 params,
                 responseCode: statusCode,
-                result: { success: false },
+                result: {},
             };
             return resObj;
         } catch (e) {
