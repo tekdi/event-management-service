@@ -1,26 +1,44 @@
 import { ConfigService } from '@nestjs/config';
-import { PipeTransform, Injectable, BadRequestException, forwardRef, Inject } from '@nestjs/common';
+import {
+  PipeTransform,
+  Injectable,
+  BadRequestException,
+  forwardRef,
+  Inject,
+} from '@nestjs/common';
 import { CreateEventDto } from 'src/modules/event/dto/create-event.dto';
-import { getTimezoneCurrentDate } from '../utils/pipe.util';
+import { getTimezoneDate } from '../utils/pipe.util';
 import { get } from 'http';
 import { ERROR_MESSAGES } from '../utils/constants.util';
-import { ValidatorConstraint, ValidatorConstraintInterface, ValidationArguments } from 'class-validator';
+import {
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments,
+} from 'class-validator';
 @Injectable()
 export class DateValidationPipe implements PipeTransform {
-  // constructor(@Inject(forwardRef(() => ConfigService)) private configService: ConfigService) { 
+  // constructor(@Inject(forwardRef(() => ConfigService)) private configService: ConfigService) {
 
   // }
 
   transform(createEventDto: CreateEventDto) {
     const timeZone = 'Asia/Kolkata';
-    const startDate = new Date(createEventDto.startDatetime);
-    const endDate = new Date(createEventDto.endDatetime);
-    const currentDate = getTimezoneCurrentDate(timeZone) // Current date
+    const startDate = getTimezoneDate(
+      timeZone,
+      new Date(createEventDto.startDatetime),
+    );
+    const endDate = getTimezoneDate(
+      timeZone,
+      new Date(createEventDto.endDatetime),
+    );
+    const currentDate = getTimezoneDate(timeZone); // Current date
     //  this.configService.get<string>('TIMEZONE'); // Get the timezone from the config service
 
     console.log('currentDate', currentDate);
     console.log('startDate', startDate);
     console.log('endDate', endDate);
+
+    console.log(startDate <= currentDate, 'startDate <= currentDate');
 
     if (startDate <= currentDate) {
       throw new BadRequestException(
@@ -39,43 +57,80 @@ export class DateValidationPipe implements PipeTransform {
 @Injectable()
 export class RegistrationDateValidationPipe implements PipeTransform {
   transform(createEventDto: CreateEventDto) {
-    const currentDate = getTimezoneCurrentDate('Asia/Kolkata');
-    const startDate = new Date(createEventDto.startDatetime);
-    const endDate = new Date(createEventDto.endDatetime);
-    const registrationStartDate = new Date(
-      createEventDto.registrationStartDate,
+    const timeZone = 'Asia/Kolkata';
+    const currentDate = getTimezoneDate(timeZone);
+    const startDate = getTimezoneDate(
+      timeZone,
+      new Date(createEventDto.startDatetime),
     );
-    const registrationEndDate = new Date(createEventDto.registrationEndDate);
+    const endDate = getTimezoneDate(
+      timeZone,
+      new Date(createEventDto.endDatetime),
+    );
+    const registrationStartDate = createEventDto.registrationEndDate
+      ? getTimezoneDate(
+        timeZone,
+        new Date(createEventDto.registrationStartDate),
+      )
+      : null;
+    const isRestricted = createEventDto.isRestricted;
+    const registrationEndDate = createEventDto.registrationEndDate
+      ? getTimezoneDate(timeZone, new Date(createEventDto.registrationEndDate))
+      : null;
+
+    console.log(
+      registrationStartDate,
+      'rrrrr',
+      startDate,
+      registrationStartDate > startDate,
+      registrationStartDate < startDate,
+    );
+    console.log(
+      createEventDto.isRestricted && registrationStartDate,
+      'createEventDto.isRestricted && registrationStartDate ',
+    );
+    console.log(
+      createEventDto.isRestricted && registrationEndDate,
+      'createEventDto.isRestricted && registrationEndDate',
+    );
+    if (
+      (createEventDto.isRestricted && registrationStartDate) ||
+      (createEventDto.isRestricted && registrationEndDate)
+    ) {
+      console.log('');
+      throw new BadRequestException(
+        ERROR_MESSAGES.RESTRICTED_EVENT_NO_REGISTRATION_DATE,
+      );
+    }
 
     // Ensure registration dates are not in the past
-    if (registrationStartDate < currentDate) {
+    if (registrationStartDate < currentDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_START_DATE_INVALID,
       );
     }
 
-    if (registrationEndDate < currentDate) {
+    if (registrationEndDate < currentDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_END_DATE_INVALID,
       );
     }
 
     // Validate registration dates
-    if (registrationStartDate > registrationEndDate) {
+    if (registrationStartDate > registrationEndDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_START_DATE_BEFORE_END_DATE,
       );
     }
 
     // Registration period must fall between the event period
-    console.log(registrationStartDate, "rrrrr", startDate, registrationStartDate > startDate, registrationStartDate < startDate)
-    if (registrationStartDate > startDate) {
+    if (registrationStartDate > startDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_START_DATE_BEFORE_EVENT_DATE,
       );
     }
 
-    if (registrationEndDate > startDate) {
+    if (registrationEndDate > startDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_END_DATE_BEFORE_EVENT_DATE,
       );
@@ -87,7 +142,7 @@ export class RegistrationDateValidationPipe implements PipeTransform {
 
 export class RecurringEndDateValidationPipe implements PipeTransform {
   transform(createEventDto: CreateEventDto) {
-    const currentDate = getTimezoneCurrentDate('Asia/Kolkata');
+    const currentDate = getTimezoneDate('Asia/Kolkata');
     if (createEventDto.isRecurring) {
       const recurrenceEndDate = new Date(createEventDto.recurrenceEndDate);
       const startDate = new Date(createEventDto.startDatetime);
@@ -149,16 +204,5 @@ export class ParamsValidationPipe implements PipeTransform {
         throw new BadRequestException(`Invalid UUID format: ${id}`);
       }
     }
-  }
-}
-
-@ValidatorConstraint({ name: 'endsWithZ', async: false })
-export class EndsWithZConstraint implements ValidatorConstraintInterface {
-  validate(text: string, args: ValidationArguments) {
-    return typeof text === 'string' && text.endsWith('Z');
-  }
-
-  defaultMessage(args: ValidationArguments) {
-    return '($value) must end with "Z"';
   }
 }

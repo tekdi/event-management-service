@@ -1,29 +1,29 @@
 // structure for server responses
 export interface ServerResponse {
-    // api id
-    id: string;
+  // api id
+  id: string;
 
-    // response param
-    params: Params;
+  // response param
+  params: Params;
 
-    // response code
-    responseCode: string;
+  // response code
+  responseCode: string;
 
-    //server result
-    result: any;
+  //server result
+  result: any;
 
-    // time stamp
-    ts: string;
+  // time stamp
+  ts: string;
 
-    // api version
-    ver: string;
+  // api version
+  ver: string;
 
-    headers?: any;
+  headers?: any;
 }
 
 export interface Params {
-    resmsgid: string;
-    error?: string;
-    status: string;
-    errmsg?: string;
+  resmsgid: string;
+  error?: string;
+  status: string;
+  errmsg?: string;
 }
