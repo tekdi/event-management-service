@@ -6,24 +6,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 // import { AxiosRequest } from 'src/common/middleware/axios.middleware';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Events } from './entities/event.entity';
+import { EventDetail } from './entities/eventDetail.entity';
 import { AttendeesService } from '../attendees/attendees.service';
 import { EventAttendees } from '../attendees/entity/attendees.entity';
-import { CohortMember } from './entities/CohortMembers.entity';
-import { Cohort } from './entities/Cohort.entity';
-import { Users } from './entities/Users.entity';
-
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Events,
-      CohortMember,
-      EventAttendees,
-      Cohort,
-      Users
-    ])
-  ],
+  imports: [TypeOrmModule.forFeature([Events, EventAttendees, EventDetail])],
   controllers: [EventController],
   providers: [EventService, ConfigService, AttendeesService],
 })
-export class EventModule { }
+export class EventModule {}

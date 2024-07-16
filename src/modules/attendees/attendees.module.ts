@@ -6,18 +6,14 @@ import { ConfigService } from '@nestjs/config';
 import { EventAttendees } from './entity/attendees.entity';
 import { EventService } from '../event/event.service';
 import { Events } from '../event/entities/event.entity';
-import { CohortMember } from '../event/entities/CohortMembers.entity';
-import { Cohort } from '../event/entities/Cohort.entity';
-import { Users } from '../event/entities/Users.entity';
+import { EventDetail } from '../event/entities/eventDetail.entity';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
       EventAttendees,
       Events,
-      CohortMember,
-      Cohort,
-      Users
+      EventDetail
     ])
   ],
   controllers: [AttendeesController],
