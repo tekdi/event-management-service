@@ -6,7 +6,7 @@ export enum EventTypes {
 export enum EventStatus {
   active = 'active',
   inactive = 'inactive',
-  completed = 'completed',
+  archived = 'archived',
 }
 
 export type MeetingDetails = {
