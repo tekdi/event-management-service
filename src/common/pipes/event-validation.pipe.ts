@@ -1,28 +1,15 @@
 import { ConfigService } from '@nestjs/config';
-import {
-  PipeTransform,
-  Injectable,
-  BadRequestException,
-  forwardRef,
-  Inject,
-} from '@nestjs/common';
+import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 import { CreateEventDto } from 'src/modules/event/dto/create-event.dto';
 import { getTimezoneDate } from '../utils/pipe.util';
-import { get } from 'http';
 import { ERROR_MESSAGES } from '../utils/constants.util';
-import {
-  ValidatorConstraint,
-  ValidatorConstraintInterface,
-  ValidationArguments,
-} from 'class-validator';
+
 @Injectable()
 export class DateValidationPipe implements PipeTransform {
-  // constructor(@Inject(forwardRef(() => ConfigService)) private configService: ConfigService) {
-
-  // }
+  constructor(private configService: ConfigService) {}
 
   transform(createEventDto: CreateEventDto) {
-    const timeZone = 'Asia/Kolkata';
+    const timeZone = this.configService.get<string>('TIMEZONE');
     const startDate = getTimezoneDate(
       timeZone,
       new Date(createEventDto.startDatetime),
@@ -31,14 +18,7 @@ export class DateValidationPipe implements PipeTransform {
       timeZone,
       new Date(createEventDto.endDatetime),
     );
-    const currentDate = getTimezoneDate(timeZone); // Current date
-    //  this.configService.get<string>('TIMEZONE'); // Get the timezone from the config service
-
-    console.log('currentDate', currentDate);
-    console.log('startDate', startDate);
-    console.log('endDate', endDate);
-
-    console.log(startDate <= currentDate, 'startDate <= currentDate');
+    const currentDate = getTimezoneDate(timeZone); // Current date in the specified timezone
 
     if (startDate <= currentDate) {
       throw new BadRequestException(
@@ -56,8 +36,10 @@ export class DateValidationPipe implements PipeTransform {
 
 @Injectable()
 export class RegistrationDateValidationPipe implements PipeTransform {
+  constructor(private configService: ConfigService) {}
+
   transform(createEventDto: CreateEventDto) {
-    const timeZone = 'Asia/Kolkata';
+    const timeZone = this.configService.get<string>('TIMEZONE');
     const currentDate = getTimezoneDate(timeZone);
     const startDate = getTimezoneDate(
       timeZone,
@@ -69,35 +51,21 @@ export class RegistrationDateValidationPipe implements PipeTransform {
     );
     const registrationStartDate = createEventDto.registrationEndDate
       ? getTimezoneDate(
-        timeZone,
-        new Date(createEventDto.registrationStartDate),
-      )
+          timeZone,
+          new Date(createEventDto.registrationStartDate),
+        )
       : null;
     const isRestricted = createEventDto.isRestricted;
     const registrationEndDate = createEventDto.registrationEndDate
       ? getTimezoneDate(timeZone, new Date(createEventDto.registrationEndDate))
       : null;
 
-    console.log(
-      registrationStartDate,
-      'rrrrr',
-      startDate,
-      registrationStartDate > startDate,
-      registrationStartDate < startDate,
-    );
-    console.log(
-      createEventDto.isRestricted && registrationStartDate,
-      'createEventDto.isRestricted && registrationStartDate ',
-    );
-    console.log(
-      createEventDto.isRestricted && registrationEndDate,
-      'createEventDto.isRestricted && registrationEndDate',
-    );
+    // Ensure registration dates are not provided for restricted events
+
     if (
       (createEventDto.isRestricted && registrationStartDate) ||
       (createEventDto.isRestricted && registrationEndDate)
     ) {
-      console.log('');
       throw new BadRequestException(
         ERROR_MESSAGES.RESTRICTED_EVENT_NO_REGISTRATION_DATE,
       );
@@ -141,12 +109,14 @@ export class RegistrationDateValidationPipe implements PipeTransform {
 }
 
 export class RecurringEndDateValidationPipe implements PipeTransform {
+  constructor(private configService: ConfigService) {}
+
   transform(createEventDto: CreateEventDto) {
-    const currentDate = getTimezoneDate('Asia/Kolkata');
+    const timeZone = this.configService.get<string>('TIMEZONE');
     if (createEventDto.isRecurring) {
       const recurrenceEndDate = new Date(createEventDto.recurrenceEndDate);
       const startDate = new Date(createEventDto.startDatetime);
-
+      const currentDate = getTimezoneDate(timeZone);
       if (recurrenceEndDate < currentDate) {
         throw new BadRequestException(
           ERROR_MESSAGES.RECURRENCE_END_DATE_INVALID,

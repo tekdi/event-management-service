@@ -1,78 +1,83 @@
-import { EventAttendees } from 'src/modules/attendees/entity/attendees.entity';
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  OneToMany,
+  OneToOne,
+} from 'typeorm';
+import { EventDetail } from './eventDetail.entity';
+import { EventRepetition } from './eventRepetition.entity';
+import { TimeZoneTransformer } from '../../../common/utils/transformer/date.transformer';
+import { ConfigService } from '@nestjs/config';
 @Entity('Events')
 export class Events {
-    @PrimaryGeneratedColumn('uuid')
-    eventID: string;
+  @PrimaryGeneratedColumn('uuid')
+  eventId: string;
 
-    @Column({ nullable: false })
-    title: string;
+  @Column({ type: 'boolean', default: false })
+  isRecurring: boolean;
 
-    @Column({ nullable: false })
-    shortDescription: string;
+  @Column({
+    type: 'timestamptz',
+    transformer: new TimeZoneTransformer(new ConfigService()),
+  })
+  recurrenceEndDate: Date;
 
-    @Column({ nullable: false })
-    description: string;
+  @Column({ type: 'jsonb' })
+  recurrencePattern: object;
 
-    @Column({ nullable: false })
-    image: string;
+  @CreateDateColumn({
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+    transformer: new TimeZoneTransformer(new ConfigService()),
+  })
+  createdAt: Date;
 
-    @Column({ nullable: false })
-    eventType: string;
+  @UpdateDateColumn({
+    type: 'timestamptz',
+    default: () => 'CURRENT_TIMESTAMP',
+    transformer: new TimeZoneTransformer(new ConfigService()),
+  })
+  updatedAt: Date;
 
-    @Column({ nullable: false, default: false })
-    isRestricted: boolean;
+  @Column({ type: 'boolean', default: false })
+  autoEnroll: boolean;
 
-    @Column({ default: false })
-    autoEnroll: boolean;
+  @Column({
+    type: 'timestamptz',
+    nullable: true,
+    transformer: new TimeZoneTransformer(new ConfigService()),
+  })
+  registrationStartDate: Date;
 
-    @Column({ nullable: false, type: 'timestamp' })
-    startDatetime: Date;
+  @Column({
+    type: 'timestamptz',
+    nullable: true,
+    transformer: new TimeZoneTransformer(new ConfigService()),
+  })
+  registrationEndDate: Date;
 
-    @Column({ nullable: false, type: 'timestamp' })
-    endDatetime: Date;
+  @Column({ type: 'uuid', nullable: true })
+  createdBy: string;
 
-    @Column({ nullable: false })
-    location: string;
+  @Column({ type: 'uuid', nullable: true })
+  updatedBy: string;
 
-    @Column({ nullable: false, type: 'double precision' })
-    longitude: number;
+  @Column({ type: 'uuid' })
+  eventDetailId: string;
 
-    @Column({ nullable: false, type: 'double precision' })
-    latitude: number;
+  // OR onetomany
+  @OneToOne(() => EventDetail, (eventDetail) => eventDetail.events, {
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  })
+  @JoinColumn({ name: 'eventDetailId' })
+  eventDetail: EventDetail;
 
-    @Column({ nullable: false })
-    onlineProvider: string;
-
-    @Column({ nullable: false, type: 'timestamp' })
-    registrationDeadline: Date;
-
-    @Column({ nullable: false, default: 0 })
-    maxAttendees: number;
-
-    @Column({ nullable: false, type: 'json' })
-    params: any;
-
-    @Column({ nullable: false, type: 'json' })
-    recordings: any;
-
-    @Column({ nullable: false })
-    status: string;
-
-    @Column({ nullable: false })
-    createdBy: string;
-
-    @Column({ nullable: false })
-    updatedBy: string;
-
-
-    @CreateDateColumn({ type: 'timestamp' })
-    createdAt: Date;
-
-    @UpdateDateColumn({ type: 'timestamp' })
-    updatedAt: Date;
-
-    @OneToMany(() => EventAttendees, eventAttendees => eventAttendees.event, { cascade: true })
-    eventAttendees: EventAttendees[];
-
+  // @OneToMany(() => EventRepetition, (eventRepetition) => eventRepetition.event)
+  // eventRepetitions: EventRepetition[];
 }

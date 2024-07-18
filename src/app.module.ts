@@ -16,4 +16,4 @@ import { AttendeesModule } from './modules/attendees/attendees.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}
