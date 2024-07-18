@@ -70,7 +70,6 @@ export class Events {
   @Column({ type: 'uuid' })
   eventDetailId: string;
 
-  // OR onetomany
   @OneToOne(() => EventDetail, (eventDetail) => eventDetail.events, {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
@@ -78,6 +77,6 @@ export class Events {
   @JoinColumn({ name: 'eventDetailId' })
   eventDetail: EventDetail;
 
-  // @OneToMany(() => EventRepetition, (eventRepetition) => eventRepetition.event)
-  // eventRepetitions: EventRepetition[];
+  @OneToMany(() => EventRepetition, (eventRepetition) => eventRepetition.event)
+  eventRepetitions: EventRepetition[];
 }

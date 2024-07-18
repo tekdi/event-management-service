@@ -106,7 +106,9 @@ export class EventService {
     eventDetail.maxAttendees = createEventDto.maxAttendees;
     eventDetail.recordings = createEventDto.recordings;
     eventDetail.status = createEventDto.status;
-    eventDetail.params = { attendees: createEventDto.attendees };
+    eventDetail.attendees = createEventDto.attendees.length
+      ? createEventDto.attendees
+      : null;
     eventDetail.meetingDetails = createEventDto.meetingDetails;
     eventDetail.idealTime = createEventDto.idealTime;
     eventDetail.metadata = createEventDto.metaData;

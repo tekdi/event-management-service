@@ -42,17 +42,17 @@ export class EventRepetition {
   })
   endDateTime: Date;
 
-  // @ManyToOne(() => Events, (event) => event.eventRepetitions, {
-  //   onDelete: 'CASCADE',
-  //   onUpdate: 'CASCADE',
-  // })
-  // @JoinColumn({ name: 'eventId' })
-  // event: Event;
+  @ManyToOne(() => Events, (event) => event.eventRepetitions, {
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  })
+  @JoinColumn({ name: 'eventId' })
+  event: Event;
 
-  // @ManyToOne(() => EventDetail, (eventDetail) => eventDetail.eventRepetitions, {
-  //   onDelete: 'CASCADE',
-  //   onUpdate: 'CASCADE',
-  // })
-  // @JoinColumn({ name: 'eventDetailId' })
-  // eventDetail: EventDetail;
+  @ManyToOne(() => EventDetail, (eventDetail) => eventDetail.eventRepetitions, {
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  })
+  @JoinColumn({ name: 'eventDetailId' })
+  eventDetail: EventDetail;
 }
