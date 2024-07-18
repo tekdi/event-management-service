@@ -24,8 +24,8 @@ export const ERROR_MESSAGES = {
     'Registration Start Date required for event',
   RESTRICTED_EVENT_NO_REGISTRATION_DATE:
     'Cannot have registration date for restricted event',
-  INVITEES_REQUIRED: 'Invitees required for private event',
-  INVITEES_NOT_REQUIRED: 'Invitees not required for public event',
+  ATTENDEES_REQUIRED: 'Attendees required for private event',
+  ATTENDEES_NOT_REQUIRED: 'Attendees not required for public event',
   EVENT_NOT_FOUND: 'Event not found',
   EVENT_ATTENDEE_NOT_FOUND: 'Event attendee not found',
   EVENT_ATTENDEE_HISTORY_NOT_FOUND: 'Event attendee history not found',

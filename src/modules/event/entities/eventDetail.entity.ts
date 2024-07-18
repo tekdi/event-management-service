@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  OneToOne,
 } from 'typeorm';
 import { Events } from './event.entity';
 import { EventRepetition } from './eventRepetition.entity';
@@ -52,8 +53,8 @@ export class EventDetail {
   @Column({ type: 'text' })
   description: string;
 
-  @Column({ type: 'jsonb' })
-  params: object;
+  @Column('text', { array: true })
+  attendees: string[];
 
   @CreateDateColumn({
     type: 'timestamptz',
@@ -84,12 +85,12 @@ export class EventDetail {
   @Column({ type: 'jsonb', nullable: true })
   metadata: object;
 
-  @OneToMany(() => Events, (event) => event.eventDetail)
+  @OneToOne(() => Events, (event) => event.eventDetail)
   events: Event[];
 
-  // @OneToMany(
-  //   () => EventRepetition,
-  //   (eventRepetition) => eventRepetition.eventDetail,
-  // )
-  // eventRepetitions: EventRepetition[];
+  @OneToMany(
+    () => EventRepetition,
+    (eventRepetition) => eventRepetition.eventDetail,
+  )
+  eventRepetitions: EventRepetition[];
 }

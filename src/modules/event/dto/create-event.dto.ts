@@ -14,11 +14,14 @@ import {
   IsObject,
   ValidateIf,
   ValidateNested,
-  Validate,
+  IsArray,
+  IsDefined,
+  ArrayMinSize,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { EventTypes } from 'src/common/utils/types';
+import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 
 export class MeetingDetailsDto {
   @ApiProperty({ description: 'Meeting ID', example: 94292617 })
@@ -188,13 +191,21 @@ export class CreateEventDto {
 
   @ApiProperty({
     type: Object,
-    description: 'Params',
-    // example: { cohortIds: ['eff008a8-2573-466d-b877-fddf6a4fc13e', 'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9'] },
-    // example: { userIds: ['eff008a8-2573-466d-b877-fddf6a4fc13e', 'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9'] },
-    example: { invitees: ['e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9'] },
+    description: 'Attendees',
+    example: {
+      attendees: [
+        'eff008a8-2573-466d-b877-fddf6a4fc13e',
+        'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9',
+      ],
+    },
   })
-  @IsObject()
-  params: any; // direct userIds
+  @ValidateIf((o) => o.isRestricted === true)
+  @IsDefined({ message: ERROR_MESSAGES.ATTENDEES_REQUIRED })
+  @IsArray()
+  @Type(() => String)
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  attendees: string[];
 
   @ApiProperty({
     type: Object,

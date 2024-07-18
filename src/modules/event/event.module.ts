@@ -9,9 +9,17 @@ import { Events } from './entities/event.entity';
 import { EventDetail } from './entities/eventDetail.entity';
 import { AttendeesService } from '../attendees/attendees.service';
 import { EventAttendees } from '../attendees/entity/attendees.entity';
+import { EventRepetition } from './entities/eventRepetition.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Events, EventAttendees, EventDetail])],
+  imports: [
+    TypeOrmModule.forFeature([
+      Events,
+      EventAttendees,
+      EventDetail,
+      EventRepetition,
+    ]),
+  ],
   controllers: [EventController],
   providers: [EventService, ConfigService, AttendeesService],
 })
