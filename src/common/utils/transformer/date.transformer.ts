@@ -22,4 +22,3 @@ export class TimeZoneTransformer implements ValueTransformer {
     );
   }
 }
-

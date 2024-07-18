@@ -135,44 +135,17 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
 }
 
 @Injectable()
-export class ParamsValidationPipe implements PipeTransform {
+export class AttendeesValidationPipe implements PipeTransform {
   transform(createEventDto: CreateEventDto) {
-    if (createEventDto.isRestricted) {
-      const params = createEventDto.params;
-      if (!params || typeof params !== 'object') {
-        throw new BadRequestException('Invalid params object');
+    const attendees = createEventDto?.attendees;
+    console.log('attendees', attendees);
+
+    if (!createEventDto.isRestricted) {
+      if (attendees && attendees.length) {
+        throw new BadRequestException(ERROR_MESSAGES.ATTENDEES_NOT_REQUIRED);
       }
-
-      // if (!params.cohortIds && !params.userIds) {
-      //   throw new BadRequestException(
-      //     'Either cohortIds or userIds must be provided in params',
-      //   );
-      // }
-
-      // if (params.cohortIds && params.userIds) {
-      //   throw new BadRequestException(
-      //     'Only one of cohortIds or userIds should be provided in params',
-      //   );
-      // }
-
-      // if (params.cohortIds) {
-      //   this.validateUUIDs(params.cohortIds);
-      // } else if (params.userIds) {
-      //   this.validateUUIDs(params.userIds);
-      // }
-    } else if (!createEventDto.isRestricted) {
-      createEventDto.params = {};
     }
 
     return createEventDto;
-  }
-
-  private validateUUIDs(ids: string[]) {
-    const uuidRegex = /^[a-f\d]{8}(-[a-f\d]{4}){3}-[a-f\d]{12}$/i; // UUID regex pattern
-    for (const id of ids) {
-      if (!uuidRegex.test(id)) {
-        throw new BadRequestException(`Invalid UUID format: ${id}`);
-      }
-    }
   }
 }
