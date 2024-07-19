@@ -47,7 +47,7 @@ export class EventRepetition {
     onUpdate: 'CASCADE',
   })
   @JoinColumn({ name: 'eventId' })
-  event: Event;
+  event: Events;
 
   @ManyToOne(() => EventDetail, (eventDetail) => eventDetail.eventRepetitions, {
     onDelete: 'CASCADE',

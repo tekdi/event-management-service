@@ -6,7 +6,6 @@ import {
   IsEnum,
   IsString,
   IsUUID,
-  Max,
   Min,
   IsLatitude,
   IsLongitude,
@@ -20,7 +19,12 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { EventTypes } from 'src/common/utils/types';
+import {
+  EventTypes,
+  Frequency,
+  MeetingDetails,
+  RecurrencePattern,
+} from 'src/common/utils/types';
 import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 
 export class MeetingDetailsDto {
@@ -41,6 +45,62 @@ export class MeetingDetailsDto {
   @IsString()
   @IsNotEmpty()
   password: string;
+}
+
+export class RecurrencePatternDto {
+  @ApiProperty({
+    enum: Frequency,
+    description: 'Frequency',
+    example: 'daily',
+  })
+  @IsEnum(Frequency, {
+    message: 'Frequency must be one of: daily, weekly, monthly, yearly',
+  })
+  @IsString()
+  @IsNotEmpty()
+  frequency: string;
+
+  @ApiProperty({
+    type: Number,
+    description: 'Interval',
+    example: 1,
+    default: 1,
+  })
+  @IsInt()
+  @Min(1)
+  interval: number;
+
+  @ApiProperty({
+    type: [String],
+    description: 'Days of Week',
+    example: ['Sunday', 'Monday'],
+  })
+  @IsArray()
+  @IsOptional()
+  daysOfWeek: string[];
+
+  @ApiProperty({
+    type: Number,
+    description: 'Day of Month',
+    example: 1,
+  })
+  @IsInt()
+  @IsOptional()
+  dayOfMonth: number;
+
+  @ApiProperty({
+    type: Object,
+    description: 'End Condition',
+    example: {
+      type: 'endDate',
+      value: '2024-03-18T10:00:00',
+    },
+  })
+  @IsObject()
+  endCondition: {
+    type: 'endDate' | 'occurrences';
+    value: string | number;
+  };
 }
 
 /**
@@ -178,7 +238,8 @@ export class CreateEventDto {
   @ValidateIf((o) => o.eventType === 'online')
   @ValidateNested({ each: true })
   @Type(() => MeetingDetailsDto)
-  meetingDetails: any;
+  meetingDetails: MeetingDetails;
+  // meet offline validation
 
   @ApiProperty({
     type: Number,
@@ -220,8 +281,9 @@ export class CreateEventDto {
     description: 'Status',
     example: 'live',
   })
-  @IsEnum(['live', 'draft', 'inActive'], {
-    message: 'Status must be one of: live, draft, inActive',
+  @IsEnum(['live'], {
+    //, 'draft', 'inActive'], {
+    // message: 'Status must be one of: live, draft, inActive',
   })
   @IsString()
   @IsNotEmpty()
@@ -284,22 +346,13 @@ export class CreateEventDto {
   isRecurring: boolean;
 
   @ApiProperty({
-    type: String,
-    description: 'recurrenceEndDate',
-    example: '2024-03-18T10:00:00',
-  })
-  @IsDateString({ strict: true, strictSeparator: true })
-  @ValidateIf((o) => o.isRecurring === true)
-  recurrenceEndDate: string;
-
-  @ApiProperty({
-    type: Object,
+    type: RecurrencePatternDto,
     description: 'recurrencePattern',
     example: { frequency: 'daily', interval: 1 },
   })
   @IsObject()
   @ValidateIf((o) => o.isRecurring === true)
-  recurrencePattern: any;
+  recurrencePattern: RecurrencePattern;
 
   @ApiProperty({
     type: Object,
