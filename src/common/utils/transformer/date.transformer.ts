@@ -1,5 +1,5 @@
 import { ConfigService } from '@nestjs/config';
-import { getTimezoneDate } from 'src/common/utils/pipe.util';
+import { getTimezoneDateString } from 'src/common/utils/pipe.util';
 import { ValueTransformer } from 'typeorm';
 
 export class TimeZoneTransformer implements ValueTransformer {
@@ -14,11 +14,14 @@ export class TimeZoneTransformer implements ValueTransformer {
   }
 
   // From DB: Convert the date from UTC to the desired time zone after fetching
-  from(databaseValue: Date): Date {
-    if (!databaseValue) return databaseValue;
-    return getTimezoneDate(
+  from(databaseValue: Date): string {
+    console.log(databaseValue, typeof databaseValue, 'databsbval');
+    if (!databaseValue) return databaseValue.toISOString();
+    return getTimezoneDateString(
+      this.configService.get<number>('TIMEZONE_OFFSET'),
       this.configService.get<string>('TIMEZONE'),
-      new Date(databaseValue),
+      this.configService.get<string>('TIMEZONE_OFFSET_STRING'),
+      databaseValue,
     );
   }
 }
