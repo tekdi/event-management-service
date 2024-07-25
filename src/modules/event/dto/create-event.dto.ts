@@ -99,7 +99,7 @@ export class RecurrencePatternDto {
   @IsObject()
   endCondition: {
     type: 'endDate' | 'occurrences';
-    value: string | number;
+    value: string;
   };
 }
 
@@ -283,7 +283,7 @@ export class CreateEventDto {
   })
   @IsEnum(['live'], {
     //, 'draft', 'inActive'], {
-    // message: 'Status must be one of: live, draft, inActive',
+    // message: 'Status must be one of: live, draft, inActive, archived',
   })
   @IsString()
   @IsNotEmpty()
@@ -352,6 +352,8 @@ export class CreateEventDto {
   })
   @IsObject()
   @ValidateIf((o) => o.isRecurring === true)
+  @ValidateNested({ each: true })
+  @Type(() => RecurrencePatternDto)
   recurrencePattern: RecurrencePattern;
 
   @ApiProperty({

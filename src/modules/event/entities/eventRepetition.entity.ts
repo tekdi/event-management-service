@@ -42,6 +42,28 @@ export class EventRepetition {
   })
   endDateTime: Date;
 
+  @Column({
+    type: 'timestamptz',
+    default: () => "timezone('utc', now())",
+    nullable: true,
+    transformer: new TimeZoneTransformer(new ConfigService()),
+  })
+  createdAt: Date;
+
+  @Column({
+    type: 'timestamptz',
+    default: () => "timezone('utc', now())",
+    nullable: true,
+    transformer: new TimeZoneTransformer(new ConfigService()),
+  })
+  updatedAt: Date;
+
+  @Column({ type: 'uuid', nullable: true })
+  createdBy: string;
+
+  @Column({ type: 'uuid', nullable: true })
+  updatedBy: string;
+
   @ManyToOne(() => Events, (event) => event.eventRepetitions, {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',

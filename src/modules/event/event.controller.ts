@@ -31,6 +31,7 @@ import {
   DateValidationPipe,
   RegistrationDateValidationPipe,
   AttendeesValidationPipe,
+  RecurringEndDateValidationPipe,
 } from 'src/common/pipes/event-validation.pipe';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
@@ -55,6 +56,7 @@ export class EventController {
     new ValidationPipe({ transform: true }),
     new DateValidationPipe(new ConfigService()),
     new RegistrationDateValidationPipe(new ConfigService()),
+    new RecurringEndDateValidationPipe(new ConfigService()),
     new AttendeesValidationPipe(),
   )
   @ApiCreatedResponse({
