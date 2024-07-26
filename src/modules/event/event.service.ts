@@ -24,6 +24,7 @@ import { getTimezoneDate } from 'src/common/utils/pipe.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
 import { RecurrencePattern } from 'src/common/utils/types';
 import { ConfigService } from '@nestjs/config';
+import { TimeZoneTransformer } from 'src/common/utils/transformer/date.transformer';
 @Injectable()
 export class EventService {
   private eventCreationLimit: number;
@@ -36,10 +37,12 @@ export class EventService {
     private readonly eventRepetitionRepository: Repository<EventRepetition>,
     private readonly attendeesService: AttendeesService,
     private readonly configService: ConfigService,
+    private timeZoneTransformer: TimeZoneTransformer,
   ) {
     this.eventCreationLimit = this.configService.get<number>(
       'EVENT_CREATION_LIMIT',
     );
+    this.timeZoneTransformer = new TimeZoneTransformer(this.configService);
   }
 
   async createEvent(
@@ -95,6 +98,122 @@ export class EventService {
       //     ),
       //   );
     }
+  }
+
+  async getEvents(response, requestBody) {
+    const apiId = 'api.get.list';
+    try {
+      const { filters } = requestBody;
+      const today = new Date();
+      let finalquery = `SELECT *,COUNT(*) OVER() AS total_count  FROM public."EventRepetition"  AS er
+      LEFT JOIN "EventDetails" AS ed ON er."eventDetailId"=ed."eventDetailId" 
+      LEFT JOIN "Events" AS e ON er."eventId"=e."eventId"`;
+
+      //User not pass any things then it show today and upcoming event
+      if (!filters || Object.keys(filters).length === 0) {
+        finalquery += ` WHERE DATE(er."startDateTime") >= CURRENT_DATE
+        OR DATE(er."endDateTime") > CURRENT_DATE`;
+      }
+
+      // if user pass somthing in filter then make query
+      if (filters && Object.keys(filters).length > 0) {
+        finalquery = await this.createSearchQuery(filters, finalquery);
+      }
+
+      // Set default limit and offset if not provided
+      const limit = requestBody.limit ? requestBody.limit : 200;
+      const offset = requestBody.offset ? requestBody.offset : 0;
+
+      // Append LIMIT and OFFSET to the query
+      finalquery += ` LIMIT ${limit} OFFSET ${offset}`;
+      const result = await this.eventRepetitionRepository.query(finalquery);
+
+      // Add isEnded key based on endDateTime
+      const finalResult = result.map((event) => {
+        const startDateTime = new Date(event.startDateTime);
+        const endDateTime = new Date(event.endDateTime);
+        return {
+          ...event,
+          startDateTime: this.timeZoneTransformer.from(startDateTime),
+          endDateTime: this.timeZoneTransformer.from(endDateTime),
+          isEnded: endDateTime < today,
+        };
+      });
+      if (finalResult.length === 0) {
+        return response
+          .status(HttpStatus.NOT_FOUND)
+          .json(
+            APIResponse.error(
+              apiId,
+              'Event Not Found',
+              'No records found.',
+              'NOT_FOUND',
+            ),
+          );
+      }
+      return response
+        .status(HttpStatus.OK)
+        .json(
+          APIResponse.success(
+            apiId,
+            { totalCount: finalResult[0].total_count, events: finalResult },
+            'OK`',
+          ),
+        );
+    } catch (error) {
+      return response
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json(
+          APIResponse.error(
+            apiId,
+            ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+            error,
+            '500',
+          ),
+        );
+    }
+  }
+  async createSearchQuery(filters, finalquery) {
+    let whereClauses = [];
+
+    // Handle startDate and optionally endDate
+    if (filters.startDate) {
+      const startDate = filters.startDate;
+      const startDateTime = `${startDate} 00:00:00`;
+      const endDateTime = filters.endDate
+        ? `${filters.endDate} 23:59:59`
+        : `${startDate} 23:59:59`;
+      whereClauses.push(
+        `(er."startDateTime" <= '${endDateTime}' AND er."endDateTime" >= '${startDateTime}')`,
+      );
+    }
+
+    // Handle eventType filter
+    if (filters.eventType && filters.eventType.length > 0) {
+      const eventTypeConditions = filters.eventType
+        .map((eventType) => `ed."eventType" = '${eventType}'`)
+        .join(' OR ');
+      whereClauses.push(`(${eventTypeConditions})`);
+    }
+    // Handle title filter with ILIKE
+    if (filters.title) {
+      const titleSearch = `%${filters.title}%`;
+      whereClauses.push(`ed."title" ILIKE '${titleSearch}'`);
+    }
+
+    // Handle status filter
+    if (filters.status && filters.status.length > 0) {
+      const statusConditions = filters.status
+        .map((status) => `"status" = '${status}'`)
+        .join(' OR ');
+      whereClauses.push(`(${statusConditions})`);
+    }
+
+    // Construct final query
+    if (whereClauses.length > 0) {
+      finalquery += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+    return finalquery;
   }
 
   async createEvents(createEventDto, response) {}

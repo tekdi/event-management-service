@@ -10,6 +10,7 @@ import { EventDetail } from './entities/eventDetail.entity';
 import { AttendeesService } from '../attendees/attendees.service';
 import { EventAttendees } from '../attendees/entity/attendees.entity';
 import { EventRepetition } from './entities/eventRepetition.entity';
+import { TimeZoneTransformer } from 'src/common/utils/transformer/date.transformer';
 
 @Module({
   imports: [
@@ -21,6 +22,11 @@ import { EventRepetition } from './entities/eventRepetition.entity';
     ]),
   ],
   controllers: [EventController],
-  providers: [EventService, ConfigService, AttendeesService],
+  providers: [
+    EventService,
+    ConfigService,
+    AttendeesService,
+    TimeZoneTransformer,
+  ],
 })
 export class EventModule {}
