@@ -38,9 +38,9 @@ export class FilterDto {
     description: 'Array of status values: live, draft, inActive',
   })
   @IsOptional()
-  @IsEnum(['live', 'draft', 'inActive'], {
+  @IsEnum(['live', 'draft', 'inActive', 'archived'], {
     each: true,
-    message: 'Status must be one of: live, draft, inActive',
+    message: 'Status must be one of: live, draft, inActive,archived',
   })
   status?: string[];
 
