@@ -111,8 +111,8 @@ export class EventService {
 
       //User not pass any things then it show today and upcoming event
       if (!filters || Object.keys(filters).length === 0) {
-        finalquery += ` WHERE DATE(er."startDateTime") >= CURRENT_DATE
-        OR DATE(er."endDateTime") > CURRENT_DATE`;
+        finalquery += ` WHERE er."startDateTime" >= CURRENT_TIMESTAMP
+        OR er."endDateTime" > CURRENT_TIMESTAMP`;
       }
 
       // if user pass somthing in filter then make query
@@ -130,12 +130,9 @@ export class EventService {
 
       // Add isEnded key based on endDateTime
       const finalResult = result.map((event) => {
-        const startDateTime = new Date(event.startDateTime);
         const endDateTime = new Date(event.endDateTime);
         return {
           ...event,
-          startDateTime: this.timeZoneTransformer.from(startDateTime),
-          endDateTime: this.timeZoneTransformer.from(endDateTime),
           isEnded: endDateTime < today,
         };
       });
@@ -176,15 +173,41 @@ export class EventService {
   async createSearchQuery(filters, finalquery) {
     let whereClauses = [];
 
-    // Handle startDate and optionally endDate
-    if (filters.startDate) {
-      const startDate = filters.startDate;
+    // Handle specific date records
+    if (filters?.date) {
+      const startDate = filters?.date;
       const startDateTime = `${startDate} 00:00:00`;
-      const endDateTime = filters.endDate
-        ? `${filters.endDate} 23:59:59`
-        : `${startDate} 23:59:59`;
+      const endDateTime = `${startDate} 23:59:59`;
       whereClauses.push(
-        `(er."startDateTime" <= '${endDateTime}' AND er."endDateTime" >= '${startDateTime}')`,
+        `(er."startDateTime" <= '${endDateTime}'::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}'::timestamp AT TIME ZONE 'UTC')`,
+      );
+    }
+
+    // Handle startDate 
+    if (filters?.startDate && filters.endDate === undefined) {
+      const startDate = filters?.startDate;
+      const startDateTime = `${startDate} 00:00:00`;
+      const endDateTime = `${startDate} 23:59:59`;
+      whereClauses.push(
+        `(er."startDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."startDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
+      );
+    }
+
+    if (filters?.startDate && filters.endDate) {
+      const startDate = filters?.startDate;
+      const startDateTime = `${startDate} 00:00:00`;
+      const endDateTime = `${filters?.endDate} 23:59:59`;
+      whereClauses.push(
+        `(er."startDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
+      );
+    }
+
+    if (filters.endDate && filters.startDate === undefined) {
+      const endDate = filters?.endDate;
+      const startDateTime = `${endDate} 00:00:00`;
+      const endDateTime = `${endDate} 23:59:59`;
+      whereClauses.push(
+        `(er."endDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
       );
     }
 
@@ -216,7 +239,7 @@ export class EventService {
     return finalquery;
   }
 
-  async createEvents(createEventDto, response) {}
+  async createEvents(createEventDto, response) { }
 
   async createEventDetailDB(
     createEventDto: CreateEventDto,
@@ -410,7 +433,7 @@ export class EventService {
     }
   }
 
-  createNonRecurringEvent(createEventDto: CreateEventDto) {}
+  createNonRecurringEvent(createEventDto: CreateEventDto) { }
 
   async getEventOccurrences(eventId: string): Promise<EventRepetition[]> {
     return this.eventRepetitionRepository.find({ where: { eventId: eventId } });
@@ -444,9 +467,9 @@ export class EventService {
       const nextValidDay = daysOfWeek.find((day) => day > result.getDay());
       result.setDate(
         result.getDate() +
-          (nextValidDay !== undefined
-            ? nextValidDay - result.getDay()
-            : 7 * weeks - result.getDay() + daysOfWeek[0]),
+        (nextValidDay !== undefined
+          ? nextValidDay - result.getDay()
+          : 7 * weeks - result.getDay() + daysOfWeek[0]),
       );
       return result;
     };
@@ -491,7 +514,7 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
-        new Date(config.endCondition.value + 'T' + endTime)
+      new Date(config.endCondition.value + 'T' + endTime)
     ) {
       const pop = occurrences.pop();
     }

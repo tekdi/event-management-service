@@ -15,6 +15,14 @@ export class FilterDto {
   })
   @IsOptional()
   @IsDateString()
+  date: string;
+
+  @ApiProperty({
+    example: '2024-07-24',
+    description: 'Start date in YYYY-MM-DD format',
+  })
+  @IsOptional()
+  @IsDateString()
   startDate: string;
 
   @ApiProperty({
