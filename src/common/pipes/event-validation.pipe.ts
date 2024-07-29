@@ -1,63 +1,50 @@
-import { ConfigService } from '@nestjs/config';
 import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 import { CreateEventDto } from 'src/modules/event/dto/create-event.dto';
-import { getTimezoneDate } from '../utils/pipe.util';
 import { ERROR_MESSAGES } from '../utils/constants.util';
+import {
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+} from 'class-validator';
 
 @Injectable()
 export class DateValidationPipe implements PipeTransform {
-  constructor(private configService: ConfigService) {}
-
   transform(createEventDto: CreateEventDto) {
-    const timeZone = this.configService.get<string>('TIMEZONE');
-    const startDate = getTimezoneDate(
-      timeZone,
-      new Date(createEventDto.startDatetime),
-    );
-    const endDate = getTimezoneDate(
-      timeZone,
-      new Date(createEventDto.endDatetime),
-    );
-    const currentDate = getTimezoneDate(timeZone); // Current date in the specified timezone
+    const eventStartDate = createEventDto.startDatetime.split('T')[0];
+    const eventEndDate = createEventDto.endDatetime.split('T')[0];
 
-    if (startDate <= currentDate) {
+    const startDate = new Date(createEventDto.startDatetime);
+    const endDate = new Date(createEventDto.endDatetime);
+    const currentDate = new Date();
+
+    if (eventStartDate !== eventEndDate && createEventDto.isRecurring) {
       throw new BadRequestException(
-        'Start date must be today or a future date',
+        ERROR_MESSAGES.MULTIDAY_EVENT_NOT_RECURRING,
       );
+    }
+    if (startDate <= currentDate) {
+      throw new BadRequestException(ERROR_MESSAGES.START_DATE_INVALID);
     }
     if (endDate < startDate) {
-      throw new BadRequestException(
-        'End date should be greater than or equal to start date',
-      );
+      throw new BadRequestException(ERROR_MESSAGES.END_DATE_INVALID);
     }
+
     return createEventDto;
   }
 }
 
 @Injectable()
 export class RegistrationDateValidationPipe implements PipeTransform {
-  constructor(private configService: ConfigService) {}
-
   transform(createEventDto: CreateEventDto) {
-    const timeZone = this.configService.get<string>('TIMEZONE');
-    const currentDate = getTimezoneDate(timeZone);
-    const startDate = getTimezoneDate(
-      timeZone,
-      new Date(createEventDto.startDatetime),
-    );
-    const endDate = getTimezoneDate(
-      timeZone,
-      new Date(createEventDto.endDatetime),
-    );
+    const currentDate = new Date();
+    const startDate = new Date(createEventDto.startDatetime);
+
     const registrationStartDate = createEventDto.registrationEndDate
-      ? getTimezoneDate(
-          timeZone,
-          new Date(createEventDto.registrationStartDate),
-        )
+      ? new Date(createEventDto.registrationStartDate)
       : null;
     const isRestricted = createEventDto.isRestricted;
     const registrationEndDate = createEventDto.registrationEndDate
-      ? getTimezoneDate(timeZone, new Date(createEventDto.registrationEndDate))
+      ? new Date(createEventDto.registrationEndDate)
       : null;
 
     // Ensure registration dates are not provided for restricted events
@@ -109,25 +96,70 @@ export class RegistrationDateValidationPipe implements PipeTransform {
 }
 
 export class RecurringEndDateValidationPipe implements PipeTransform {
-  constructor(private configService: ConfigService) {}
-
   transform(createEventDto: CreateEventDto) {
-    const timeZone = this.configService.get<string>('TIMEZONE');
     if (createEventDto.isRecurring) {
-      const recurrenceEndDate = new Date(createEventDto.recurrenceEndDate);
-      const startDate = new Date(createEventDto.startDatetime);
-      const currentDate = getTimezoneDate(timeZone);
-      if (recurrenceEndDate < currentDate) {
+      const endConditionValue =
+        createEventDto.recurrencePattern?.endCondition?.value;
+      const endConditionType =
+        createEventDto.recurrencePattern?.endCondition?.type;
+      const endTime = createEventDto.endDatetime.split('T')[1];
+
+      if (!endConditionType || !endConditionValue) {
         throw new BadRequestException(
-          ERROR_MESSAGES.RECURRENCE_END_DATE_INVALID,
+          ERROR_MESSAGES.RECURRING_PATTERN_REQUIRED,
         );
       }
 
-      if (recurrenceEndDate < startDate) {
+      if (endConditionType === 'endDate') {
+        const endDate = endConditionValue.split('T')[0] + 'T' + endTime;
+
+        const recurrenceEndDate = new Date(endDate);
+
+        const dateValid =
+          recurrenceEndDate && !isNaN(recurrenceEndDate.getTime());
+
+        if (!dateValid) {
+          throw new BadRequestException(
+            ERROR_MESSAGES.RECURRENCE_END_DATE_INVALID,
+          );
+        }
+
+        const startDate = new Date(createEventDto.startDatetime);
+        const currentDate = new Date();
+        if (recurrenceEndDate < currentDate) {
+          throw new BadRequestException(
+            ERROR_MESSAGES.RECURRENCE_END_DATE_SHOULD_BE_GREATER_THAN_CURRENT_DATE,
+          );
+        }
+
+        if (recurrenceEndDate < startDate) {
+          throw new BadRequestException(
+            ERROR_MESSAGES.RECURRENCE_END_DATE_AFTER_EVENT_DATE,
+          );
+        }
+        createEventDto.recurrencePattern.endCondition.value = endDate;
+      } else if (endConditionType === 'occurrences') {
+        const occurrences = endConditionValue;
+        if (parseInt(occurrences) < 1) {
+          throw new BadRequestException(
+            ERROR_MESSAGES.RECURRENCE_OCCURRENCES_INVALID,
+          );
+        }
+      } else if (
+        endConditionType !== 'occurrences' &&
+        endConditionType !== 'endDate'
+      ) {
         throw new BadRequestException(
-          ERROR_MESSAGES.RECURRENCE_END_DATE_BEFORE_EVENT_DATE,
+          ERROR_MESSAGES.RECURRENCE_PATTERN_INVALID,
         );
       }
+    } else if (
+      !createEventDto.isRecurring &&
+      Object.keys(createEventDto?.recurrencePattern ?? {})?.length
+    ) {
+      throw new BadRequestException(
+        ERROR_MESSAGES.RECURRING_PATTERN_NOT_REQUIRED,
+      );
     }
 
     return createEventDto;
@@ -138,7 +170,6 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
 export class AttendeesValidationPipe implements PipeTransform {
   transform(createEventDto: CreateEventDto) {
     const attendees = createEventDto?.attendees;
-    console.log('attendees', attendees);
 
     if (!createEventDto.isRestricted) {
       if (attendees && attendees.length) {
@@ -147,5 +178,16 @@ export class AttendeesValidationPipe implements PipeTransform {
     }
 
     return createEventDto;
+  }
+}
+
+@ValidatorConstraint({ name: 'endsWithZ', async: false })
+export class EndsWithZConstraint implements ValidatorConstraintInterface {
+  validate(text: string, args: ValidationArguments) {
+    return typeof text === 'string' && text.endsWith('Z');
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return '($value) must end with "Z"';
   }
 }

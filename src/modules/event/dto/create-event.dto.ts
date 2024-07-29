@@ -16,6 +16,9 @@ import {
   IsArray,
   IsDefined,
   ArrayMinSize,
+  ArrayMaxSize,
+  Validate,
+  IsIn,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -26,6 +29,7 @@ import {
   RecurrencePattern,
 } from 'src/common/utils/types';
 import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
+import { EndsWithZConstraint } from 'src/common/pipes/event-validation.pipe';
 
 export class MeetingDetailsDto {
   @ApiProperty({ description: 'Meeting ID', example: 94292617 })
@@ -39,12 +43,19 @@ export class MeetingDetailsDto {
   })
   @IsString()
   @IsNotEmpty()
+  // @Validate(UrlValidator)
   url: string;
 
   @ApiProperty({ description: 'Meeting password', example: 'xxxxxx' })
   @IsString()
-  @IsNotEmpty()
   password: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'providerGenerated',
+    default: false,
+  })
+  providerGenerated: boolean;
 }
 
 export class RecurrencePatternDto {
@@ -73,7 +84,7 @@ export class RecurrencePatternDto {
   @ApiProperty({
     type: [String],
     description: 'Days of Week',
-    example: ['Sunday', 'Monday'],
+    example: [1, 3, 5],
   })
   @IsArray()
   @IsOptional()
@@ -105,7 +116,7 @@ export class RecurrencePatternDto {
 
 /**
  * All Datetime properties
- * should be in ISO 8601 format (e.g., '2024-03-18T10:00:00').
+ * should be in ISO 8601 format (e.g., '2024-03-18T10:00:00Z').
  */
 
 export class CreateEventDto {
@@ -157,13 +168,21 @@ export class CreateEventDto {
     example: true,
   })
   @IsBoolean()
-  isRestricted: boolean; // public
+  isRestricted: boolean;
+
+  @ApiProperty({
+    type: String,
+    description: 'autoEnroll',
+    example: true,
+  })
+  autoEnroll: boolean;
 
   @ApiProperty({
     type: String,
     description: 'Start Datetime',
     example: '2024-03-18T10:00:00',
   })
+  @Validate(EndsWithZConstraint)
   @IsDateString({ strict: true, strictSeparator: true })
   startDatetime: string;
 
@@ -172,6 +191,7 @@ export class CreateEventDto {
     description: 'End Datetime',
     example: '2024-03-18T10:00:00',
   })
+  @Validate(EndsWithZConstraint)
   @IsDateString({ strict: true, strictSeparator: true })
   endDatetime: string;
 
@@ -213,6 +233,7 @@ export class CreateEventDto {
   @ValidateIf((o) => o.eventType === EventTypes.online)
   @IsString()
   @IsNotEmpty()
+  @IsIn(['Zoom', 'GoogleMeet', 'MicrosoftTeams']) // Supported providers
   onlineProvider: string;
 
   @ApiProperty({
@@ -239,7 +260,7 @@ export class CreateEventDto {
   @ValidateNested({ each: true })
   @Type(() => MeetingDetailsDto)
   meetingDetails: MeetingDetails;
-  // meet offline validation
+  // TODO: meet url validation
 
   @ApiProperty({
     type: Number,
@@ -260,11 +281,11 @@ export class CreateEventDto {
       ],
     },
   })
-  @ValidateIf((o) => o.isRestricted === true)
+  @ValidateIf((o) => o.isRestricted === true && o.autoEnroll)
   @IsDefined({ message: ERROR_MESSAGES.ATTENDEES_REQUIRED })
   @IsArray()
   @Type(() => String)
-  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
   @IsUUID('4', { each: true })
   attendees: string[];
 
@@ -282,8 +303,8 @@ export class CreateEventDto {
     example: 'live',
   })
   @IsEnum(['live'], {
-    //, 'draft', 'inActive'], {
-    // message: 'Status must be one of: live, draft, inActive, archived',
+    //, 'draft', 'archived'], {
+    // TODO: message: 'Status must be one of: live, draft, archived',
   })
   @IsString()
   @IsNotEmpty()
@@ -312,17 +333,11 @@ export class CreateEventDto {
 
   @ApiProperty({
     type: String,
-    description: 'autoEnroll',
-    example: true,
-  })
-  autoEnroll: boolean;
-
-  @ApiProperty({
-    type: String,
     description: 'registrationStartDate',
     example: '2024-03-18T10:00:00',
   })
   @ValidateIf((o) => o.isRestricted === false)
+  @Validate(EndsWithZConstraint)
   @IsDateString({ strict: true, strictSeparator: true })
   @IsOptional()
   registrationStartDate: string;
@@ -333,6 +348,7 @@ export class CreateEventDto {
     example: '2024-03-18T10:00:00',
   })
   @ValidateIf((o) => o.isRestricted === false)
+  @Validate(EndsWithZConstraint)
   @IsDateString({ strict: true, strictSeparator: true })
   @IsOptional()
   registrationEndDate: string;
