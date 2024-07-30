@@ -20,11 +20,9 @@ import { AttendeesService } from '../attendees/attendees.service';
 import { EventAttendeesDTO } from '../attendees/dto/EventAttendance.dto';
 import { EventDetail } from './entities/eventDetail.entity';
 import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
-import { getTimezoneDate } from 'src/common/utils/pipe.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
 import { RecurrencePattern } from 'src/common/utils/types';
 import { ConfigService } from '@nestjs/config';
-import { TimeZoneTransformer } from 'src/common/utils/transformer/date.transformer';
 @Injectable()
 export class EventService {
   private eventCreationLimit: number;
@@ -37,12 +35,10 @@ export class EventService {
     private readonly eventRepetitionRepository: Repository<EventRepetition>,
     private readonly attendeesService: AttendeesService,
     private readonly configService: ConfigService,
-    private timeZoneTransformer: TimeZoneTransformer,
   ) {
     this.eventCreationLimit = this.configService.get<number>(
       'EVENT_CREATION_LIMIT',
     );
-    this.timeZoneTransformer = new TimeZoneTransformer(this.configService);
   }
 
   async createEvent(
@@ -105,14 +101,23 @@ export class EventService {
     try {
       const { filters } = requestBody;
       const today = new Date();
-      let finalquery = `SELECT *,COUNT(*) OVER() AS total_count  FROM public."EventRepetition"  AS er
+      let finalquery = `SELECT 
+      er."eventDetailId" AS "eventRepetition_eventDetailId", 
+      er.*, 
+      e."eventId" AS "event_eventId", 
+      e."eventDetailId" AS "event_eventDetailId",
+      e.*, 
+      ed."eventDetailId" AS "eventDetail_eventDetailId",
+      ed.*, 
+      COUNT(*) OVER() AS total_count
+      FROM public."EventRepetition"  AS er
       LEFT JOIN "EventDetails" AS ed ON er."eventDetailId"=ed."eventDetailId" 
       LEFT JOIN "Events" AS e ON er."eventId"=e."eventId"`;
 
       //User not pass any things then it show today and upcoming event
       if (!filters || Object.keys(filters).length === 0) {
-        finalquery += ` WHERE er."startDateTime" >= CURRENT_TIMESTAMP
-        OR er."endDateTime" > CURRENT_TIMESTAMP`;
+        finalquery += ` WHERE (er."startDateTime" >= CURRENT_TIMESTAMP
+        OR er."endDateTime" > CURRENT_TIMESTAMP) AND status='live'`;
       }
 
       // if user pass somthing in filter then make query
@@ -230,6 +235,9 @@ export class EventService {
         .map((status) => `"status" = '${status}'`)
         .join(' OR ');
       whereClauses.push(`(${statusConditions})`);
+    } else {
+      // Add default status condition if no status is passed in the filter
+      whereClauses.push(`"status" = 'live'`);
     }
 
     // Construct final query
