@@ -15,7 +15,6 @@ export class TimeZoneTransformer implements ValueTransformer {
 
   // From DB: Convert the date from UTC to the desired time zone after fetching
   from(databaseValue: Date): string {
-    console.log(databaseValue, typeof databaseValue, 'databsbval');
     if (!databaseValue) return databaseValue.toISOString();
     return getTimezoneDateString(
       this.configService.get<number>('TIMEZONE_OFFSET'),

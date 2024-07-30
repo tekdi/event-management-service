@@ -9,8 +9,6 @@ import {
 } from 'typeorm';
 import { Events } from './event.entity';
 import { EventRepetition } from './eventRepetition.entity';
-import { TimeZoneTransformer } from '../../../common/utils/transformer/date.transformer';
-import { ConfigService } from '@nestjs/config';
 
 @Entity('EventDetails')
 export class EventDetail {
@@ -59,14 +57,12 @@ export class EventDetail {
   @CreateDateColumn({
     type: 'timestamptz',
     default: () => 'CURRENT_TIMESTAMP',
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   createdAt: Date;
 
   @UpdateDateColumn({
     type: 'timestamptz',
     default: () => 'CURRENT_TIMESTAMP',
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   updatedAt: Date;
 
