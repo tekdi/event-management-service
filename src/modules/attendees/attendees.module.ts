@@ -8,7 +8,6 @@ import { EventService } from '../event/event.service';
 import { Events } from '../event/entities/event.entity';
 import { EventDetail } from '../event/entities/eventDetail.entity';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
-import { TimeZoneTransformer } from 'src/common/utils/transformer/date.transformer';
 
 @Module({
   imports: [
@@ -24,7 +23,6 @@ import { TimeZoneTransformer } from 'src/common/utils/transformer/date.transform
     AttendeesService,
     ConfigService,
     EventService,
-    TimeZoneTransformer,
   ],
 })
-export class AttendeesModule {}
+export class AttendeesModule { }

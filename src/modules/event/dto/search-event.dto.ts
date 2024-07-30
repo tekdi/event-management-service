@@ -11,7 +11,7 @@ import {
 export class FilterDto {
   @ApiProperty({
     example: '2024-07-24',
-    description: 'Start date in YYYY-MM-DD format',
+    description: 'specific date in YYYY-MM-DD format',
   })
   @IsOptional()
   @IsDateString()
@@ -27,26 +27,26 @@ export class FilterDto {
 
   @ApiProperty({
     example: '2024-07-27',
-    description: 'Start date in YYYY-MM-DD format',
+    description: 'End date in YYYY-MM-DD format',
   })
   @IsOptional()
   @IsDateString()
   endDate: string;
 
   @ApiProperty({
-    example: ['live', 'draft', 'inActive'],
-    description: 'Array of status values: live, draft, inActive',
+    example: ['live', 'draft', 'inActive', 'archived'],
+    description: 'Array of status values: live, draft, inActive,archived',
   })
   @IsOptional()
   @IsEnum(['live', 'draft', 'inActive', 'archived'], {
     each: true,
-    message: 'Status must be one of: live, draft, inActive,archived',
+    message: 'Status must be one of: live, draft, inActive, archived',
   })
   status?: string[];
 
   @ApiProperty({
     example: ['online', 'offline'],
-    description: 'Array of status values: online, offline, onlineandoffline',
+    description: 'Array of status values: online, offline',
   })
   @IsOptional()
   @IsEnum(['online', 'offline'], {
