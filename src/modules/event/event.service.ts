@@ -173,6 +173,7 @@ export class EventService {
         );
     }
   }
+
   async createSearchQuery(filters, finalquery) {
     let whereClauses = [];
 
