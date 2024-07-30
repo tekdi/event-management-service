@@ -241,19 +241,12 @@ export class EventService {
       eventId,
     );
 
-    console.log(
-      eventOccurences,
-      eventOccurences.length,
-      'eventOccurences.length',
-      eventOccurences.length <= 0 ||
-        eventOccurences.length > this.eventCreationLimit,
-    );
-    if (
-      eventOccurences.length <= 0 ||
-      eventOccurences.length > this.eventCreationLimit
-    ) {
+    if (eventOccurences.length > this.eventCreationLimit) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
       throw new BadRequestException('Event Creation Count exceeded');
+    } else if (eventOccurences.length <= 0) {
+      await this.removePartiallyCreatedData(eventId, eventDetailId);
+      throw new BadRequestException('Event recurrence period insufficient');
     } else {
       const insertedOccurences =
         await this.eventRepetitionRepository.insert(eventOccurences);
@@ -340,7 +333,6 @@ export class EventService {
     }
 
     // Remove the last occurrence if it exceeds the end date condition
-
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >

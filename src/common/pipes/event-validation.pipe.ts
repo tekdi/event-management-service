@@ -102,7 +102,6 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
         createEventDto.recurrencePattern?.endCondition?.value;
       const endConditionType =
         createEventDto.recurrencePattern?.endCondition?.type;
-      const endTime = createEventDto.endDatetime.split('T')[1];
 
       if (!endConditionType || !endConditionValue) {
         throw new BadRequestException(
@@ -111,9 +110,7 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
       }
 
       if (endConditionType === 'endDate') {
-        const endDate = endConditionValue.split('T')[0] + 'T' + endTime;
-
-        const recurrenceEndDate = new Date(endDate);
+        const recurrenceEndDate = new Date(endConditionValue);
 
         const dateValid =
           recurrenceEndDate && !isNaN(recurrenceEndDate.getTime());
@@ -132,15 +129,16 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
           );
         }
 
-        if (recurrenceEndDate < startDate) {
+        if (recurrenceEndDate <= startDate) {
           throw new BadRequestException(
             ERROR_MESSAGES.RECURRENCE_END_DATE_AFTER_EVENT_DATE,
           );
         }
-        createEventDto.recurrencePattern.endCondition.value = endDate;
+        // createEventDto.recurrencePattern.endCondition.value = endDate;
       } else if (endConditionType === 'occurrences') {
-        const occurrences = endConditionValue;
-        if (parseInt(occurrences) < 1) {
+        const occurrences = Number(endConditionValue);
+
+        if (!occurrences || occurrences < 1) {
           throw new BadRequestException(
             ERROR_MESSAGES.RECURRENCE_OCCURRENCES_INVALID,
           );

@@ -58,6 +58,28 @@ export class MeetingDetailsDto {
   providerGenerated: boolean;
 }
 
+export class EndCondition {
+  @ApiProperty({
+    type: String,
+    description: 'Type of end condition',
+    example: 'endDate',
+  })
+  @IsString()
+  @IsNotEmpty()
+  type: 'endDate' | 'occurrences';
+
+  @ApiProperty({
+    type: String,
+    description: 'Value of end condition',
+    example: '2024-03-18T10:00:00Z | 5',
+  })
+  @ValidateIf((o) => o.type === 'endDate')
+  @Validate(EndsWithZConstraint)
+  @IsDateString({ strict: true, strictSeparator: true })
+  @IsNotEmpty()
+  value: string;
+}
+
 export class RecurrencePatternDto {
   @ApiProperty({
     enum: Frequency,
@@ -65,9 +87,8 @@ export class RecurrencePatternDto {
     example: 'daily',
   })
   @IsEnum(Frequency, {
-    message: 'Frequency must be one of: daily, weekly, monthly, yearly',
+    message: 'Frequency must be one of: daily, weekly',
   })
-  @IsString()
   @IsNotEmpty()
   frequency: string;
 
@@ -88,30 +109,30 @@ export class RecurrencePatternDto {
   })
   @IsArray()
   @IsOptional()
-  daysOfWeek: string[];
+  @IsInt({ each: true })
+  daysOfWeek: number[];
+
+  // @ApiProperty({
+  //   type: Number,
+  //   description: 'Day of Month',
+  //   example: 1,
+  // })
+  // @IsInt()
+  // @IsOptional()
+  // dayOfMonth: number;
 
   @ApiProperty({
-    type: Number,
-    description: 'Day of Month',
-    example: 1,
-  })
-  @IsInt()
-  @IsOptional()
-  dayOfMonth: number;
-
-  @ApiProperty({
-    type: Object,
+    type: EndCondition,
     description: 'End Condition',
     example: {
       type: 'endDate',
-      value: '2024-03-18T10:00:00',
+      value: '2024-03-18T10:00:00Z',
     },
   })
   @IsObject()
-  endCondition: {
-    type: 'endDate' | 'occurrences';
-    value: string;
-  };
+  @ValidateNested()
+  @Type(() => EndCondition)
+  endCondition: EndCondition;
 }
 
 /**
@@ -370,7 +391,7 @@ export class CreateEventDto {
   @ValidateIf((o) => o.isRecurring === true)
   @ValidateNested({ each: true })
   @Type(() => RecurrencePatternDto)
-  recurrencePattern: RecurrencePattern;
+  recurrencePattern: RecurrencePatternDto;
 
   @ApiProperty({
     type: Object,
