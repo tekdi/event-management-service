@@ -1,5 +1,3 @@
-import { ConfigService } from '@nestjs/config';
-import { TimeZoneTransformer } from 'src/common/utils/transformer/date.transformer';
 import { Events } from 'src/modules/event/entities/event.entity';
 import {
   Entity,
@@ -17,8 +15,17 @@ export class EventAttendees {
   @PrimaryGeneratedColumn('uuid')
   eventAttendeesId: string;
 
+  @Column({ type: 'uuid' })
+  userId: string;
+
   @Column({ type: 'uuid', nullable: true })
   eventRepetitionId: string;
+
+  @Column({ nullable: true, default: null })
+  isAttended: boolean | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  joinedLeftHistory: any;
 
   @Column({ type: 'int', nullable: false, default: 0 })
   duration: number;
@@ -26,37 +33,22 @@ export class EventAttendees {
   @Column({ type: 'varchar', nullable: true, collation: 'pg_catalog.default' })
   status: string;
 
-  @Column({ type: 'timestamptz', nullable: true, 
-    transformer: new TimeZoneTransformer(new ConfigService())
-   })
+  @Column({
+    type: 'timestamptz',
+    nullable: true,
+  })
   enrolledAt: Date;
 
   @Column({ type: 'uuid', nullable: true })
   enrolledBy: string;
 
-  @UpdateDateColumn({ type: 'timestamptz', transformer: new TimeZoneTransformer(new ConfigService()) })
+  @UpdateDateColumn({
+    type: 'timestamptz',
+  })
   updatedAt: Date;
 
   @Column({ type: 'uuid', nullable: true })
   updatedBy: string;
-
-  @CreateDateColumn({ type: 'timestamptz',  transformer: new TimeZoneTransformer(new ConfigService()) })
-  createdAt: Date;
-
-  @Column({ type: 'uuid', nullable: true })
-  createdBy: string;
-
-  @Column({ type: 'uuid' })
-  userId: string;
-
-  @Column({ type: 'uuid' })
-  eventId: string;
-
-  @Column({ nullable: true, default: null })
-  isAttended: boolean | null;
-
-  @Column({ type: 'jsonb', nullable: true })
-  joinedLeftHistory: any;
 
   // @ManyToOne(() => Events, event => event.eventAttendees)
   // @JoinColumn({ name: 'eventId' })

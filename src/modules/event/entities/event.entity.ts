@@ -11,8 +11,7 @@ import {
 } from 'typeorm';
 import { EventDetail } from './eventDetail.entity';
 import { EventRepetition } from './eventRepetition.entity';
-import { TimeZoneTransformer } from '../../../common/utils/transformer/date.transformer';
-import { ConfigService } from '@nestjs/config';
+
 @Entity('Events')
 export class Events {
   @PrimaryGeneratedColumn('uuid')
@@ -23,7 +22,6 @@ export class Events {
 
   @Column({
     type: 'timestamptz',
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   recurrenceEndDate: Date;
 
@@ -33,14 +31,12 @@ export class Events {
   @CreateDateColumn({
     type: 'timestamptz',
     default: () => 'CURRENT_TIMESTAMP',
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   createdAt: Date;
 
   @UpdateDateColumn({
     type: 'timestamptz',
     default: () => 'CURRENT_TIMESTAMP',
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   updatedAt: Date;
 
@@ -50,14 +46,12 @@ export class Events {
   @Column({
     type: 'timestamptz',
     nullable: true,
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   registrationStartDate: Date;
 
   @Column({
     type: 'timestamptz',
     nullable: true,
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   registrationEndDate: Date;
 

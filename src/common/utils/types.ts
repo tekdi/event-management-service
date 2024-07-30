@@ -20,6 +20,7 @@ export type MeetingDetails = {
   id: string;
   url: string;
   password: string;
+  providerGenerated: boolean;
 };
 
 export enum DaysOfWeek {

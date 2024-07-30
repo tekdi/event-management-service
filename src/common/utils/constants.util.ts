@@ -6,6 +6,8 @@ export const ERROR_MESSAGES = {
   BAD_REQUEST: 'Bad request',
   INVALID_REQUEST_BODY: 'Invalid request body',
   INTERNAL_SERVER_ERROR: 'Internal Server Error',
+  START_DATE_INVALID: 'Start date must be today or a future date',
+  END_DATE_INVALID: 'End date time should be greater than start date time',
   REGISTRATION_DATE_INVALID: 'Registration date must be in the future',
   REGISTRATION_START_DATE_BEFORE_EVENT_DATE:
     'Registration start date must be before the event start date',
@@ -16,10 +18,19 @@ export const ERROR_MESSAGES = {
   REGISTRATION_END_DATE_INVALID: 'Registration end date must be in the future',
   REGISTRATION_START_DATE_BEFORE_END_DATE:
     'Registration start date must be before registration end date',
-  RECURRENCE_END_DATE_INVALID: 'Recurrence end date must be in the future',
-  RECURRENCE_END_DATE_BEFORE_EVENT_DATE:
+  RECURRENCE_END_DATE_INVALID:
+    'Recurrence end date must be a valid ISO 8601 date string ',
+  RECURRENCE_END_DATE_SHOULD_BE_GREATER_THAN_CURRENT_DATE:
+    'Recurrence end date should be greater than current date',
+  RECURRENCE_END_DATE_AFTER_EVENT_DATE:
     'Recurrence end date must be after the event start date',
   RECURRING_PATTERN_REQUIRED: 'Recurrence Pattern required for event',
+  RECURRING_PATTERN_NOT_REQUIRED:
+    'Recurrence Pattern not required for non recurring event',
+  RECURRENCE_OCCURRENCES_INVALID:
+    'Recurrence occurrences must be greater than 0',
+  RECURRENCE_PATTERN_INVALID: 'Recurrence pattern invalid',
+  MULTIDAY_EVENT_NOT_RECURRING: 'Multiday events cannot be recurring',
   REGISTRATION_START_DATE_REQUIRED:
     'Registration Start Date required for event',
   RESTRICTED_EVENT_NO_REGISTRATION_DATE:

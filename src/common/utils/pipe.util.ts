@@ -19,9 +19,6 @@ export function getTimezoneDateString(
   timezoneOffsetString: string,
   utcDate: Date,
 ): string {
-  const offsetInMilliseconds = timezoneOffset * 60 * 60 * 1000;
-  const targetDate = new Date(utcDate.getTime() + offsetInMilliseconds);
-
   // Format the date to the desired format
   const formattedDate = utcDate.toLocaleString('en-GB', {
     timeZone: timeZone,
@@ -38,7 +35,6 @@ export function getTimezoneDateString(
   // Replace the default locale date format separators with the desired format
   const [date, time] = formattedDate.split(', ');
   const [day, month, year] = date.split('/');
-  // const formattedDateStr = `${year}-${month}-${day} ${time.replace('.', ':')} +${String(timezoneOffset).padStart(2, '0')}30`;
   const formattedDateStr = `${year}-${month}-${day} ${time.replace('.', ':')} ${timezoneOffsetString}`;
 
   return formattedDateStr;

@@ -9,8 +9,6 @@ import {
 } from 'typeorm';
 import { Events } from './event.entity';
 import { EventDetail } from './eventDetail.entity';
-import { TimeZoneTransformer } from '../../../common/utils/transformer/date.transformer';
-import { ConfigService } from '@nestjs/config';
 
 @Entity('EventRepetition')
 export class EventRepetition {
@@ -30,7 +28,6 @@ export class EventRepetition {
     type: 'timestamptz',
     default: () => "timezone('utc', now())",
     nullable: true,
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   startDateTime: Date;
 
@@ -38,7 +35,6 @@ export class EventRepetition {
     type: 'timestamptz',
     default: () => "timezone('utc', now())",
     nullable: true,
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   endDateTime: Date;
 
@@ -46,7 +42,6 @@ export class EventRepetition {
     type: 'timestamptz',
     default: () => "timezone('utc', now())",
     nullable: true,
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   createdAt: Date;
 
@@ -54,7 +49,6 @@ export class EventRepetition {
     type: 'timestamptz',
     default: () => "timezone('utc', now())",
     nullable: true,
-    transformer: new TimeZoneTransformer(new ConfigService()),
   })
   updatedAt: Date;
 
