@@ -81,7 +81,168 @@ export class EventService {
     } catch (error) {
       console.log(error, 'error create event');
       throw error;
+      // return response
+      //   .status(HttpStatus.INTERNAL_SERVER_ERROR)
+      //   .json(
+      //     APIResponse.error(
+      //       apiId,
+      //       ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+      //       error,
+      //       '500',
+      //     ),
+      //   );
     }
+  }
+
+  async getEvents(response, requestBody) {
+    const apiId = 'api.get.list';
+    try {
+      const { filters } = requestBody;
+      const today = new Date();
+      let finalquery = `SELECT 
+      er."eventDetailId" AS "eventRepetition_eventDetailId", 
+      er.*, 
+      e."eventId" AS "event_eventId", 
+      e."eventDetailId" AS "event_eventDetailId",
+      e.*, 
+      ed."eventDetailId" AS "eventDetail_eventDetailId",
+      ed.*, 
+      COUNT(*) OVER() AS total_count
+      FROM public."EventRepetition"  AS er
+      LEFT JOIN "EventDetails" AS ed ON er."eventDetailId"=ed."eventDetailId" 
+      LEFT JOIN "Events" AS e ON er."eventId"=e."eventId"`;
+
+      //User not pass any things then it show today and upcoming event
+      if (!filters || Object.keys(filters).length === 0) {
+        finalquery += ` WHERE (er."startDateTime" >= CURRENT_TIMESTAMP
+        OR er."endDateTime" > CURRENT_TIMESTAMP) AND status='live'`;
+      }
+
+      // if user pass somthing in filter then make query
+      if (filters && Object.keys(filters).length > 0) {
+        finalquery = await this.createSearchQuery(filters, finalquery);
+      }
+
+      // Set default limit and offset if not provided
+      const limit = requestBody.limit ? requestBody.limit : 200;
+      const offset = requestBody.offset ? requestBody.offset : 0;
+
+      // Append LIMIT and OFFSET to the query
+      finalquery += ` LIMIT ${limit} OFFSET ${offset}`;
+      const result = await this.eventRepetitionRepository.query(finalquery);
+
+      // Add isEnded key based on endDateTime
+      const finalResult = result.map((event) => {
+        const endDateTime = new Date(event.endDateTime);
+        return {
+          ...event,
+          isEnded: endDateTime < today,
+        };
+      });
+      if (finalResult.length === 0) {
+        return response
+          .status(HttpStatus.NOT_FOUND)
+          .json(
+            APIResponse.error(
+              apiId,
+              'Event Not Found',
+              'No records found.',
+              'NOT_FOUND',
+            ),
+          );
+      }
+      return response
+        .status(HttpStatus.OK)
+        .json(
+          APIResponse.success(
+            apiId,
+            { totalCount: finalResult[0].total_count, events: finalResult },
+            'OK`',
+          ),
+        );
+    } catch (error) {
+      return response
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json(
+          APIResponse.error(
+            apiId,
+            ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+            error,
+            '500',
+          ),
+        );
+    }
+  }
+  async createSearchQuery(filters, finalquery) {
+    let whereClauses = [];
+
+    // Handle specific date records
+    if (filters?.date) {
+      const startDate = filters?.date;
+      const startDateTime = `${startDate} 00:00:00`;
+      const endDateTime = `${startDate} 23:59:59`;
+      whereClauses.push(
+        `(er."startDateTime" <= '${endDateTime}'::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}'::timestamp AT TIME ZONE 'UTC')`,
+      );
+    }
+
+    // Handle startDate
+    if (filters?.startDate && filters.endDate === undefined) {
+      const startDate = filters?.startDate;
+      const startDateTime = `${startDate} 00:00:00`;
+      const endDateTime = `${startDate} 23:59:59`;
+      whereClauses.push(
+        `(er."startDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."startDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
+      );
+    }
+
+    if (filters?.startDate && filters.endDate) {
+      const startDate = filters?.startDate;
+      const startDateTime = `${startDate} 00:00:00`;
+      const endDateTime = `${filters?.endDate} 23:59:59`;
+      whereClauses.push(
+        `(er."startDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
+      );
+    }
+
+    if (filters.endDate && filters.startDate === undefined) {
+      const endDate = filters?.endDate;
+      const startDateTime = `${endDate} 00:00:00`;
+      const endDateTime = `${endDate} 23:59:59`;
+      whereClauses.push(
+        `(er."endDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
+      );
+    }
+
+    // Handle eventType filter
+    if (filters.eventType && filters.eventType.length > 0) {
+      const eventTypeConditions = filters.eventType
+        .map((eventType) => `ed."eventType" = '${eventType}'`)
+        .join(' OR ');
+      whereClauses.push(`(${eventTypeConditions})`);
+    }
+    // Handle title filter with ILIKE
+    if (filters.title) {
+      const titleSearch = `%${filters.title}%`;
+      whereClauses.push(`ed."title" ILIKE '${titleSearch}'`);
+    }
+
+    // Handle status filter
+    if (filters.status && filters.status.length > 0) {
+      const statusConditions = filters.status
+        .map((status) => `"status" = '${status}'`)
+        .join(' OR ');
+      whereClauses.push(`(${statusConditions})`);
+    } else {
+      // Add default status condition if no status is passed in the filter
+      whereClauses.push(`"status" = 'live'`);
+    }
+
+    // Construct final query
+    if (whereClauses.length > 0) {
+      finalquery += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+    return finalquery;
   }
 
   async createEvents(createEventDto, response) {}

@@ -91,7 +91,7 @@ export class EventController {
     @Res() response: Response,
     @Body() requestBody: SearchFilterDto,
   ) {
-    // return this.eventService.getEvents(response, requestBody);
+    return this.eventService.getEvents(response, requestBody);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_BY_ID))
