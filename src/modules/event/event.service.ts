@@ -21,9 +21,10 @@ import {
   DaysOfWeek,
   EventTypes,
   RecurrencePattern,
+  RepetitionDetail,
 } from 'src/common/utils/types';
 import { ConfigService } from '@nestjs/config';
-import { DeleteResult } from 'typeorm';
+import { DeleteResult, InsertResult } from 'typeorm';
 @Injectable()
 export class EventService {
   private eventCreationLimit: number;
@@ -45,7 +46,6 @@ export class EventService {
 
   async createEvent(
     createEventDto: CreateEventDto,
-    userId: string,
     response: Response,
   ): Promise<Response> {
     const apiId = 'api.create.event';
@@ -56,13 +56,6 @@ export class EventService {
       if (createEventDto.isRestricted === true) {
         // private event
         createdEvent = await this.createOfflineOrOnlineEvent(createEventDto);
-        // if (createEventDto.eventType === 'online') {
-        //   // create online event
-        //   createdEvent = await this.createOnlineEvent(createEventDto);
-        // } else if (createEventDto.eventType === 'offline') {
-        //   // create offline event
-        //   createdEvent = await this.createOfflineEvent(createEventDto);
-        // }
 
         // if event is private then invitees are required
         // add invitees to attendees table
@@ -357,27 +350,41 @@ export class EventService {
         createEventDto.meetingDetails.occurenceId = '';
       }
 
-      const eventDetail = await this.createEventDetailDB(createEventDto);
+      const createdEventDetailDB =
+        await this.createEventDetailDB(createEventDto);
 
-      const event = await this.createEventDB(createEventDto, eventDetail);
+      const createdEventDB = await this.createEventDB(
+        createEventDto,
+        createdEventDetailDB,
+      );
+
+      let erep: EventRepetition | InsertResult;
 
       if (createEventDto.isRecurring) {
-        const erep = await this.createRecurringEvents(
+        erep = await this.createRecurringEvents(
           createEventDto,
-          event.eventId,
-          eventDetail.eventDetailId,
+          createdEventDB.eventId,
+          createdEventDetailDB.eventDetailId,
         );
 
-        return erep?.generatedMaps;
+        return this.generateEventResponse(
+          createdEventDB,
+          erep?.generatedMaps[0],
+          erep?.generatedMaps.length,
+        );
       } else {
         // this.createNonRecurringEvent(createEventDto);
-        const erep = await this.createEventRepetitionDB(
+        erep = await this.createEventRepetitionDB(
           createEventDto,
-          event,
-          eventDetail,
+          createdEventDB,
+          createdEventDetailDB,
         );
-        return erep;
+        const { event, eventDetail, ...repetitionDtl } = erep;
+
+        return this.generateEventResponse(event, repetitionDtl);
       }
+
+      // generate and return response body
     } catch (error) {
       console.log(error, 'error');
       throw error;
@@ -389,11 +396,6 @@ export class EventService {
     eventId: string,
     eventDetailId: string,
   ) {
-    // const eventOccurrences = this.generateEventOccurrences(createEventDto);
-    // eventOccurrences.forEach((eventOccurrence) => {
-    //   // Save event occurrence
-    //   this.eventOccurrenceRepository.save(eventOccurrence);
-    // });
     const eventOccurences = this.generateEventOccurences(
       createEventDto,
       eventDetailId,
@@ -413,13 +415,38 @@ export class EventService {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
       throw new BadRequestException('Event recurrence period insufficient');
     } else {
-      const insertedOccurences =
-        await this.eventRepetitionRepository.insert(eventOccurences);
+      const insertedOccurences = await this.eventRepetitionRepository
+        .createQueryBuilder()
+        .insert()
+        .into('EventRepetition')
+        .values(eventOccurences)
+        .returning(['onlineDetails'])
+        .execute();
+      // const insertedOccurences =
+      //   await this.eventRepetitionRepository.insert(eventOccurences);
       return insertedOccurences;
     }
   }
 
-  createNonRecurringEvent(createEventDto: CreateEventDto) {}
+  generateEventResponse(
+    event: Events,
+    repetitionDtl: Partial<RepetitionDetail>,
+    createdEventCount: number = 1,
+  ) {
+    const { eventDetail, ...other } = event;
+
+    const repetitionDetail = {};
+    repetitionDetail['eventRepetitionId'] = repetitionDtl.eventRepetitionId;
+    repetitionDetail['startDateTime'] = repetitionDtl.startDateTime;
+    repetitionDetail['endDateTime'] = repetitionDtl.endDateTime;
+    repetitionDetail['onlineDetails'] = repetitionDtl.onlineDetails;
+
+    const response = Object.assign(eventDetail, other, repetitionDetail, {
+      createdEventCount,
+    });
+
+    return response;
+  }
 
   async getEventOccurrences(eventId: string): Promise<EventRepetition[]> {
     return this.eventRepetitionRepository.find({ where: { eventId: eventId } });
