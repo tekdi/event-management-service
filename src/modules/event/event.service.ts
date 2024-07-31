@@ -400,6 +400,12 @@ export class EventService {
       eventId,
     );
 
+    if (!(this.eventCreationLimit > 0)) {
+      const errmsg = 'Event creation limit unavailable';
+      await this.removePartiallyCreatedData(eventId, eventDetailId);
+      throw new BadRequestException(errmsg);
+    }
+
     if (eventOccurences.length > this.eventCreationLimit) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
       throw new BadRequestException('Event Creation Count exceeded');
