@@ -233,8 +233,6 @@ export class EventService {
     return finalquery;
   }
 
-  async createEvents(createEventDto, response) {}
-
   async createEventDetailDB(
     createEventDto: CreateEventDto,
   ): Promise<EventDetail> {
@@ -248,17 +246,17 @@ export class EventService {
     eventDetail.longitude = createEventDto.longitude;
     eventDetail.latitude = createEventDto.latitude;
     eventDetail.onlineProvider = createEventDto.onlineProvider;
-    eventDetail.maxAttendees = createEventDto.maxAttendees;
-    eventDetail.recordings = createEventDto.recordings;
+    eventDetail.maxAttendees = createEventDto?.maxAttendees;
+    eventDetail.recordings = createEventDto?.recordings;
     eventDetail.status = createEventDto.status;
-    eventDetail.attendees = createEventDto.attendees.length
+    eventDetail.attendees = createEventDto?.attendees?.length
       ? createEventDto.attendees
       : null;
     eventDetail.meetingDetails = createEventDto.meetingDetails;
-    eventDetail.idealTime = createEventDto.idealTime
+    eventDetail.idealTime = createEventDto?.idealTime
       ? createEventDto.idealTime
       : null;
-    eventDetail.metadata = createEventDto.metaData;
+    eventDetail.metadata = createEventDto?.metaData;
     eventDetail.createdBy = createEventDto.createdBy;
     eventDetail.updatedBy = createEventDto.updatedBy;
     eventDetail.createdAt = new Date();
@@ -451,9 +449,6 @@ export class EventService {
   async getEventOccurrences(eventId: string): Promise<EventRepetition[]> {
     return this.eventRepetitionRepository.find({ where: { eventId: eventId } });
   }
-  // async getEventOccurrences(eventId: string): Promise<EventOccurrence[]> {
-  //   return this.eventOccurrenceRepository.find({ where: { event: eventId } });
-  // }
 
   generateEventOccurences(
     createEventDto: CreateEventDto,

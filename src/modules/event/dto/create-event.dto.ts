@@ -307,6 +307,7 @@ export class CreateEventDto {
   @Type(() => String)
   @ArrayMaxSize(200)
   @IsUUID('4', { each: true })
+  @IsOptional()
   attendees: string[];
 
   @ApiProperty({
