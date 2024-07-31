@@ -113,7 +113,7 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
         const recurrenceEndDate = new Date(endConditionValue);
 
         const dateValid =
-          recurrenceEndDate && !isNaN(recurrenceEndDate.getTime());
+          recurrenceEndDate && !Number.isNaN(recurrenceEndDate.getTime());
 
         if (!dateValid) {
           throw new BadRequestException(
