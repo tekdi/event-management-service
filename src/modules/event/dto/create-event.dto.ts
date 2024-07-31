@@ -159,7 +159,6 @@ export class CreateEventDto {
     example: 'This is a sample event',
   })
   @IsString()
-  @IsNotEmpty()
   shortDescription: string;
 
   @ApiProperty({
@@ -168,7 +167,6 @@ export class CreateEventDto {
     example: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
   })
   @IsString()
-  @IsNotEmpty()
   description: string;
 
   @ApiProperty({

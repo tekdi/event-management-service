@@ -17,7 +17,11 @@ import { EventAttendeesDTO } from '../attendees/dto/EventAttendance.dto';
 import { EventDetail } from './entities/eventDetail.entity';
 import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
-import { EventTypes, RecurrencePattern } from 'src/common/utils/types';
+import {
+  DaysOfWeek,
+  EventTypes,
+  RecurrencePattern,
+} from 'src/common/utils/types';
 import { ConfigService } from '@nestjs/config';
 import { DeleteResult } from 'typeorm';
 @Injectable()
@@ -81,16 +85,6 @@ export class EventService {
     } catch (error) {
       console.log(error, 'error create event');
       throw error;
-      // return response
-      //   .status(HttpStatus.INTERNAL_SERVER_ERROR)
-      //   .json(
-      //     APIResponse.error(
-      //       apiId,
-      //       ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-      //       error,
-      //       '500',
-      //     ),
-      //   );
     }
   }
 
@@ -268,7 +262,9 @@ export class EventService {
       ? createEventDto.attendees
       : null;
     eventDetail.meetingDetails = createEventDto.meetingDetails;
-    eventDetail.idealTime = createEventDto.idealTime;
+    eventDetail.idealTime = createEventDto.idealTime
+      ? createEventDto.idealTime
+      : null;
     eventDetail.metadata = createEventDto.metaData;
     eventDetail.createdBy = createEventDto.createdBy;
     eventDetail.updatedBy = createEventDto.updatedBy;
@@ -358,6 +354,7 @@ export class EventService {
         createEventDto.recordings = null;
       } else if (createEventDto.eventType === EventTypes.online) {
         createEventDto.meetingDetails.providerGenerated = false;
+        createEventDto.meetingDetails.occurenceId = '';
       }
 
       const eventDetail = await this.createEventDetailDB(createEventDto);
@@ -403,6 +400,12 @@ export class EventService {
       eventId,
     );
 
+    if (!(this.eventCreationLimit > 0)) {
+      const errmsg = 'Event creation limit unavailable';
+      await this.removePartiallyCreatedData(eventId, eventDetailId);
+      throw new BadRequestException(errmsg);
+    }
+
     if (eventOccurences.length > this.eventCreationLimit) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
       throw new BadRequestException('Event Creation Count exceeded');
@@ -436,26 +439,25 @@ export class EventService {
     const occurrences: EventRepetition[] = [];
     const startTime = createEventDto.startDatetime.split('T')[1];
     const endTime = createEventDto.endDatetime.split('T')[1];
-    // let currentDate = new Date(startDate);
 
     let currentDate = new Date(startDate.split('T')[0] + 'T' + startTime);
 
-    const addDays = (date, days) => {
+    const addDays = (date: Date, days: number): Date => {
       const result = new Date(date);
       result.setDate(result.getDate() + days);
       return result;
     };
 
-    const addWeeks = (date, weeks, daysOfWeek) => {
-      const result = new Date(date);
-      const nextValidDay = daysOfWeek.find((day) => day > result.getDay());
-      result.setDate(
-        result.getDate() +
-          (nextValidDay !== undefined
-            ? nextValidDay - result.getDay()
-            : 7 * weeks - result.getDay() + daysOfWeek[0]),
-      );
-      return result;
+    const getNextValidDay = (
+      currentDay: number,
+      daysOfWeek: DaysOfWeek[],
+    ): number => {
+      for (let i = 0; i < daysOfWeek.length; i++) {
+        if (daysOfWeek[i] > currentDay) {
+          return daysOfWeek[i] - currentDay;
+        }
+      }
+      return 7 - currentDay + daysOfWeek[0]; // Move to the next valid week
     };
 
     const endConditionMet = (
@@ -480,17 +482,31 @@ export class EventService {
         eventId,
       );
 
-      const endDtm = currentDate.toISOString().split('T')[0] + 'T' + endTime;
-
-      eventRec.startDateTime = new Date(currentDate);
-      eventRec.endDateTime = new Date(endDtm);
-
-      occurrences.push(eventRec);
-
       if (config.frequency === 'daily') {
+        const endDtm = currentDate.toISOString().split('T')[0] + 'T' + endTime;
+
+        eventRec.startDateTime = new Date(currentDate);
+        eventRec.endDateTime = new Date(endDtm);
+        occurrences.push(eventRec);
         currentDate = addDays(currentDate, config.interval);
       } else if (config.frequency === 'weekly') {
-        currentDate = addWeeks(currentDate, config.interval, config.daysOfWeek);
+        const currentDay = currentDate.getDay();
+        const daysUntilNextOccurrence = getNextValidDay(
+          currentDay,
+          config.daysOfWeek,
+        );
+        currentDate = addDays(currentDate, daysUntilNextOccurrence);
+        const endDtm = currentDate.toISOString().split('T')[0] + 'T' + endTime;
+
+        eventRec.startDateTime = new Date(currentDate);
+        eventRec.endDateTime = new Date(endDtm);
+        occurrences.push(eventRec);
+        if (
+          currentDate.getDay() ===
+          config.daysOfWeek[config.daysOfWeek.length - 1]
+        ) {
+          currentDate = addDays(currentDate, 7 * (config.interval - 1)); // Skip weeks based on interval
+        }
       }
     }
 
@@ -517,7 +533,7 @@ export class EventService {
   async removePartiallyCreatedData(
     eventId: string,
     eventDetailId: string,
-  ): Promise<PromiseSettledResult<void | DeleteResult>[]> {
+  ): Promise<PromiseSettledResult<undefined | DeleteResult>[]> {
     const promises = [
       this.deleteEvent(eventId),
       this.deleteEventDetail(eventDetailId),
