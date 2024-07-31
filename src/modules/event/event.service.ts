@@ -7,7 +7,7 @@ import {
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, Not } from 'typeorm';
 import { Events } from './entities/event.entity';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
@@ -93,6 +93,7 @@ export class EventService {
     try {
       const { filters } = requestBody;
       const today = new Date();
+
       let finalquery = `SELECT 
       er."eventDetailId" AS "eventRepetition_eventDetailId", 
       er.*, 
@@ -109,7 +110,7 @@ export class EventService {
       //User not pass any things then it show today and upcoming event
       if (!filters || Object.keys(filters).length === 0) {
         finalquery += ` WHERE (er."startDateTime" >= CURRENT_TIMESTAMP
-        OR er."endDateTime" > CURRENT_TIMESTAMP) AND status='live'`;
+        OR er."endDateTime" > CURRENT_TIMESTAMP) AND ed.status='live'`;
       }
 
       // if user pass somthing in filter then make query
@@ -240,7 +241,7 @@ export class EventService {
     return finalquery;
   }
 
-  async createEvents(createEventDto, response) {}
+  async createEvents(createEventDto, response) { }
 
   async createEventDetailDB(
     createEventDto: CreateEventDto,
@@ -272,6 +273,90 @@ export class EventService {
     eventDetail.updatedAt = new Date();
 
     return this.eventDetailRepository.save(eventDetail);
+  }
+
+  async updateEvent(eventRepetitionId, updateBody, response) {
+    const apiId = 'api.update.event';
+    try {
+      const eventRepetationresult = await this.eventRepetitionRepository.findOne({ where: { eventRepetitionId } });
+      if (!eventRepetationresult) {
+        return response
+          .status(HttpStatus.NOT_FOUND)
+          .json(
+            APIResponse.error(
+              apiId,
+              'Event Not Found',
+              'No records found.',
+              'NOT_FOUND',
+            ),
+          );
+      }
+      const event = await this.eventRepository.findOne({ where: { eventId: eventRepetationresult.eventId } })
+      // To delete or update all recurrentce record
+      if (updateBody?.target) {
+        const eventId = eventRepetationresult.eventId; // come frome event Repetation table
+        const eventDetailId = event.eventDetailId; // come from event table
+        // fecth all record more than one present in event detail table or not on behalf of single event id
+        const getAllRecord = await this.eventRepetitionRepository.find({
+          where: { eventId: eventId, eventDetailId: Not(eventDetailId) }
+        })
+        const existingEventDetail = await this.eventDetailRepository.findOne({ where: { eventDetailId: event.eventDetailId } })
+        const eventRepetitionIdsToUpdate = getAllRecord.map(record => record.eventRepetitionId);
+        const eventDetailIdsToDelete = getAllRecord.map(record => record.eventDetailId);
+        // if present then need to update eventDetailId in eventReepetation table and delete  record from eventDetail table
+        if (getAllRecord.length != 0) {
+          const updateResult = await this.eventRepetitionRepository.update(
+            { eventRepetitionId: In(eventRepetitionIdsToUpdate) },
+            { eventDetailId: eventDetailId }
+          )
+          // Delete records from the EventDetail table
+          const deleteResult = await this.eventDetailRepository.delete(
+            { eventDetailId: In(eventDetailIdsToDelete) }
+          )
+        }
+
+        Object.assign(existingEventDetail, updateBody)
+        existingEventDetail.updatedAt = new Date();
+        const updateResults = await this.eventDetailRepository.save(existingEventDetail);
+      }
+      // To delete or update specific recurrentce record
+      else {
+        const existingEventDetails = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventRepetationresult.eventDetailId } })
+        //create new record 
+        if (event.eventDetailId === existingEventDetails.eventDetailId) {
+          Object.assign(existingEventDetails, updateBody)
+          delete existingEventDetails.eventDetailId
+          const newEntry = await this.eventDetailRepository.save(existingEventDetails);
+          const updateEventDetails = await this.eventRepetitionRepository.update(
+            { eventRepetitionId: eventRepetationresult.eventRepetitionId },
+            { eventDetailId: newEntry.eventDetailId }
+          )
+        }
+        //update in existing record
+        else {
+          console.log("yes this is event which will not  create new one ");
+          Object.assign(existingEventDetails, updateBody)
+          const newEntry = await this.eventDetailRepository.save(existingEventDetails);
+        }
+      }
+      return response
+        .status(HttpStatus.OK)
+        .json(APIResponse.success(apiId, "result", 'OK'))
+
+    }
+    catch (error) {
+      console.log(error, "error");
+      return response
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .json(
+          APIResponse.error(
+            apiId,
+            ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+            error,
+            '500',
+          ),
+        );
+    }
   }
 
   async createEventDB(
@@ -419,7 +504,7 @@ export class EventService {
     }
   }
 
-  createNonRecurringEvent(createEventDto: CreateEventDto) {}
+  createNonRecurringEvent(createEventDto: CreateEventDto) { }
 
   async getEventOccurrences(eventId: string): Promise<EventRepetition[]> {
     return this.eventRepetitionRepository.find({ where: { eventId: eventId } });
@@ -514,7 +599,7 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
-        new Date(config.endCondition.value)
+      new Date(config.endCondition.value)
     ) {
       occurrences.pop();
     }
