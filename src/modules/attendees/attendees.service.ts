@@ -12,12 +12,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SearchAttendeesDto } from './dto/searchAttendees.dto';
 import { UpdateAttendeesDto } from './dto/updateAttendees.dto';
+import { AttendeesStatus } from 'src/common/utils/types';
 
 @Injectable()
 export class AttendeesService {
   constructor(
     @InjectRepository(EventAttendees)
-    private readonly eventAttendeesRepo: Repository<EventAttendees>,
+    private readonly eventAttendeesRepository: Repository<EventAttendees>,
   ) {}
 
   async createAttendees(
@@ -86,7 +87,7 @@ export class AttendeesService {
       enrolledBy: eventAttendeesDTO.enrolledBy,
     }));
 
-    const results = await this.eventAttendeesRepo.save(eventAttendees);
+    const results = await this.eventAttendeesRepository.save(eventAttendees);
     return results;
   }
 
@@ -119,7 +120,7 @@ export class AttendeesService {
           .send(APIResponse.success(apiId, attendees, 'OK'));
       } else if (userId) {
         const query = `SELECT * FROM "Users" WHERE "userId"='${userId}'`;
-        const user = await this.eventAttendeesRepo.query(query);
+        const user = await this.eventAttendeesRepository.query(query);
         if (user.length === 0) {
           return response
             .status(HttpStatus.NOT_FOUND)
@@ -132,7 +133,7 @@ export class AttendeesService {
               ),
             );
         }
-        const attendees = await this.eventAttendeesRepo.find({
+        const attendees = await this.eventAttendeesRepository.find({
           where: { userId: userId },
         });
         if (!attendees || attendees.length === 0) {
@@ -250,7 +251,7 @@ export class AttendeesService {
 
   public async deleteEventAttendees(eventId: string) {
     try {
-      const deletedAttendees = await this.eventAttendeesRepo
+      const deletedAttendees = await this.eventAttendeesRepository
         .createQueryBuilder()
         .delete()
         .from(EventAttendees)
@@ -264,7 +265,7 @@ export class AttendeesService {
 
   public async deleteUserAttendees(userId: string) {
     try {
-      const deletedAttendees = await this.eventAttendeesRepo
+      const deletedAttendees = await this.eventAttendeesRepository
         .createQueryBuilder()
         .delete()
         .from(EventAttendees)
@@ -311,7 +312,8 @@ export class AttendeesService {
           );
       }
       Object.assign(attendees, updateAttendeesDto);
-      const updated_result = await this.eventAttendeesRepo.save(attendees);
+      const updated_result =
+        await this.eventAttendeesRepository.save(attendees);
       if (!updated_result) {
         throw new BadRequestException('Attendees updation failed');
       }
@@ -332,9 +334,50 @@ export class AttendeesService {
     }
   }
 
-  async createAttendeesForRecurringEvents() {
-    //  This method creates attendees when attendees are passed during creating event in attendees array and autoEnroll and isRestricted is true all attendees passed
-    // All the attendees will be added to all recurring events
+  createEventAttendeesRecord(
+    userId: string,
+    eventRepetitionId: string,
+    creatorOrUpdaterId: string,
+  ) {
+    const eventAttendees = new EventAttendees();
+    eventAttendees.userId = userId;
+    eventAttendees.eventRepetitionId = eventRepetitionId;
+    eventAttendees.enrolledAt = new Date();
+    eventAttendees.updatedAt = new Date();
+    eventAttendees.enrolledBy = creatorOrUpdaterId;
+    eventAttendees.updatedBy = creatorOrUpdaterId;
+    eventAttendees.isAttended = false;
+    eventAttendees.status = AttendeesStatus.active;
+
+    return eventAttendees;
+  }
+
+  async createAttendeesForRecurringEvents(
+    userIds: string[],
+    eventRepetitionIds: [],
+    creatorOrUpdaterId: string,
+  ) {
+    // This method creates attendees when attendees are passed during creating event in attendees array and autoEnroll and isRestricted is true
+    // All the attendees passed will be added to all recurring events
     // if there are 5 recurring events and 5 attendees then total 5*5 that is 25 entries will be added to the database
+    try {
+      if (!userIds?.length) return;
+      const promises = [];
+      eventRepetitionIds.forEach(({ eventRepetitionId }) => {
+        const attendeesRecords = userIds.map((userId) =>
+          // attendeesRecords.push(
+          this.createEventAttendeesRecord(
+            userId,
+            eventRepetitionId,
+            creatorOrUpdaterId,
+            // ),
+          ),
+        );
+        promises.push(this.eventAttendeesRepository.insert(attendeesRecords));
+      });
+      await Promise.allSettled(promises);
+    } catch (e) {
+      throw e;
+    }
   }
 }

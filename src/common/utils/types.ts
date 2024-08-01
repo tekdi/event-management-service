@@ -4,6 +4,13 @@ export enum EventTypes {
 }
 
 export enum EventStatus {
+  live = 'live',
+  draft = 'draft',
+  inactive = 'inactive',
+  archived = 'archived',
+}
+
+export enum AttendeesStatus {
   active = 'active',
   inactive = 'inactive',
   archived = 'archived',
@@ -12,8 +19,8 @@ export enum EventStatus {
 export enum Frequency {
   daily = 'daily',
   weekly = 'weekly',
-  monthly = 'monthly',
-  yearly = 'yearly',
+  // monthly = 'monthly',
+  // yearly = 'yearly',
 }
 
 export type RepetitionDetail = {
@@ -51,6 +58,11 @@ export enum DaysOfWeek {
   Saturday = 6,
 }
 
+export enum EndConditionType {
+  endDate = 'endDate',
+  occurrences = 'occurrences',
+}
+
 export type RecurrencePattern = {
   frequency: Frequency;
   interval: number;
@@ -60,7 +72,7 @@ export type RecurrencePattern = {
   // byMonth: string;
   // byMonthDay: string;
   endCondition: {
-    type: 'endDate' | 'occurrences';
+    type: EndConditionType;
     value: string;
   };
 };

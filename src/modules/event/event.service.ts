@@ -19,7 +19,9 @@ import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
 import {
   DaysOfWeek,
+  EndConditionType,
   EventTypes,
+  Frequency,
   RecurrencePattern,
   RepetitionDetail,
 } from 'src/common/utils/types';
@@ -59,7 +61,11 @@ export class EventService {
 
         // if event is private then invitees are required
         // add invitees to attendees table
-        // this.attendeesService;
+        await this.attendeesService.createAttendeesForRecurringEvents(
+          createEventDto.attendees,
+          createdEvent.eventRepetitionIds,
+          createEventDto.createdBy,
+        );
       } else {
         throw new NotImplementedException();
         // if event is public then registrationDate is required
@@ -74,7 +80,7 @@ export class EventService {
 
       return response
         .status(HttpStatus.CREATED)
-        .json(APIResponse.success(apiId, createdEvent, 'Created'));
+        .json(APIResponse.success(apiId, createdEvent.res, 'Created'));
     } catch (error) {
       console.log(error, 'error create event');
       throw error;
@@ -364,12 +370,14 @@ export class EventService {
           createdEventDB.eventId,
           createdEventDetailDB.eventDetailId,
         );
-
-        return this.generateEventResponse(
-          createdEventDB,
-          erep?.generatedMaps[0],
-          erep?.generatedMaps.length,
-        );
+        return {
+          res: this.generateEventResponse(
+            createdEventDB,
+            erep?.generatedMaps[0],
+            erep?.generatedMaps.length,
+          ),
+          eventRepetitionIds: erep.identifiers,
+        };
       } else {
         // this.createNonRecurringEvent(createEventDto);
         erep = await this.createEventRepetitionDB(
@@ -379,7 +387,10 @@ export class EventService {
         );
         const { event, eventDetail, ...repetitionDtl } = erep;
 
-        return this.generateEventResponse(event, repetitionDtl);
+        return {
+          res: this.generateEventResponse(event, repetitionDtl),
+          eventRepetitionIds: [{ eventRepetitionId: erep.eventRepetitionId }],
+        };
       }
 
       // generate and return response body
@@ -433,6 +444,7 @@ export class EventService {
   ) {
     const { eventDetail, ...other } = event;
 
+    delete eventDetail.attendees;
     const repetitionDetail = {};
     repetitionDetail['eventRepetitionId'] = repetitionDtl.eventRepetitionId;
     repetitionDetail['startDateTime'] = repetitionDtl.startDateTime;
@@ -491,7 +503,7 @@ export class EventService {
           occurrences1[occurrences1.length - 1]?.endDateTime >
           new Date(endCondition.value)
         );
-      } else if (endCondition.type === 'occurrences') {
+      } else if (endCondition.type === EndConditionType.occurrences) {
         return occurrences1.length >= parseInt(endCondition.value);
       }
       return false;
@@ -504,14 +516,14 @@ export class EventService {
         eventId,
       );
 
-      if (config.frequency === 'daily') {
+      if (config.frequency === Frequency.daily) {
         const endDtm = currentDate.toISOString().split('T')[0] + 'T' + endTime;
 
         eventRec.startDateTime = new Date(currentDate);
         eventRec.endDateTime = new Date(endDtm);
         occurrences.push(eventRec);
         currentDate = addDays(currentDate, config.interval);
-      } else if (config.frequency === 'weekly') {
+      } else if (config.frequency === Frequency.weekly) {
         const currentDay = currentDate.getDay();
         const daysUntilNextOccurrence = getNextValidDay(
           currentDay,
