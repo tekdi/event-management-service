@@ -19,10 +19,6 @@ import { EventRepetition } from '../event/entities/eventRepetition.entity';
     ]),
   ],
   controllers: [AttendeesController],
-  providers: [
-    AttendeesService,
-    ConfigService,
-    EventService,
-  ],
+  providers: [AttendeesService, ConfigService, EventService],
 })
-export class AttendeesModule { }
+export class AttendeesModule {}
