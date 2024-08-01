@@ -1,4 +1,4 @@
-name: Event-Management-Service Deployment on Pratham-dev in OU
+name: Tekdi-Infra-Deployment
 
 on:
   push:
