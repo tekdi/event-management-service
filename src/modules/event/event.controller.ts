@@ -70,10 +70,7 @@ export class EventController {
     @Body() createEventDto: CreateEventDto,
     @Res() response: Response,
   ) {
-    const userId = '016badad-22b0-4566-88e9-aab1b35b1dfc'; // later come from JWT-token
-    this.configService;
-    console.log('createEventDtocontr', createEventDto);
-    return this.eventService.createEvent(createEventDto, userId, response);
+    return this.eventService.createEvent(createEventDto, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENTS))
