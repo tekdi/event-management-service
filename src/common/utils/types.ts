@@ -16,6 +16,23 @@ export enum Frequency {
   yearly = 'yearly',
 }
 
+export type RepetitionDetail = {
+  onlineDetails:
+    | {
+        id: string;
+        url: string;
+        password: string;
+        occurenceId: string;
+        providerGenerated: boolean;
+      }
+    | {}
+    | null;
+  metadata: any;
+  eventRepetitionId: string;
+  startDateTime: Date;
+  endDateTime: Date;
+};
+
 export type MeetingDetails = {
   id: string;
   url: string;

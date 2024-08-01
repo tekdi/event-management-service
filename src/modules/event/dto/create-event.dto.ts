@@ -288,6 +288,7 @@ export class CreateEventDto {
   })
   @IsInt()
   @Min(0)
+  @IsOptional()
   maxAttendees: number;
 
   @ApiProperty({
@@ -306,6 +307,7 @@ export class CreateEventDto {
   @Type(() => String)
   @ArrayMaxSize(200)
   @IsUUID('4', { each: true })
+  @IsOptional()
   attendees: string[];
 
   @ApiProperty({
@@ -314,6 +316,7 @@ export class CreateEventDto {
     example: { url: 'https://example.com/recording' },
   })
   @IsObject()
+  @IsOptional()
   recordings: any;
 
   @ApiProperty({
@@ -348,6 +351,7 @@ export class CreateEventDto {
     description: 'idealTime',
     example: 120,
   })
+  @IsOptional()
   idealTime: number;
 
   @ApiProperty({
