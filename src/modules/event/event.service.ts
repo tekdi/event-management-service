@@ -2,6 +2,7 @@ import {
   BadRequestException,
   HttpStatus,
   Injectable,
+  NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -123,9 +124,11 @@ export class EventService {
       // Append LIMIT and OFFSET to the query
       finalquery += ` LIMIT ${limit} OFFSET ${offset}`;
       const result = await this.eventRepetitionRepository.query(finalquery);
+      const totalCount = result[0]?.total_count;
 
       // Add isEnded key based on endDateTime
       const finalResult = result.map((event) => {
+        delete event.total_count;
         const endDateTime = new Date(event.endDateTime);
         return {
           ...event,
@@ -133,37 +136,19 @@ export class EventService {
         };
       });
       if (finalResult.length === 0) {
-        return response
-          .status(HttpStatus.NOT_FOUND)
-          .json(
-            APIResponse.error(
-              apiId,
-              'Event Not Found',
-              'No records found.',
-              'NOT_FOUND',
-            ),
-          );
+        throw new NotFoundException('Event Not Found');
       }
       return response
         .status(HttpStatus.OK)
         .json(
           APIResponse.success(
             apiId,
-            { totalCount: finalResult[0].total_count, events: finalResult },
+            { totalCount, events: finalResult },
             'OK`',
           ),
         );
     } catch (error) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .json(
-          APIResponse.error(
-            apiId,
-            ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-            error,
-            '500',
-          ),
-        );
+      throw error;
     }
   }
 
@@ -230,6 +215,11 @@ export class EventService {
     } else {
       // Add default status condition if no status is passed in the filter
       whereClauses.push(`"status" = 'live'`);
+    }
+
+    // Handle cohortId filter
+    if (filters.cohortId) {
+      whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`);
     }
 
     // Construct final query

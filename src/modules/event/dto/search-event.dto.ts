@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsString,
   ValidateNested,
+  IsUUID,
 } from 'class-validator';
 
 export class FilterDto {
@@ -59,6 +60,11 @@ export class FilterDto {
   @IsOptional()
   @IsString()
   title?: string;
+
+  @ApiProperty({ example: 'CohortId', description: 'CohortId' })
+  @IsOptional()
+  @IsUUID('4')
+  cohortId?: string;
 }
 
 export class SearchFilterDto {
