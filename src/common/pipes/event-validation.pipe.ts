@@ -6,6 +6,7 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
+import { EndConditionType } from '../utils/types';
 
 @Injectable()
 export class DateValidationPipe implements PipeTransform {
@@ -135,7 +136,7 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
           );
         }
         // createEventDto.recurrencePattern.endCondition.value = endDate;
-      } else if (endConditionType === 'occurrences') {
+      } else if (endConditionType === EndConditionType.occurrences) {
         const occurrences = Number(endConditionValue);
 
         if (!occurrences || occurrences < 1) {
@@ -144,8 +145,8 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
           );
         }
       } else if (
-        endConditionType !== 'occurrences' &&
-        endConditionType !== 'endDate'
+        endConditionType !== EndConditionType.occurrences &&
+        endConditionType !== EndConditionType.endDate
       ) {
         throw new BadRequestException(
           ERROR_MESSAGES.RECURRENCE_PATTERN_INVALID,

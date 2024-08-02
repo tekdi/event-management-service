@@ -23,6 +23,7 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  EndConditionType,
   EventTypes,
   Frequency,
   MeetingDetails,
@@ -66,7 +67,7 @@ export class EndCondition {
   })
   @IsString()
   @IsNotEmpty()
-  type: 'endDate' | 'occurrences';
+  type: EndConditionType;
 
   @ApiProperty({
     type: String,
@@ -100,15 +101,15 @@ export class RecurrencePatternDto {
   })
   @IsInt()
   @Min(1)
-  interval: number;
+  interval: number = 1; // default 1 if not provided
 
   @ApiProperty({
     type: [String],
     description: 'Days of Week',
     example: [1, 3, 5],
   })
+  @ValidateIf((o) => o.frequency === 'weekly')
   @IsArray()
-  @IsOptional()
   @IsInt({ each: true })
   daysOfWeek: number[];
 
