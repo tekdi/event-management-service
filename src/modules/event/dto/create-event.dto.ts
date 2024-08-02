@@ -21,7 +21,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   EndConditionType,
   EventTypes,
@@ -31,8 +31,12 @@ import {
 } from 'src/common/utils/types';
 import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EndsWithZConstraint } from 'src/common/pipes/event-validation.pipe';
+import { UrlWithProviderValidator } from 'src/common/utils/validation.util';
 
 export class MeetingDetailsDto {
+  // Pass the provider from the parent DTO
+  onlineProvider: string;
+
   @ApiProperty({ description: 'Meeting ID', example: 94292617 })
   @IsString()
   @IsNotEmpty()
@@ -44,7 +48,7 @@ export class MeetingDetailsDto {
   })
   @IsString()
   @IsNotEmpty()
-  // @Validate(UrlValidator)
+  @Validate(UrlWithProviderValidator)
   url: string;
 
   @ApiProperty({ description: 'Meeting password', example: 'xxxxxx' })
@@ -253,7 +257,7 @@ export class CreateEventDto {
   @ValidateIf((o) => o.eventType === EventTypes.online)
   @IsString()
   @IsNotEmpty()
-  @IsIn(['Zoom', 'GoogleMeet', 'MicrosoftTeams']) // Supported providers
+  @IsIn(['Zoom', 'GoogleMeet']) //, 'MicrosoftTeams' // Supported providers
   onlineProvider: string;
 
   @ApiProperty({
@@ -279,8 +283,11 @@ export class CreateEventDto {
   @ValidateIf((o) => o.eventType === 'online')
   @ValidateNested({ each: true })
   @Type(() => MeetingDetailsDto)
+  @Transform(({ value, obj }) => {
+    value.onlineProvider = obj.onlineProvider; // Pass the provider to the nested DTO
+    return value;
+  })
   meetingDetails: MeetingDetails;
-  // TODO: meet url validation
 
   @ApiProperty({
     type: Number,
