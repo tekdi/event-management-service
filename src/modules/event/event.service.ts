@@ -3,13 +3,12 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
-  NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, MoreThan } from 'typeorm';
+import { Repository, In, Not, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { Events } from './entities/event.entity';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
@@ -129,8 +128,6 @@ export class EventService {
       const result = await this.eventRepetitionRepository.query(finalquery);
       const totalCount = result[0]?.total_count
 
-      const totalCount = result[0]?.total_count
-
       // Add isEnded key based on endDateTime
       const finalResult = result.map((event) => {
         delete event.total_count;
@@ -239,6 +236,117 @@ export class EventService {
       finalquery += ` WHERE ${whereClauses.join(' AND ')}`;
     }
     return finalquery;
+  }
+
+  async updateEvent(eventRepetitionId, updateBody, response) {
+    const apiId = 'api.update.event';
+    try {
+      const currentTimestamp = new Date();
+      // need to check startdate of this particulr event for edit permission
+      const eventRepetition = await this.eventRepetitionRepository.findOne({ where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp), } });
+      if (!eventRepetition) {
+        return response
+          .status(HttpStatus.NOT_FOUND)
+          .json(
+            APIResponse.error(apiId, 'Event Not Found', 'No records found.', 'NOT_FOUND')
+          );
+      }
+
+      const event = await this.eventRepository.findOne({ where: { eventId: eventRepetition.eventId } });
+      const eventDetail = await this.eventDetailRepository.findOne({ where: { eventDetailId: event.eventDetailId } });
+
+      if (this.isInvalidUpdate(updateBody, eventDetail)) {
+        throw new BadRequestException('Not editable field');
+      }
+
+      if (updateBody?.target) {
+        // Handle updates or deletions for all recurrence records
+        await this.handleAllEventUpdate(updateBody, event, eventRepetition);
+      } else {
+        // Handle updates or deletions for a specific recurrence record
+        await this.handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition);
+      }
+
+      return response
+        .status(HttpStatus.OK)
+        .json(APIResponse.success(apiId, "result", 'OK'));
+
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  }
+
+  async handleAllEventUpdate(updateBody, event, eventRepetition) {
+    console.log(eventRepetition, "eventRepetation");
+
+    const eventId = eventRepetition.eventId;
+    const eventDetailId = event.eventDetailId;
+
+    // Convert eventRepetition.startDate to a string with time zone if necessary
+    const startDateTime = eventRepetition.startDateTime;
+    const existingEventDetails = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventDetailId } });
+
+    const recurrenceRecords = await this.eventRepetitionRepository.find({
+      where: { eventId: eventId, eventDetailId: Not(eventDetailId), startDateTime: MoreThanOrEqual(startDateTime) }
+    });
+
+    if (recurrenceRecords.length > 0) {
+      await this.eventRepetitionRepository.update(
+        { eventRepetitionId: In(recurrenceRecords.map(record => record.eventRepetitionId)) },
+        { eventDetailId: eventDetailId }
+      );
+
+      await this.eventDetailRepository.delete(
+        { eventDetailId: In(recurrenceRecords.map(record => record.eventDetailId)) }
+      );
+    }
+
+    if (updateBody.onlineDetails) {
+      await this.eventRepetitionRepository.update(
+        { eventDetailId: eventDetailId },
+        { onlineDetails: updateBody.onlineDetails }
+      );
+    }
+
+    Object.assign(existingEventDetails, updateBody);
+    existingEventDetails.updatedAt = new Date();
+    await this.eventDetailRepository.save(existingEventDetails);
+  }
+
+  async handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition) {
+    const eventDetailId = eventRepetition.eventDetailId;
+
+    const existingEventDetails = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventDetailId } });
+
+    if (event.eventDetailId === existingEventDetails.eventDetailId) {
+      Object.assign(existingEventDetails, updateBody);
+      delete existingEventDetails.eventDetailId;
+      const newEntry = await this.eventDetailRepository.save(existingEventDetails);
+      await this.eventRepetitionRepository.update(
+        { eventRepetitionId: eventRepetition.eventRepetitionId },
+        { eventDetailId: newEntry.eventDetailId }
+      );
+    } else {
+      Object.assign(existingEventDetails, updateBody);
+      await this.eventDetailRepository.save(existingEventDetails);
+    }
+  }
+
+  isInvalidUpdate(updateBody, eventDetail) {
+    if (updateBody.location || (updateBody.latitude && updateBody.longitude)) {
+      if (eventDetail.eventType === 'online') {
+        return true;
+      }
+    }
+
+    if (updateBody.onlineDetails) {
+      if (eventDetail.eventType === 'offline') {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   async createEventDetailDB(
@@ -550,7 +658,6 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
-      new Date(config.endCondition.value)
       new Date(config.endCondition.value)
     ) {
       occurrences.pop();
