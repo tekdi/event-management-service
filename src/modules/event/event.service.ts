@@ -2,12 +2,13 @@ import {
   BadRequestException,
   HttpStatus,
   Injectable,
+  NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not } from 'typeorm';
+import { Repository, In, Not, MoreThan } from 'typeorm';
 import { Events } from './entities/event.entity';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
@@ -117,10 +118,13 @@ export class EventService {
 
       // Append LIMIT and OFFSET to the query
       finalquery += ` LIMIT ${limit} OFFSET ${offset}`;
+
       const result = await this.eventRepetitionRepository.query(finalquery);
+      const totalCount = result[0]?.total_count
 
       // Add isEnded key based on endDateTime
       const finalResult = result.map((event) => {
+        delete event.total_count;
         const endDateTime = new Date(event.endDateTime);
         return {
           ...event,
@@ -128,37 +132,19 @@ export class EventService {
         };
       });
       if (finalResult.length === 0) {
-        return response
-          .status(HttpStatus.NOT_FOUND)
-          .json(
-            APIResponse.error(
-              apiId,
-              'Event Not Found',
-              'No records found.',
-              'NOT_FOUND',
-            ),
-          );
+        throw new NotFoundException('Event Not Found')
       }
       return response
         .status(HttpStatus.OK)
         .json(
           APIResponse.success(
             apiId,
-            { totalCount: finalResult[0].total_count, events: finalResult },
+            { totalCount, events: finalResult },
             'OK`',
           ),
         );
     } catch (error) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .json(
-          APIResponse.error(
-            apiId,
-            ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-            error,
-            '500',
-          ),
-        );
+      throw error;
     }
   }
 
@@ -227,6 +213,11 @@ export class EventService {
       whereClauses.push(`"status" = 'live'`);
     }
 
+    // Handle cohortId filter
+    if (filters.cohortId) {
+      whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`)
+    }
+
     // Construct final query
     if (whereClauses.length > 0) {
       finalquery += ` WHERE ${whereClauses.join(' AND ')}`;
@@ -264,90 +255,6 @@ export class EventService {
     eventDetail.updatedAt = new Date();
 
     return this.eventDetailRepository.save(eventDetail);
-  }
-
-  async updateEvent(eventRepetitionId, updateBody, response) {
-    const apiId = 'api.update.event';
-    try {
-      const eventRepetationresult = await this.eventRepetitionRepository.findOne({ where: { eventRepetitionId } });
-      if (!eventRepetationresult) {
-        return response
-          .status(HttpStatus.NOT_FOUND)
-          .json(
-            APIResponse.error(
-              apiId,
-              'Event Not Found',
-              'No records found.',
-              'NOT_FOUND',
-            ),
-          );
-      }
-      const event = await this.eventRepository.findOne({ where: { eventId: eventRepetationresult.eventId } })
-      // To delete or update all recurrentce record
-      if (updateBody?.target) {
-        const eventId = eventRepetationresult.eventId; // come frome event Repetation table
-        const eventDetailId = event.eventDetailId; // come from event table
-        // fecth all record more than one present in event detail table or not on behalf of single event id
-        const getAllRecord = await this.eventRepetitionRepository.find({
-          where: { eventId: eventId, eventDetailId: Not(eventDetailId) }
-        })
-        const existingEventDetail = await this.eventDetailRepository.findOne({ where: { eventDetailId: event.eventDetailId } })
-        const eventRepetitionIdsToUpdate = getAllRecord.map(record => record.eventRepetitionId);
-        const eventDetailIdsToDelete = getAllRecord.map(record => record.eventDetailId);
-        // if present then need to update eventDetailId in eventReepetation table and delete  record from eventDetail table
-        if (getAllRecord.length != 0) {
-          const updateResult = await this.eventRepetitionRepository.update(
-            { eventRepetitionId: In(eventRepetitionIdsToUpdate) },
-            { eventDetailId: eventDetailId }
-          )
-          // Delete records from the EventDetail table
-          const deleteResult = await this.eventDetailRepository.delete(
-            { eventDetailId: In(eventDetailIdsToDelete) }
-          )
-        }
-
-        Object.assign(existingEventDetail, updateBody)
-        existingEventDetail.updatedAt = new Date();
-        const updateResults = await this.eventDetailRepository.save(existingEventDetail);
-      }
-      // To delete or update specific recurrentce record
-      else {
-        const existingEventDetails = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventRepetationresult.eventDetailId } })
-        //create new record 
-        if (event.eventDetailId === existingEventDetails.eventDetailId) {
-          Object.assign(existingEventDetails, updateBody)
-          delete existingEventDetails.eventDetailId
-          const newEntry = await this.eventDetailRepository.save(existingEventDetails);
-          const updateEventDetails = await this.eventRepetitionRepository.update(
-            { eventRepetitionId: eventRepetationresult.eventRepetitionId },
-            { eventDetailId: newEntry.eventDetailId }
-          )
-        }
-        //update in existing record
-        else {
-          console.log("yes this is event which will not  create new one ");
-          Object.assign(existingEventDetails, updateBody)
-          const newEntry = await this.eventDetailRepository.save(existingEventDetails);
-        }
-      }
-      return response
-        .status(HttpStatus.OK)
-        .json(APIResponse.success(apiId, "result", 'OK'))
-
-    }
-    catch (error) {
-      console.log(error, "error");
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .json(
-          APIResponse.error(
-            apiId,
-            ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-            error,
-            '500',
-          ),
-        );
-    }
   }
 
   async createEventDB(
