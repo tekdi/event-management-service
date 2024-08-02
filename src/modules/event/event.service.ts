@@ -3,6 +3,7 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -128,8 +129,11 @@ export class EventService {
       const result = await this.eventRepetitionRepository.query(finalquery);
       const totalCount = result[0]?.total_count
 
+      const totalCount = result[0]?.total_count
+
       // Add isEnded key based on endDateTime
       const finalResult = result.map((event) => {
+        delete event.total_count;
         delete event.total_count;
         const endDateTime = new Date(event.endDateTime);
         return {
@@ -150,6 +154,7 @@ export class EventService {
           ),
         );
     } catch (error) {
+      throw error
       throw error;
     }
   }
@@ -217,6 +222,11 @@ export class EventService {
     } else {
       // Add default status condition if no status is passed in the filter
       whereClauses.push(`"status" = 'live'`);
+    }
+
+    // Handle cohortId filter
+    if (filters.cohortId) {
+      whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`)
     }
 
     // Handle cohortId filter
@@ -540,6 +550,7 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
+      new Date(config.endCondition.value)
       new Date(config.endCondition.value)
     ) {
       occurrences.pop();
