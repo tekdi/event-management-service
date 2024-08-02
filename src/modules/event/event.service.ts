@@ -253,6 +253,10 @@ export class EventService {
       }
 
       const event = await this.eventRepository.findOne({ where: { eventId: eventRepetition.eventId } });
+      // condition for prevent non recuring event
+      if (!event.isRecurring && !updateBody.target) {
+        throw new BadRequestException('You can not pass target false beacuse event is non recurring')
+      }
       const eventDetail = await this.eventDetailRepository.findOne({ where: { eventDetailId: event.eventDetailId } });
 
       if (this.isInvalidUpdate(updateBody, eventDetail)) {
