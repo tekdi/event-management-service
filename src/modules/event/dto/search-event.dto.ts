@@ -61,7 +61,7 @@ export class FilterDto {
   @IsString()
   title?: string;
 
-  @ApiProperty({ example: 'CohortId', description: 'CohortId' })
+  @ApiProperty({ example: 'CohortId', description: 'Cohort' })
   @IsOptional()
   @IsUUID('4')
   cohortId?: string;
