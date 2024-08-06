@@ -242,55 +242,45 @@ export class EventService {
     const apiId = 'api.update.event';
     try {
       const currentTimestamp = new Date();
-      // need to check startdate of this particulr event for edit permission
-      const eventRepetition = await this.eventRepetitionRepository.findOne({ where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp), } });
+      // need to check startdate of this particuler event for edit permission
+      const eventRepetition = await this.eventRepetitionRepository.findOne({ where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) } });
       if (!eventRepetition) {
-        return response
-          .status(HttpStatus.NOT_FOUND)
-          .json(
-            APIResponse.error(apiId, 'Event Not Found', 'No records found.', 'NOT_FOUND')
-          );
+        throw new NotFoundException('Event Not found')
       }
 
       const event = await this.eventRepository.findOne({ where: { eventId: eventRepetition.eventId } });
       // condition for prevent non recuring event
-      if (!event.isRecurring && !updateBody.target) {
-        throw new BadRequestException('You can not pass target false beacuse event is non recurring')
+      if (!event.isRecurring && !updateBody.isMainEvent) {
+        throw new BadRequestException('You can not pass isMainEvent false beacuse event is non recurring')
       }
       const eventDetail = await this.eventDetailRepository.findOne({ where: { eventDetailId: event.eventDetailId } });
 
       if (this.isInvalidUpdate(updateBody, eventDetail)) {
         throw new BadRequestException('Not editable field');
       }
-
-      if (updateBody?.target) {
+      let result;
+      if (updateBody?.isMainEvent) {
         // Handle updates or deletions for all recurrence records
-        await this.handleAllEventUpdate(updateBody, event, eventRepetition);
+        result = await this.handleAllEventUpdate(updateBody, event, eventRepetition);
       } else {
         // Handle updates or deletions for a specific recurrence record
-        await this.handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition);
+        result = await this.handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition);
       }
 
       return response
         .status(HttpStatus.OK)
-        .json(APIResponse.success(apiId, "result", 'OK'));
+        .json(APIResponse.success(apiId, result, 'OK'));
 
     } catch (error) {
-      console.error(error);
       throw error;
     }
   }
 
   async handleAllEventUpdate(updateBody, event, eventRepetition) {
-    console.log(eventRepetition, "eventRepetation");
-
     const eventId = eventRepetition.eventId;
     const eventDetailId = event.eventDetailId;
-
-    // Convert eventRepetition.startDate to a string with time zone if necessary
-    const startDateTime = eventRepetition.startDateTime;
     const existingEventDetails = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventDetailId } });
-
+    const startDateTime = eventRepetition.startDateTime;
     const recurrenceRecords = await this.eventRepetitionRepository.find({
       where: { eventId: eventId, eventDetailId: Not(eventDetailId), startDateTime: MoreThanOrEqual(startDateTime) }
     });
@@ -313,28 +303,41 @@ export class EventService {
       );
     }
 
-    Object.assign(existingEventDetails, updateBody);
+    Object.assign(existingEventDetails, updateBody, { eventRepetitionId: eventRepetition.eventRepetitionId });
     existingEventDetails.updatedAt = new Date();
-    await this.eventDetailRepository.save(existingEventDetails);
+    const result = await this.eventDetailRepository.save(existingEventDetails);
+    return result;
   }
 
   async handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition) {
     const eventDetailId = eventRepetition.eventDetailId;
-
     const existingEventDetails = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventDetailId } });
-
+    existingEventDetails.updatedAt = new Date()
+    let result;
     if (event.eventDetailId === existingEventDetails.eventDetailId) {
-      Object.assign(existingEventDetails, updateBody);
+      if (existingEventDetails.status === 'archived') {
+        throw new BadRequestException('Event is already archived')
+      }
+      Object.assign(existingEventDetails, updateBody, { eventRepetitionId: eventRepetition.eventRepetitionId });
       delete existingEventDetails.eventDetailId;
-      const newEntry = await this.eventDetailRepository.save(existingEventDetails);
-      await this.eventRepetitionRepository.update(
-        { eventRepetitionId: eventRepetition.eventRepetitionId },
-        { eventDetailId: newEntry.eventDetailId }
-      );
+      result = await this.eventDetailRepository.save(existingEventDetails);
+      // const updateResult = await this.eventRepetitionRepository.update(
+      //   { eventRepetitionId: eventRepetition.eventRepetitionId },
+      //   { eventDetailId: newEntry.eventDetailId }
+      // );
+      eventRepetition.eventDetailId = result.eventDetailId;
+      const UpdateResult = await this.eventRepetitionRepository.save(eventRepetition);
     } else {
-      Object.assign(existingEventDetails, updateBody);
-      await this.eventDetailRepository.save(existingEventDetails);
+      Object.assign(existingEventDetails, updateBody, { eventRepetitionId: eventRepetition.eventRepetitionId });
+      result = await this.eventDetailRepository.save(existingEventDetails);
     }
+    if (updateBody.onlineDetails) {
+      result = await this.eventRepetitionRepository.update(
+        { eventDetailId: eventDetailId },
+        { onlineDetails: updateBody.onlineDetails }
+      );
+    }
+    return result;
   }
 
   isInvalidUpdate(updateBody, eventDetail) {

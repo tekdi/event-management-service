@@ -1,17 +1,20 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum, IsLongitude, IsLatitude, IsBoolean, IsInt, Min, IsDateString, IsObject, ValidateIf } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum, IsLongitude, IsLatitude, IsBoolean, IsInt, Min, IsDateString, IsObject, ValidateIf, ValidateNested } from 'class-validator';
+import { MeetingDetails } from "src/common/utils/types";
+import { MeetingDetailsDto } from "./create-event.dto";
+import { Type } from "class-transformer";
 
 export class UpdateEventDto {
 
-    @ApiProperty({
-        type: String,
-        description: 'title',
-        example: 'Sample Event'
-    })
-    @IsString()
-    @IsNotEmpty()
-    @IsOptional()
-    title?: string;
+    // @ApiProperty({
+    //     type: String,
+    //     description: 'title',
+    //     example: 'Sample Event'
+    // })
+    // @IsString()
+    // @IsNotEmpty()
+    // @IsOptional()
+    // title?: string;
 
 
     @ApiProperty({
@@ -33,11 +36,26 @@ export class UpdateEventDto {
         example: true
     })
     @IsBoolean()
-    target: boolean;
+    isMainEvent: boolean;
 
-    // Validation to ensure if target is true, title or status must be provided
-    @ValidateIf(o => !o.title && !o.status) // Ensure that if neither title nor status is provided, validation fails
-    @IsNotEmpty({ message: 'If target is provided, at least one of title or status must be provided.' })
+    // @ApiProperty({
+    //     type: MeetingDetailsDto,
+    //     description: 'Online Meeting Details',
+    //     example: {
+    //         url: 'https://example.com/meeting',
+    //         id: '123-456-789',
+    //         password: 'xxxxxxx',
+    //     },
+    // })
+    // @IsObject()
+    // @ValidateNested({ each: true })
+    // @IsOptional()
+    // @Type(() => MeetingDetailsDto)
+    // meetingDetails: MeetingDetails;
+
+    // Validation to ensure if isMainEvent is true, title or status must be provided
+    @ValidateIf(o => !o.title && !o.status && !o.onlineDetails && !o.location && !o.latitude) // Ensure that if neither title nor status is provided, validation fails
+    @IsNotEmpty({ message: 'If isMainEvent is provided, at least one of title or status must be provided.' })
     dummyField?: any;
 
 
@@ -103,8 +121,6 @@ export class UpdateEventDto {
     // @IsLatitude()
     // @IsOptional()
     // latitude: number;
-
-
 
 
     // @ApiProperty({
