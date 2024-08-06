@@ -124,8 +124,7 @@ export class EventService {
       // Append LIMIT and OFFSET to the query
       finalquery += ` LIMIT ${limit} OFFSET ${offset}`;
       const result = await this.eventRepetitionRepository.query(finalquery);
-      const totalCount = result[0]?.total_count
-
+      const totalCount = result[0]?.total_count;
 
       // Add isEnded key based on endDateTime
       const finalResult = result.map((event) => {
@@ -137,7 +136,7 @@ export class EventService {
         };
       });
       if (finalResult.length === 0) {
-        throw new NotFoundException('Event Not Found')
+        throw new NotFoundException('Event Not Found');
       }
       return response
         .status(HttpStatus.OK)
@@ -149,7 +148,7 @@ export class EventService {
           ),
         );
     } catch (error) {
-      throw error
+      throw error;
     }
   }
 
@@ -220,7 +219,7 @@ export class EventService {
 
     // Handle cohortId filter
     if (filters.cohortId) {
-      whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`)
+      whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`);
     }
 
     // Construct final query
@@ -539,7 +538,7 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
-      new Date(config.endCondition.value)
+        new Date(config.endCondition.value)
     ) {
       occurrences.pop();
     }
