@@ -126,7 +126,7 @@ export class EventService {
       finalquery += ` LIMIT ${limit} OFFSET ${offset}`;
 
       const result = await this.eventRepetitionRepository.query(finalquery);
-      const totalCount = result[0]?.total_count
+      const totalCount = result[0]?.total_count;
 
       // Add isEnded key based on endDateTime
       const finalResult = result.map((event) => {
@@ -151,7 +151,6 @@ export class EventService {
           ),
         );
     } catch (error) {
-      throw error
       throw error;
     }
   }
