@@ -6,7 +6,7 @@ import {
   NotImplementedException,
 } from '@nestjs/common';
 import { CreateEventDto } from './dto/create-event.dto';
-import { UpdateEventDto } from './dto/update-event.dto';
+import { UpdateResult } from './dto/update-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { Events } from './entities/event.entity';
@@ -243,6 +243,7 @@ export class EventService {
       const currentTimestamp = new Date();
       // need to check startdate of this particuler event for edit permission
       const eventRepetition = await this.eventRepetitionRepository.findOne({ where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) } });
+
       if (!eventRepetition) {
         throw new NotFoundException('Event Not found')
       }
@@ -254,8 +255,9 @@ export class EventService {
       }
       const eventDetail = await this.eventDetailRepository.findOne({ where: { eventDetailId: event.eventDetailId } });
 
-      if (this.isInvalidUpdate(updateBody, eventDetail)) {
-        throw new BadRequestException('Not editable field');
+      const validationResult = this.isInvalidUpdate(updateBody, eventDetail);
+      if (!validationResult.isValid) {
+        throw new BadRequestException(validationResult.message);
       }
       let result;
       if (updateBody?.isMainEvent) {
@@ -278,81 +280,103 @@ export class EventService {
   async handleAllEventUpdate(updateBody, event, eventRepetition) {
     const eventId = eventRepetition.eventId;
     const eventDetailId = event.eventDetailId;
-    const existingEventDetails = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventDetailId } });
-    const startDateTime = eventRepetition.startDateTime;
-    const recurrenceRecords = await this.eventRepetitionRepository.find({
-      where: { eventId: eventId, eventDetailId: Not(eventDetailId), startDateTime: MoreThanOrEqual(startDateTime) }
-    });
-
-    if (recurrenceRecords.length > 0) {
-      await this.eventRepetitionRepository.update(
-        { eventRepetitionId: In(recurrenceRecords.map(record => record.eventRepetitionId)) },
-        { eventDetailId: eventDetailId }
-      );
-
-      await this.eventDetailRepository.delete(
-        { eventDetailId: In(recurrenceRecords.map(record => record.eventDetailId)) }
-      );
+    let updateResult: UpdateResult = {};
+    if (updateBody.onlineDetails || updateBody.erMetaData) {
+      if (updateBody.onlineDetails) {
+        Object.assign(eventRepetition.onlineDetails, updateBody.onlineDetails)
+        await this.eventRepetitionRepository.update(
+          { eventDetailId: eventDetailId },
+          { onlineDetails: eventRepetition.onlineDetails }
+        );
+        updateResult.onlineDetails = updateBody.onlineDetails;
+      }
+      if (updateBody.erMetaData) {
+        Object.assign(eventRepetition.erMetaData, updateBody.erMetaData)
+        await this.eventRepetitionRepository.update(
+          { eventDetailId: eventDetailId },
+          { erMetaData: eventRepetition.erMetaData }
+        );
+        updateResult.erMetaData = updateBody.erMetaData;
+      }
     }
 
-    if (updateBody.onlineDetails) {
-      await this.eventRepetitionRepository.update(
-        { eventDetailId: eventDetailId },
-        { onlineDetails: updateBody.onlineDetails }
-      );
-    }
+    if (updateBody.title || updateBody.location || updateBody.latitude || updateBody.status) {
+      const existingEventDetails = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventDetailId } });
+      const startDateTime = eventRepetition.startDateTime;
+      const recurrenceRecords = await this.eventRepetitionRepository.find({
+        where: { eventId: eventId, eventDetailId: Not(eventDetailId), startDateTime: MoreThanOrEqual(startDateTime) }
+      });
 
-    Object.assign(existingEventDetails, updateBody, { eventRepetitionId: eventRepetition.eventRepetitionId });
-    existingEventDetails.updatedAt = new Date();
-    const result = await this.eventDetailRepository.save(existingEventDetails);
-    return result;
+      if (recurrenceRecords.length > 0) {
+        await this.eventRepetitionRepository.update(
+          { eventRepetitionId: In(recurrenceRecords.map(record => record.eventRepetitionId)) },
+          { eventDetailId: eventDetailId }
+        );
+
+        await this.eventDetailRepository.delete(
+          { eventDetailId: In(recurrenceRecords.map(record => record.eventDetailId)) }
+        );
+      }
+
+      Object.assign(existingEventDetails, updateBody, { eventRepetitionId: eventRepetition.eventRepetitionId });
+      existingEventDetails.updatedAt = new Date();
+      const result = await this.eventDetailRepository.save(existingEventDetails);
+      updateResult.eventDetails = result;
+    }
+    return updateResult;
+
   }
 
   async handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition) {
     const eventDetailId = eventRepetition.eventDetailId;
     const existingEventDetails = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventDetailId } });
     existingEventDetails.updatedAt = new Date()
-    let result;
-    if (event.eventDetailId === existingEventDetails.eventDetailId) {
-      if (existingEventDetails.status === 'archived') {
-        throw new BadRequestException('Event is already archived')
+    let updateResult: UpdateResult = {};
+    if (updateBody.title || updateBody.location || updateBody.latitude || updateBody.status) {
+      if (event.eventDetailId === existingEventDetails.eventDetailId) {
+        if (existingEventDetails.status === 'archived') {
+          throw new BadRequestException('Event is already archived')
+        }
+        Object.assign(existingEventDetails, updateBody, { eventRepetitionId: eventRepetition.eventRepetitionId });
+        delete existingEventDetails.eventDetailId;
+        const result = await this.eventDetailRepository.save(existingEventDetails);
+        eventRepetition.eventDetailId = result.eventDetailId;
+        await this.eventRepetitionRepository.save(eventRepetition);
+        updateResult.eventDetails = result;
+      } else {
+        Object.assign(existingEventDetails, updateBody, { eventRepetitionId: eventRepetition.eventRepetitionId });
+        const result = await this.eventDetailRepository.save(existingEventDetails);
+        updateResult.eventDetails = result;
       }
-      Object.assign(existingEventDetails, updateBody, { eventRepetitionId: eventRepetition.eventRepetitionId });
-      delete existingEventDetails.eventDetailId;
-      result = await this.eventDetailRepository.save(existingEventDetails);
-      // const updateResult = await this.eventRepetitionRepository.update(
-      //   { eventRepetitionId: eventRepetition.eventRepetitionId },
-      //   { eventDetailId: newEntry.eventDetailId }
-      // );
-      eventRepetition.eventDetailId = result.eventDetailId;
-      const UpdateResult = await this.eventRepetitionRepository.save(eventRepetition);
-    } else {
-      Object.assign(existingEventDetails, updateBody, { eventRepetitionId: eventRepetition.eventRepetitionId });
-      result = await this.eventDetailRepository.save(existingEventDetails);
     }
-    if (updateBody.onlineDetails) {
-      result = await this.eventRepetitionRepository.update(
-        { eventDetailId: eventDetailId },
-        { onlineDetails: updateBody.onlineDetails }
-      );
+    if (updateBody.onlineDetails || updateBody.erMetaData) {
+      if (updateBody.onlineDetails) {
+        Object.assign(eventRepetition.onlineDetails, updateBody.onlineDetails);
+        updateResult.onlineDetails = updateBody.onlineDetails;
+      }
+      if (updateBody.erMetaData) {
+        Object.assign(eventRepetition.erMetaData, updateBody.erMetaData);
+        updateResult.onlineDetails = updateBody.onlineDetails;
+      }
+      await this.eventRepetitionRepository.save(eventRepetition)
     }
-    return result;
+    return updateResult;
   }
 
   isInvalidUpdate(updateBody, eventDetail) {
     if (updateBody.location || (updateBody.latitude && updateBody.longitude)) {
       if (eventDetail.eventType === 'online') {
-        return true;
+        return { isValid: false, message: 'Cannot update location or lat or long details for an online event' };
       }
     }
 
     if (updateBody.onlineDetails) {
       if (eventDetail.eventType === 'offline') {
-        return true;
+        return { isValid: false, message: 'Cannot update online details for an offline event' };
       }
     }
 
-    return false;
+    return { isValid: true };
   }
 
   async createEventDetailDB(

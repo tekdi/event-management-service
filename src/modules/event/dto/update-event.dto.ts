@@ -1,21 +1,46 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum, IsLongitude, IsLatitude, IsBoolean, IsInt, Min, IsDateString, IsObject, ValidateIf, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum, IsLongitude, IsLatitude, IsBoolean, IsInt, Min, IsDateString, IsObject, ValidateIf, ValidateNested, Validate } from 'class-validator';
 import { MeetingDetails } from "src/common/utils/types";
-import { MeetingDetailsDto } from "./create-event.dto";
 import { Type } from "class-transformer";
+import { UrlWithProviderValidator } from "src/common/utils/validation.util";
+export interface UpdateResult {
+    onlineDetails?: any; // Replace 'any' with the appropriate type if known
+    erMetaData?: any;    // Replace 'any' with the appropriate type if known
+    eventDetails?: any;  // Replace 'any' with the appropriate type if known
+}
+export class UpdateMeetingDetailsDto {
+    // Pass the provider from the parent DTO
+    onlineProvider: string;
 
+    @ApiProperty({ description: 'Meeting ID', example: 94292617 })
+    @IsString()
+    @IsNotEmpty()
+    @IsOptional()
+    id: string;
+
+    @ApiProperty({
+        description: 'Meeting url',
+        example: 'https://example.com/meeting',
+    })
+    @IsString()
+    @IsNotEmpty()
+    @IsOptional()
+    @Validate(UrlWithProviderValidator)
+    url: string;
+
+    @ApiProperty({ description: 'Meeting password', example: 'xxxxxx' })
+    @IsString()
+    @IsOptional()
+    password: string;
+
+    @ApiProperty({
+        type: String,
+        description: 'providerGenerated',
+        default: false,
+    })
+    providerGenerated: boolean;
+}
 export class UpdateEventDto {
-
-    // @ApiProperty({
-    //     type: String,
-    //     description: 'title',
-    //     example: 'Sample Event'
-    // })
-    // @IsString()
-    // @IsNotEmpty()
-    // @IsOptional()
-    // title?: string;
-
 
     @ApiProperty({
         type: String,
@@ -30,6 +55,20 @@ export class UpdateEventDto {
     @IsNotEmpty()
     status: string;
 
+    @IsOptional()
+    @IsString()
+    startTime?: string;
+
+    @ApiProperty({
+        type: String,
+        description: 'title',
+        example: 'Sample Event'
+    })
+    @IsString()
+    @IsNotEmpty()
+    @IsOptional()
+    title?: string;
+
     @ApiProperty({
         type: String,
         description: 'isRecurring',
@@ -38,23 +77,29 @@ export class UpdateEventDto {
     @IsBoolean()
     isMainEvent: boolean;
 
-    // @ApiProperty({
-    //     type: MeetingDetailsDto,
-    //     description: 'Online Meeting Details',
-    //     example: {
-    //         url: 'https://example.com/meeting',
-    //         id: '123-456-789',
-    //         password: 'xxxxxxx',
-    //     },
-    // })
-    // @IsObject()
-    // @ValidateNested({ each: true })
-    // @IsOptional()
-    // @Type(() => MeetingDetailsDto)
-    // meetingDetails: MeetingDetails;
+    @ApiProperty({
+        type: UpdateMeetingDetailsDto,
+        description: 'Online Meeting Details',
+        example: {
+            url: 'https://example.com/meeting',
+            id: '123-456-789',
+            password: 'xxxxxxx',
+        },
+    })
+    @IsObject()
+    @ValidateNested({ each: true })
+    @IsOptional()
+    @Type(() => UpdateMeetingDetailsDto)
+    onlineDetails: MeetingDetails;
+
+
+    @IsObject()
+    @IsOptional()
+    erMetaData: any;
+
 
     // Validation to ensure if isMainEvent is true, title or status must be provided
-    @ValidateIf(o => !o.title && !o.status && !o.onlineDetails && !o.location && !o.latitude) // Ensure that if neither title nor status is provided, validation fails
+    @ValidateIf(o => !o.title && !o.status && !o.onlineDetails && !o.location && !o.latitude && !o.erMetaData && !o.startTime) // Ensure that if neither title nor status is provided, validation fails
     @IsNotEmpty({ message: 'If isMainEvent is provided, at least one of title or status must be provided.' })
     dummyField?: any;
 
@@ -93,34 +138,34 @@ export class UpdateEventDto {
     // @IsOptional()
     // endDatetime: Date;
 
-    // @ApiProperty({
-    //     type: String,
-    //     description: 'Location',
-    //     example: 'Event Location'
-    // })
-    // @IsString()
-    // @IsNotEmpty()
-    // @IsOptional()
-    // location: string;
+    @ApiProperty({
+        type: String,
+        description: 'Location',
+        example: 'Event Location'
+    })
+    @IsString()
+    @IsNotEmpty()
+    @IsOptional()
+    location: string;
 
 
-    // @ApiProperty({
-    //     type: Number,
-    //     description: 'Latitude',
-    //     example: 18.508345134886994
-    // })
-    // @IsLongitude()
-    // @IsOptional()
-    // longitude: number;
+    @ApiProperty({
+        type: Number,
+        description: 'Latitude',
+        example: 18.508345134886994
+    })
+    @ValidateIf(o => o.latitude !== undefined)
+    @IsLongitude()
+    longitude: number;
 
-    // @ApiProperty({
-    //     type: Number,
-    //     description: 'Latitude',
-    //     example: 18.508345134886994
-    // })
-    // @IsLatitude()
-    // @IsOptional()
-    // latitude: number;
+    @ApiProperty({
+        type: Number,
+        description: 'Latitude',
+        example: 18.508345134886994
+    })
+    @ValidateIf(o => o.longitude !== undefined)
+    @IsLatitude()
+    latitude: number;
 
 
     // @ApiProperty({
@@ -143,17 +188,6 @@ export class UpdateEventDto {
     // @IsNotEmpty()
     // @IsOptional()
     // description: string;
-
-
-    // @ApiProperty({
-    //     type: String,
-    //     description: 'image',
-    //     example: 'https://example.com/sample-image.jpg'
-    // })
-    // @IsString()
-    // @IsNotEmpty()
-    // @IsOptional()
-    // image: string;
 
     // @ApiProperty({
     //     type: String,
