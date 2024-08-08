@@ -62,9 +62,18 @@ export class EventService {
 
         // if event is private then invitees are required
         // add invitees to attendees table
-        await this.attendeesService.createAttendeesForRecurringEvents(
+
+        // await this.attendeesService.createAttendeesForRecurringEvents(
+        //   createEventDto.attendees,
+        //   createdEvent.res.eventId,
+        //   createdEvent.eventRepetitionIds,
+        //   createEventDto.createdBy,
+        // );
+
+        // new approach of adding attendees against eventId
+        await this.attendeesService.createAttendeesForEvents(
           createEventDto.attendees,
-          createdEvent.eventRepetitionIds,
+          createdEvent.res.eventId,
           createEventDto.createdBy,
         );
       } else {
@@ -435,6 +444,9 @@ export class EventService {
     } = createEventDto;
     const event = new Events();
 
+    if (recurrencePattern?.endCondition?.value) {
+      recurrencePattern.recurringStartDate = createEventDto.startDatetime;
+    }
     event.isRecurring = isRecurring;
     // event.recurrenceEndDate = recurrenceEndDate
     //   ? new Date(recurrenceEndDate)
@@ -465,6 +477,9 @@ export class EventService {
     eventRepetition.event = event;
     eventRepetition.eventDetail = eventDetail;
     eventRepetition.onlineDetails = createEventDto.meetingDetails;
+    if (createEventDto.eventType === EventTypes.online) {
+      eventRepetition.onlineDetails['occurenceId'] = '';
+    }
     eventRepetition.startDateTime = new Date(createEventDto.startDatetime);
     eventRepetition.endDateTime = new Date(createEventDto.endDatetime);
     eventRepetition.createdBy = createEventDto.createdBy;
@@ -484,6 +499,9 @@ export class EventService {
     eventRepetition.eventDetailId = eventDetailId;
     eventRepetition.eventId = eventId;
     eventRepetition.onlineDetails = createEventDto.meetingDetails;
+    if (createEventDto.eventType === EventTypes.online) {
+      eventRepetition.onlineDetails['occurenceId'] = '';
+    }
     eventRepetition.erMetaData = createEventDto.erMetaData ?? {};
     eventRepetition.startDateTime = null;
     eventRepetition.endDateTime = null;
@@ -505,7 +523,6 @@ export class EventService {
         createEventDto.recordings = null;
       } else if (createEventDto.eventType === EventTypes.online) {
         createEventDto.meetingDetails.providerGenerated = false;
-        createEventDto.meetingDetails.occurenceId = '';
       }
 
       const createdEventDetailDB =
@@ -596,7 +613,6 @@ export class EventService {
     repetitionDtl: Partial<RepetitionDetail>,
     createdEventCount: number = 1,
   ) {
-    console.log(event, repetitionDtl, createdEventCount, 'jhjhjkhjh');
     const { eventDetail, ...other } = event;
 
     delete eventDetail.attendees;

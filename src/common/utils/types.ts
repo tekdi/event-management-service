@@ -71,6 +71,7 @@ export type RecurrencePattern = {
   // byDay: string;
   // byMonth: string;
   // byMonthDay: string;
+  recurringStartDate: string;
   endCondition: {
     type: EndConditionType;
     value: string;

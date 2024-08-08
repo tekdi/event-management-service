@@ -126,6 +126,8 @@ export class RecurrencePatternDto {
   // @IsOptional()
   // dayOfMonth: number;
 
+  recurringStartDate: string;
+
   @ApiProperty({
     type: EndCondition,
     description: 'End Condition',
@@ -315,7 +317,6 @@ export class CreateEventDto {
   @Type(() => String)
   @ArrayMaxSize(200)
   @IsUUID('4', { each: true })
-  @IsOptional()
   attendees: string[];
 
   @ApiProperty({

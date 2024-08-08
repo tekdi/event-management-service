@@ -19,6 +19,9 @@ export class EventAttendees {
   userId: string;
 
   @Column({ type: 'uuid', nullable: true })
+  eventId: string;
+
+  @Column({ type: 'uuid', nullable: true })
   eventRepetitionId: string;
 
   @Column({ nullable: true, default: null })
