@@ -121,7 +121,7 @@ export class EventController {
       throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
     }
     const userId = '01455719-e84f-4bc8-8efa-7024874ade08'; // later come from JWT-token
-    // return this.eventService.updateEvent(id, updateEventDto, userId, response);
+    return this.eventService.updateEvent(id, updateEventDto, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
