@@ -411,4 +411,13 @@ export class CreateEventDto {
   @IsObject()
   @IsOptional()
   metaData: any;
+
+  @ApiProperty({
+    type: Object,
+    description: 'Meta data for recurring events',
+    example: '',
+  })
+  @IsObject()
+  @IsOptional()
+  erMetaData: any;
 }

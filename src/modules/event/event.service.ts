@@ -252,7 +252,7 @@ export class EventService {
     eventDetail.idealTime = createEventDto?.idealTime
       ? createEventDto.idealTime
       : null;
-    eventDetail.metadata = createEventDto?.metaData;
+    eventDetail.metadata = createEventDto?.metaData ?? {};
     eventDetail.createdBy = createEventDto.createdBy;
     eventDetail.updatedBy = createEventDto.updatedBy;
     eventDetail.createdAt = new Date();
@@ -307,6 +307,7 @@ export class EventService {
     eventRepetition.endDateTime = new Date(createEventDto.endDatetime);
     eventRepetition.createdBy = createEventDto.createdBy;
     eventRepetition.updatedBy = createEventDto.updatedBy;
+    eventRepetition.erMetaData = createEventDto.erMetaData ?? {};
     eventRepetition.createdAt = new Date();
     eventRepetition.updatedAt = new Date();
     return this.eventRepetitionRepository.save(eventRepetition);
@@ -321,6 +322,7 @@ export class EventService {
     eventRepetition.eventDetailId = eventDetailId;
     eventRepetition.eventId = eventId;
     eventRepetition.onlineDetails = createEventDto.meetingDetails;
+    eventRepetition.erMetaData = createEventDto.erMetaData ?? {};
     eventRepetition.startDateTime = null;
     eventRepetition.endDateTime = null;
     eventRepetition.createdBy = createEventDto.createdBy;
@@ -419,7 +421,7 @@ export class EventService {
         .insert()
         .into('EventRepetition')
         .values(eventOccurences)
-        .returning(['onlineDetails'])
+        .returning(['onlineDetails', 'erMetaData'])
         .execute();
       // const insertedOccurences =
       //   await this.eventRepetitionRepository.insert(eventOccurences);
@@ -432,6 +434,7 @@ export class EventService {
     repetitionDtl: Partial<RepetitionDetail>,
     createdEventCount: number = 1,
   ) {
+    console.log(event, repetitionDtl, createdEventCount, 'jhjhjkhjh');
     const { eventDetail, ...other } = event;
 
     delete eventDetail.attendees;
@@ -440,6 +443,7 @@ export class EventService {
     repetitionDetail['startDateTime'] = repetitionDtl.startDateTime;
     repetitionDetail['endDateTime'] = repetitionDtl.endDateTime;
     repetitionDetail['onlineDetails'] = repetitionDtl.onlineDetails;
+    repetitionDetail['erMetaData'] = repetitionDtl.erMetaData;
 
     const response = Object.assign(eventDetail, other, repetitionDetail, {
       createdEventCount,

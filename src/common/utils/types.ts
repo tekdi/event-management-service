@@ -34,7 +34,7 @@ export type RepetitionDetail = {
       }
     | {}
     | null;
-  metadata: any;
+  erMetaData: any;
   eventRepetitionId: string;
   startDateTime: Date;
   endDateTime: Date;
