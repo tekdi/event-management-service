@@ -1,8 +1,9 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum, IsLongitude, IsLatitude, IsBoolean, IsInt, Min, IsDateString, IsObject, ValidateIf, ValidateNested, Validate } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, IsEnum, IsLongitude, IsLatitude, IsBoolean, IsInt, Min, IsDateString, IsObject, ValidateIf, ValidateNested, Validate, IsIn } from 'class-validator';
 import { MeetingDetails } from "src/common/utils/types";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import { UrlWithProviderValidator } from "src/common/utils/validation.util";
+import { MeetingDetailsDto } from "./create-event.dto";
 export interface UpdateResult {
     onlineDetails?: any;
     erMetaData?: any;
@@ -10,38 +11,7 @@ export interface UpdateResult {
     repetationDetail?: any;
     recurrenceUpdate?: any;
 }
-export class UpdateMeetingDetailsDto {
-    // Pass the provider from the parent DTO
-    onlineProvider: string;
 
-    @ApiProperty({ description: 'Meeting ID', example: 94292617 })
-    @IsString()
-    @IsNotEmpty()
-    @IsOptional()
-    id: string;
-
-    @ApiProperty({
-        description: 'Meeting url',
-        example: 'https://example.com/meeting',
-    })
-    @IsString()
-    @IsNotEmpty()
-    @IsOptional()
-    @Validate(UrlWithProviderValidator)
-    url: string;
-
-    @ApiProperty({ description: 'Meeting password', example: 'xxxxxx' })
-    @IsString()
-    @IsOptional()
-    password: string;
-
-    @ApiProperty({
-        type: String,
-        description: 'providerGenerated',
-        default: false,
-    })
-    providerGenerated: boolean;
-}
 export class UpdateEventDto {
 
     @ApiProperty({
@@ -80,7 +50,7 @@ export class UpdateEventDto {
     isMainEvent: boolean;
 
     @ApiProperty({
-        type: UpdateMeetingDetailsDto,
+        type: MeetingDetailsDto,
         description: 'Online Meeting Details',
         example: {
             url: 'https://example.com/meeting',
@@ -89,9 +59,14 @@ export class UpdateEventDto {
         },
     })
     @IsObject()
+    // @ValidateIf((o => o.onlineProvider != undefined))
+    @ValidateIf(o => o.onlineProvider != undefined || o.onlineDetails != undefined)
     @ValidateNested({ each: true })
-    @IsOptional()
-    @Type(() => UpdateMeetingDetailsDto)
+    @Type(() => MeetingDetailsDto)
+    @Transform(({ value, obj }) => {
+        value.onlineProvider = obj.onlineProvider; // Pass the provider to the nested DTO
+        return value;
+    })
     onlineDetails: MeetingDetails;
 
 
@@ -155,6 +130,19 @@ export class UpdateEventDto {
     @IsLatitude()
     latitude: number;
 
+    @ApiProperty({
+        type: String,
+        description: 'Online Provider',
+        example: 'Zoom',
+    })
+    @IsOptional()
+    @IsString()
+    @IsNotEmpty()
+    @IsIn(['Zoom', 'GoogleMeet'])
+    onlineProvider: string;
+
+
+
     @IsString()
     @IsOptional()
     createdBy: string;
@@ -167,9 +155,9 @@ export class UpdateEventDto {
     updateAt: Date;
 
     // Validation to ensure if isMainEvent is true, title or status must be provided
-    @ValidateIf(o => !o.title && !o.status && !o.onlineDetails && !o.location && !o.latitude && !o.erMetaData && !o.startDatetime)
+    @ValidateIf(o => !o.title && !o.status && !o.onlineDetails && !o.location && !o.latitude && !o.erMetaData && !o.startDatetime && !o.onlineProvider)
     @IsNotEmpty({ message: 'If isMainEvent is provided, at least one of title or status must be provided.' })
-    dummyField?: any;
+    validateFields?: any;
 
 
 }
