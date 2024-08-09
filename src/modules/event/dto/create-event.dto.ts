@@ -304,12 +304,10 @@ export class CreateEventDto {
   @ApiProperty({
     type: Object,
     description: 'Attendees',
-    example: {
-      attendees: [
-        'eff008a8-2573-466d-b877-fddf6a4fc13e',
-        'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9',
-      ],
-    },
+    example: [
+      'eff008a8-2573-466d-b877-fddf6a4fc13e',
+      'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9',
+    ],
   })
   @ValidateIf((o) => o.isRestricted === true && o.autoEnroll)
   @IsDefined({ message: ERROR_MESSAGES.ATTENDEES_REQUIRED })
