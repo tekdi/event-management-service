@@ -336,11 +336,13 @@ export class AttendeesService {
 
   createEventAttendeesRecord(
     userId: string,
+    eventId: string,
     eventRepetitionId: string,
     creatorOrUpdaterId: string,
   ) {
     const eventAttendees = new EventAttendees();
     eventAttendees.userId = userId;
+    eventAttendees.eventId = eventId;
     eventAttendees.eventRepetitionId = eventRepetitionId;
     eventAttendees.enrolledAt = new Date();
     eventAttendees.updatedAt = new Date();
@@ -354,9 +356,11 @@ export class AttendeesService {
 
   async createAttendeesForRecurringEvents(
     userIds: string[],
+    eventId: string,
     eventRepetitionIds: [],
     creatorOrUpdaterId: string,
   ) {
+    // TODO: check max attendees
     // This method creates attendees when attendees are passed during creating event in attendees array and autoEnroll and isRestricted is true
     // All the attendees passed will be added to all recurring events
     // if there are 5 recurring events and 5 attendees then total 5*5 that is 25 entries will be added to the database
@@ -368,6 +372,7 @@ export class AttendeesService {
           // attendeesRecords.push(
           this.createEventAttendeesRecord(
             userId,
+            eventId,
             eventRepetitionId,
             creatorOrUpdaterId,
             // ),
@@ -375,7 +380,30 @@ export class AttendeesService {
         );
         promises.push(this.eventAttendeesRepository.insert(attendeesRecords));
       });
-      await Promise.allSettled(promises);
+      const prm = await Promise.allSettled(promises);
+      prm.forEach((result) => {
+        if (result.status !== 'fulfilled') {
+          throw result.reason;
+        }
+      });
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  async createAttendeesForEvents(
+    userIds: string[],
+    eventId: string,
+    creatorId: string,
+  ) {
+    // This method creates attendees when attendees are passed during creating event in attendees array and autoEnroll and isRestricted is true
+    // All the attendees passed will be added to the event
+    try {
+      if (!userIds?.length) return;
+      const attendeesRecords = userIds.map((userId) =>
+        this.createEventAttendeesRecord(userId, eventId, null, creatorId),
+      );
+      await this.eventAttendeesRepository.insert(attendeesRecords);
     } catch (e) {
       throw e;
     }

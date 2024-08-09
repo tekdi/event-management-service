@@ -24,6 +24,9 @@ export class EventRepetition {
   @Column({ type: 'jsonb', nullable: true })
   onlineDetails: object;
 
+  @Column({ type: 'jsonb', nullable: true })
+  erMetaData: object;
+
   @Column({
     type: 'timestamptz',
     default: () => "timezone('utc', now())",
@@ -57,10 +60,6 @@ export class EventRepetition {
 
   @Column({ type: 'uuid', nullable: true })
   updatedBy: string;
-
-  @Column({ type: 'jsonb', nullable: true })
-  erMetaData: object;
-
 
   @ManyToOne(() => Events, (event) => event.eventRepetitions, {
     onDelete: 'CASCADE',

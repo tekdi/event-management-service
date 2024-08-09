@@ -34,7 +34,7 @@ export type RepetitionDetail = {
       }
     | {}
     | null;
-  metadata: any;
+  erMetaData: any;
   eventRepetitionId: string;
   startDateTime: Date;
   endDateTime: Date;
@@ -71,6 +71,7 @@ export type RecurrencePattern = {
   // byDay: string;
   // byMonth: string;
   // byMonthDay: string;
+  recurringStartDate: string;
   endCondition: {
     type: EndConditionType;
     value: string;
