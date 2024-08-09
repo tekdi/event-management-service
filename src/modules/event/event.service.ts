@@ -609,24 +609,28 @@ export class EventService {
 
     let updateResult: UpdateResult = {};
 
-    console.log(updateBody.recurrencePattern, 'new');
-    console.log(event.recurrencePattern, 'old');
-
-    // recurring all event update
-    if (startDatetime && endDatetime && updateBody.isRecurring) {
-      const startDateTime = startDatetime.split('T');
-      const endDateTime = endDatetime.split('T');
-      const startDate = startDateTime[0];
-      const endDate = endDateTime[0];
-      const startTime = startDateTime[1];
-      const endTime = endDateTime[1];
-      let updatedEvents;
-      let dateOfCurrentEvent = eventRepetition.startDateTime
+    // Handle recurring events
+    if (
+      updateBody.startDatetime &&
+      updateBody.endDatetime &&
+      event.isRecurring
+    ) {
+      const recurrenceRecords = await this.eventRepetitionRepository.find({
+        where: {
+          eventId: eventId,
+          startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
+        },
+      });
+      const startDate = updateBody.startDatetime.split('T')[0];
+      const endDate = updateBody.endDatetime.split('T')[0];
+      const startTime = updateBody.startDatetime.split('T')[1];
+      const endTime = updateBody.endDatetime.split('T')[1];
+      let currentDate = eventRepetition.startDateTime
         .toISOString()
         .split('T')[0];
-      if (startDate !== dateOfCurrentEvent || endDate !== dateOfCurrentEvent) {
+      if (startDate !== currentDate || endDate !== currentDate) {
         throw new BadRequestException(
-          `Invalid Date passed for this recurring event`,
+          `Invalid Date pass Please pass ${currentDate}`,
         );
       }
       new DateValidationPipe().transform(updateBody);
@@ -733,7 +737,12 @@ export class EventService {
         updateResult.recurrenceUpdate = result;
       }
     }
-    if (startDatetime && endDatetime && !updateBody.isRecurring) {
+    // Handle non-recurring events
+    if (
+      updateBody.startDatetime &&
+      updateBody.endDatetime &&
+      !event.isRecurring
+    ) {
       new DateValidationPipe().transform(updateBody);
       eventRepetition.startDateTime = new Date(startDatetime);
       eventRepetition.endDateTime = new Date(updateBody.endDatetime);
@@ -741,38 +750,45 @@ export class EventService {
       await this.eventRepetitionRepository.save(eventRepetition);
       updateResult.repetationDetail = eventRepetition;
     }
+
+    // Handle onlineDetails or erMetaData updates
     if (updateBody.onlineDetails || updateBody.erMetaData) {
+      const updateData: any = { updatedAt: new Date() };
       if (updateBody.onlineDetails) {
         Object.assign(eventRepetition.onlineDetails, updateBody.onlineDetails);
-        eventRepetition.updatedAt = new Date();
-        await this.eventRepetitionRepository.update(
-          { eventDetailId: eventDetailId },
-          {
-            onlineDetails: eventRepetition.onlineDetails,
-            updatedAt: eventRepetition.updatedAt,
-          },
-        );
+        updateData.onlineDetails = eventRepetition.onlineDetails;
         updateResult.onlineDetails = updateBody.onlineDetails;
       }
+
       if (updateBody.erMetaData) {
         Object.assign(eventRepetition.erMetaData, updateBody.erMetaData);
-        eventRepetition.updatedAt = new Date();
-        await this.eventRepetitionRepository.update(
-          { eventDetailId: eventDetailId },
-          { erMetaData: eventRepetition.erMetaData },
-        );
+        updateData.erMetaData = eventRepetition.erMetaData;
         updateResult.erMetaData = updateBody.erMetaData;
       }
+
+      await this.eventRepetitionRepository.update(
+        { eventDetailId: eventDetailId },
+        updateData,
+      );
     }
+
+    // Handle event detail updates
     if (
       updateBody.title ||
       updateBody.location ||
       updateBody.latitude ||
-      updateBody.status
+      updateBody.status ||
+      updateBody.onlineDetails
     ) {
       const existingEventDetails = await this.eventDetailRepository.findOne({
         where: { eventDetailId: eventDetailId },
       });
+      if (updateBody.onlineDetails) {
+        Object.assign(
+          existingEventDetails.meetingDetails,
+          updateBody.onlineDetails,
+        );
+      }
       const startDateTime = eventRepetition.startDateTime;
       const recurrenceRecords = await this.eventRepetitionRepository.find({
         where: {
@@ -813,18 +829,15 @@ export class EventService {
 
   async handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition) {
     let updateResult: UpdateResult = {};
-    updateBody.isRecurring = true;
-    if (updateBody.startDatetime && updateBody.endDatetime) {
-      // const startDate = updateBody.startDatetime.split('T')[0];
-      // const endDate = updateBody.endDatetime.split('T')[0];
-      // if (startDate !== endDate) {
-      //   throw new BadRequestException(
-      //     'Start Date and End Date should be equal',
-      //   );
-      // }
-      // console.log(updateBody, 'updateBody specific');
-      const test = new DateValidationPipe().transform(updateBody);
-      // console.log(test, 'test');
+    if (updateBody?.startDatetime && updateBody?.endDatetime) {
+      const startDate = updateBody.startDatetime.split('T')[0];
+      const endDate = updateBody.endDatetime.split('T')[0];
+      if (startDate !== endDate) {
+        throw new BadRequestException(
+          'Start Date and End Date should be equal',
+        );
+      }
+      new DateValidationPipe().transform(updateBody);
       eventRepetition.startDateTime = updateBody.startDatetime;
       eventRepetition.endDateTime = updateBody.endDatetime;
       eventRepetition.updatedAt = new Date();
@@ -841,12 +854,20 @@ export class EventService {
       updateBody.title ||
       updateBody.location ||
       updateBody.latitude ||
-      updateBody.status
+      updateBody.status ||
+      updateBody.onlineDetails
     ) {
+      if (updateBody.onlineDetails) {
+        Object.assign(
+          existingEventDetails.meetingDetails,
+          updateBody.onlineDetails,
+        );
+      }
       if (event.eventDetailId === existingEventDetails.eventDetailId) {
         if (existingEventDetails.status === 'archived') {
           throw new BadRequestException('Event is already archived');
         }
+
         Object.assign(existingEventDetails, updateBody, {
           eventRepetitionId: eventRepetition.eventRepetitionId,
         });
@@ -854,6 +875,7 @@ export class EventService {
         const result =
           await this.eventDetailRepository.save(existingEventDetails);
         eventRepetition.eventDetailId = result.eventDetailId;
+        eventRepetition.updatedAt = new Date();
         eventRepetition.updatedAt = new Date();
         await this.eventRepetitionRepository.save(eventRepetition);
         updateResult.eventDetails = result;
