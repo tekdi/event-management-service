@@ -58,6 +58,10 @@ export class EventRepetition {
   @Column({ type: 'uuid', nullable: true })
   updatedBy: string;
 
+  @Column({ type: 'jsonb', nullable: true })
+  erMetaData: object;
+
+
   @ManyToOne(() => Events, (event) => event.eventRepetitions, {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
