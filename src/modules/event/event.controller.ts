@@ -47,7 +47,7 @@ export class EventController {
   constructor(
     private readonly eventService: EventService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   @UseFilters(new AllExceptionsFilter(API_ID.CREATE_EVENT))
   @Post('/create')
