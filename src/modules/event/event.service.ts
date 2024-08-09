@@ -16,7 +16,7 @@ import { SearchFilterDto } from './dto/search-event.dto';
 import { AttendeesService } from '../attendees/attendees.service';
 import { EventAttendeesDTO } from '../attendees/dto/EventAttendance.dto';
 import { EventDetail } from './entities/eventDetail.entity';
-import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
+import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
 import {
   DaysOfWeek,
@@ -52,7 +52,7 @@ export class EventService {
     createEventDto: CreateEventDto,
     response: Response,
   ): Promise<Response> {
-    const apiId = 'api.create.event';
+    const apiId = API_ID.CREATE_EVENT;
     try {
       // this.validateCreateEventDto(createEventDto);
       // true for private, false for public
@@ -99,7 +99,7 @@ export class EventService {
   }
 
   async getEvents(response, requestBody) {
-    const apiId = 'api.get.list';
+    const apiId = API_ID.GET_EVENTS;
     try {
       const { filters } = requestBody;
       const today = new Date();
@@ -243,7 +243,7 @@ export class EventService {
   }
 
   async updateEvent(eventRepetitionId, updateBody, response) {
-    const apiId = 'api.update.event';
+    const apiId = API_ID.UPDATE_EVENT;
     try {
       const currentTimestamp = new Date();
       const eventRepetition = await this.eventRepetitionRepository.findOne({
