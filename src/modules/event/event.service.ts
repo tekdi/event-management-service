@@ -298,19 +298,18 @@ export class EventService {
     const eventId = eventRepetition.eventId;
     const eventDetailId = event.eventDetailId;
     let updateResult: UpdateResult = {};
-
+    const recurrenceRecords = await this.eventRepetitionRepository.find({
+      where: {
+        eventId: eventId,
+        startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
+      },
+    });
     // Handle recurring events
     if (
       updateBody.startDatetime &&
       updateBody.endDatetime &&
       event.isRecurring
     ) {
-      const recurrenceRecords = await this.eventRepetitionRepository.find({
-        where: {
-          eventId: eventId,
-          startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
-        },
-      });
       const startDate = updateBody.startDatetime.split('T')[0];
       const endDate = updateBody.endDatetime.split('T')[0];
       const startTime = updateBody.startDatetime.split('T')[1];
@@ -391,7 +390,11 @@ export class EventService {
       }
 
       await this.eventRepetitionRepository.update(
-        { eventDetailId: eventDetailId },
+        {
+          eventRepetitionId: In(
+            recurrenceRecords.map((record) => record.eventRepetitionId),
+          ),
+        },
         updateData,
       );
     }
