@@ -5,12 +5,12 @@ import {
   NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
-import { CreateEventDto } from './dto/create-event.dto';
-import { UpdateResult } from './dto/update-event.dto';
+import { CreateEventDto, RecurrencePatternDto } from './dto/create-event.dto';
+import { UpdateEventDto, UpdateResult } from './dto/update-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { Events } from './entities/event.entity';
-import { Response } from 'express';
+import e, { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
 import { SearchFilterDto } from './dto/search-event.dto';
 import { AttendeesService } from '../attendees/attendees.service';
@@ -28,7 +28,11 @@ import {
 } from 'src/common/utils/types';
 import { ConfigService } from '@nestjs/config';
 import { DeleteResult, InsertResult } from 'typeorm';
-import { DateValidationPipe } from 'src/common/pipes/event-validation.pipe';
+import {
+  DateValidationPipe,
+  RecurringEndDateValidationPipe,
+} from 'src/common/pipes/event-validation.pipe';
+import { compareArrays } from 'src/common/utils/function.util';
 @Injectable()
 export class EventService {
   private eventCreationLimit: number;
@@ -242,10 +246,15 @@ export class EventService {
     return finalquery;
   }
 
-  async updateEvent(eventRepetitionId, updateBody, response) {
+  async updateEvent(
+    eventRepetitionId: string,
+    updateBody: UpdateEventDto,
+    response: Response,
+  ) {
     const apiId = API_ID.UPDATE_EVENT;
     try {
       const currentTimestamp = new Date();
+      // Event repetition record must not be of passed date
       const eventRepetition = await this.eventRepetitionRepository.findOne({
         where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) },
       });
@@ -259,19 +268,21 @@ export class EventService {
       // condition for prevent non recuring event
       if (!event.isRecurring && !updateBody.isMainEvent) {
         throw new BadRequestException(
-          'You can not pass isMainEvent false beacuse event is non recurring',
+          'You can not pass isMainEvent false because event is non recurring',
         );
       }
       const eventDetail = await this.eventDetailRepository.findOne({
         where: { eventDetailId: event.eventDetailId },
-      });
+      }); //
 
       const validationResult = this.isInvalidUpdate(updateBody, eventDetail);
       if (!validationResult.isValid) {
         throw new BadRequestException(validationResult.message);
       }
       let result;
-      if (updateBody?.isMainEvent) {
+      eventRepetition.updatedAt = new Date();
+      eventRepetition.updatedBy = updateBody.updatedBy;
+      if (updateBody.isMainEvent) {
         // Handle updates or deletions for all recurrence records
         result = await this.handleAllEventUpdate(
           updateBody,
@@ -294,48 +305,404 @@ export class EventService {
     }
   }
 
-  async handleAllEventUpdate(updateBody, event, eventRepetition) {
-    const eventId = eventRepetition.eventId;
-    const eventDetailId = event.eventDetailId;
-    let updateResult: UpdateResult = {};
+  async updateRecurringMeetings(
+    newRecurrencePattern: RecurrencePatternDto,
+    oldRecurrencePattern,
+    currentEventRepetition,
+  ) {
+    let finalStartDate: Date;
+
+    if (newRecurrencePattern.frequency === Frequency.daily) {
+      throw new NotImplementedException(
+        'Daily frequency is not implemented yet',
+      );
+    }
+
+    // console.log(currentEventRepetition, 'currentEventRepetition');
+    if (
+      newRecurrencePattern.frequency === Frequency.weekly &&
+      newRecurrencePattern.frequency === oldRecurrencePattern.frequency &&
+      newRecurrencePattern.interval === oldRecurrencePattern.interval &&
+      compareArrays(
+        newRecurrencePattern.daysOfWeek,
+        oldRecurrencePattern.daysOfWeek,
+      )
+    ) {
+      // either add or subtract events as pattern is same
+      currentEventRepetition['recurrencePattern'] = oldRecurrencePattern;
+      // console.log(
+      //   newRecurrencePattern.recurringStartDate,
+      //   'newRecurrencePattern.recurringStartDate',
+      // );
+      console.log(currentEventRepetition, 'currentEventRepetition');
+      const currentDate = new Date();
+      const currentDateTime = currentDate.toISOString();
+
+      // new start date is passed
+      const newRecurringStart = newRecurrencePattern.recurringStartDate;
+      const newStartDate = new Date(newRecurringStart);
+      const nstartDateTime = newRecurringStart.split('T');
+      const nstartDate = nstartDateTime[0];
+      const nstartTime = nstartDateTime[1];
+      const oldRecurringStart = oldRecurrencePattern.recurringStartDate;
+      const oldStartDate = new Date(oldRecurringStart);
+      const ostartDateTime = oldRecurringStart.split('T');
+      const ostartDate = ostartDateTime[0];
+      const ostartTime = ostartDateTime[1];
+
+      // const nendDateTime = newRecurrencePattern.endCondition.value.split('T');
+      // const nendDate = nendDateTime[0];
+      // const nendTime = nendDateTime[1];
+
+      const newRecurringEnd = newRecurrencePattern.endCondition.value;
+      const oldRecurringEnd = oldRecurrencePattern.endCondition.value;
+      const newEndDate = new Date(newRecurringEnd);
+      const oldEndDate = new Date(oldRecurringEnd);
+
+      // new start date is passed
+      // check if new start date is greater than old start date
+
+      console.log(newStartDate, 'newStartDate', oldStartDate, 'oldStartDate');
+      console.log(newEndDate, 'newEndDate', oldEndDate, 'oldEndDate100');
+
+      console.log(
+        newStartDate === oldStartDate,
+        newStartDate,
+        oldStartDate,
+        'newStartDate === oldStartDate',
+      );
+
+      if (nstartDate === ostartDate && nstartTime !== ostartTime) {
+        throw new BadRequestException(
+          'Recurring Start Time cannot be changed pass orignal start time',
+        );
+      }
+
+      if (
+        newRecurringStart === oldRecurringStart &&
+        newRecurringEnd !== oldRecurringEnd
+      ) {
+        // start date and time is same
+        // changed time of current event will take effect on following events
+        console.log('Start date is same but end date is different');
+        // no action on start dates
+        finalStartDate = oldStartDate;
+        if (newEndDate.getTime() > oldEndDate.getTime()) {
+          // add new events and update end date in recpattern and save current event with new time
+          currentEventRepetition.recurrencePattern.endCondition.value =
+            newRecurrencePattern.endCondition.value;
+
+          console.log(
+            currentEventRepetition['startDatetime'],
+            currentEventRepetition['endDatetime'],
+            'pahile',
+          );
+
+          // might create issue
+          currentEventRepetition['startDatetime'] =
+            currentEventRepetition['endDatetime'].split('T')[0] +
+            'T' +
+            currentEventRepetition.startDatetime.split('T')[1];
+          currentEventRepetition['endDatetime'] =
+            currentEventRepetition['endDatetime'].split('T')[0] +
+            'T' +
+            currentEventRepetition.endDatetime.split('T')[1];
+
+          console.log(
+            currentEventRepetition['startDatetime'],
+            currentEventRepetition['endDatetime'],
+            'badme',
+          );
+
+          currentEventRepetition.createdAt = new Date();
+          currentEventRepetition.updatedAt = new Date();
+
+          // currentEventRepetition.startDatetime.split('T')[1];
+          // currentEventRepetition['endDatetime'] =
+          //   createEventDto.endDatetime.split('T')[1];
+
+          // this.createEventRepetitionDB(currentEventRepetition)
+
+          const newlyAddedEvents = await this.addEventsInRange(
+            currentEventRepetition,
+          );
+
+          const extUpdt = await this.updateEventRepetitionDate(
+            currentEventRepetition.eventRepetitionId,
+            {
+              startDateTime: currentEventRepetition.startDatetime,
+              endDateTime: currentEventRepetition.endDatetime,
+              updatedBy: currentEventRepetition.updatedBy,
+              updatedAt: new Date(),
+            },
+          );
+
+          console.log(extUpdt, '--------------------------');
+          console.log(newlyAddedEvents, 'newlyAddedEvents');
+
+          return { newlyAddedEvents };
+        }
+      }
+      // else
+
+      // find out if start date is changed or end date is changed
+
+      if (newStartDate < currentDate && oldStartDate < currentDate) {
+        // not possible because cannot create events in past throw error
+        // start date remains same
+        // EVENTS FOR DATE ARE PASSED SO CANNOT PREPONE
+        const oldStartTime =
+          oldRecurrencePattern.recurringStartDate.split('T')[1];
+        currentEventRepetition['startDatetime'] =
+          currentDateTime.split('T')[0] + 'T' + oldStartTime;
+      } else if (
+        newStartDate < oldStartDate &&
+        newStartDate > currentDate &&
+        newEndDate.getTime() === oldEndDate.getTime()
+      ) {
+        // prepone events when new start date lies between current date and old start date
+        // end date remains same
+        // add events and update start date in recpattern
+
+        currentEventRepetition['startDatetime'] =
+          newRecurrencePattern.recurringStartDate;
+        currentEventRepetition.recurrencePattern.endCondition.type = 'endDate';
+        currentEventRepetition.recurrencePattern.endCondition.value =
+          oldRecurrencePattern.endCondition.value;
+        // const newlyAddedEvents = await this.addEventsInRange(
+        //   newStartDate,
+        //   oldStartDate,
+        //   currentEventRepetition,
+        // );
+        console.log('--------------------------');
+        // console.log(newlyAddedEvents, 'newlyAddedEvents');
+        // finalStartDate = newStartDate;
+        return { newlyAddedEvents: true };
+      } else if (newStartDate > oldStartDate && newStartDate > currentDate) {
+        // possible if newStrt Date is not passed and greater than current date
+        // postpone events when new start date is after old start date
+        // postponeStart = true; // remove events
+        finalStartDate = newStartDate;
+      }
+
+      // new start date is not passed check if existing start date is past or present
+    } else {
+      console.log(
+        'Frequency and interval are different so remove all events and create new events',
+        newRecurrencePattern.daysOfWeek,
+        oldRecurrencePattern.daysOfWeek,
+        compareArrays(
+          newRecurrencePattern.daysOfWeek,
+          oldRecurrencePattern.daysOfWeek,
+        ),
+      );
+      throw new NotImplementedException('Pattern different');
+    }
+  }
+
+  async updateEventRepetitionDate(eventRepetitionId, updateDate) {
+    return await this.eventRepetitionRepository.update(
+      {
+        eventRepetitionId,
+      },
+      updateDate,
+    );
+  }
+
+  async addEventsInRange(eventDetails) {
+    console.log('fromDate: Date, toDate: Date, called');
+    let erep = await this.createRecurringEvents(
+      eventDetails,
+      eventDetails.eventId,
+      eventDetails.eventDetailId,
+    );
+    return erep;
+  }
+
+  async removeEventsInRange(fromDate: Date, toDate: Date) {}
+
+  checkIfDateIsSame(
+    newRecurrenceStartDt: string,
+    oldRecurrenceStartDt: string,
+    newRecurrenceEndDt: string,
+    oldRecurrenceEndDt: string,
+  ) {
+    const newStartRecDateTime = newRecurrenceStartDt.split('T');
+    const oldStartRecDateTime = oldRecurrenceStartDt.split('T');
+    const newEndRecDateTime = newRecurrenceEndDt.split('T');
+    const oldEndRecDateTime = oldRecurrenceEndDt.split('T');
+
+    const newRecStartDate = newStartRecDateTime[0];
+    const oldRecStartDate = oldStartRecDateTime[0];
+    const newRecEndDate = newEndRecDateTime[0];
+    const oldRecEndDate = oldEndRecDateTime[0];
+    const newRecStartTime = newStartRecDateTime[1];
+    const oldRecStartTime = oldStartRecDateTime[1];
+    const newRecEndTime = newEndRecDateTime[1];
+    const oldRecEndTime = oldEndRecDateTime[1];
 
     if (
-      updateBody.startDatetime &&
-      updateBody.endDatetime &&
-      event.isRecurring
+      newRecStartDate === oldRecStartDate &&
+      newRecEndDate === oldRecEndDate
     ) {
-      const recurrenceRecords = await this.eventRepetitionRepository.find({
-        where: {
-          eventId: eventId,
-          startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
-        },
-      });
-      const startDate = updateBody.startDatetime.split('T')[0];
-      const endDate = updateBody.endDatetime.split('T')[0];
-      const startTime = updateBody.startDatetime.split('T')[1];
-      const endTime = updateBody.endDatetime.split('T')[1];
-      let currentDate = eventRepetition.startDateTime
+      // check if time is different
+      if (
+        newRecStartTime !== oldRecStartTime ||
+        newRecEndTime !== oldRecEndTime
+      ) {
+        // time is different so update time
+        return {
+          dateSame: true,
+          timeSame: false,
+        };
+      } else {
+        // date and time both same
+        return {
+          dateSame: true,
+          timeSame: true,
+        };
+      }
+    } else {
+      // date is different
+      return {
+        dateSame: false,
+        timeSame: false,
+      };
+    }
+  }
+
+  checkValidRecurrenceTimeForUpdate(
+    endDate,
+    recurrenceEndDate,
+    startDate,
+    recurrenceStartDate,
+  ) {
+    if (
+      endDate.split('T')[1] !== recurrenceEndDate.split('T')[1]
+      // ||
+      // startDate.split('T')[1] !== recurrenceStartDate.split('T')[1]
+    ) {
+      throw new BadRequestException(
+        'Event Start time or End time does not match with Recurrence Start or End time',
+      );
+    }
+  }
+
+  async handleAllEventUpdate(
+    updateBody: UpdateEventDto,
+    event: Events,
+    eventRepetition: EventRepetition,
+  ) {
+    const eventId = eventRepetition.eventId;
+    const eventDetailId = event.eventDetailId;
+    updateBody.isRecurring = event.isRecurring;
+    const { startDatetime, endDatetime } = updateBody;
+
+    eventRepetition['startDatetime'] = startDatetime;
+    eventRepetition['endDatetime'] = endDatetime;
+
+    let updateResult: UpdateResult = {};
+
+    console.log(updateBody.recurrencePattern, 'new');
+    console.log(event.recurrencePattern, 'old');
+
+    // recurring all event update
+    if (startDatetime && endDatetime && updateBody.isRecurring) {
+      const startDateTime = startDatetime.split('T');
+      const endDateTime = endDatetime.split('T');
+      const startDate = startDateTime[0];
+      const endDate = endDateTime[0];
+      const startTime = startDateTime[1];
+      const endTime = endDateTime[1];
+      let updatedEvents;
+      let dateOfCurrentEvent = eventRepetition.startDateTime
         .toISOString()
         .split('T')[0];
-      if (startDate !== currentDate || endDate !== currentDate) {
+      if (startDate !== dateOfCurrentEvent || endDate !== dateOfCurrentEvent) {
         throw new BadRequestException(
-          `Invalid Date pass Please pass ${currentDate}`,
+          `Invalid Date passed for recurring event`,
         );
       }
       new DateValidationPipe().transform(updateBody);
-      if (
-        new Date(updateBody.startDatetime).getTime() !==
-          new Date(eventRepetition.startDateTime).getTime() ||
-        new Date(updateBody.endDatetime).getTime() !==
-          new Date(eventRepetition.endDateTime).getTime()
+      new RecurringEndDateValidationPipe().transform(updateBody);
+
+      if (!updateBody.recurrencePattern) {
+        throw new BadRequestException(
+          'Recurrence pattern is required for recurring event',
+        );
+      } else if (
+        updateBody.recurrencePattern.endCondition.type ===
+        EndConditionType.occurrences
       ) {
+        // TODO: Implement end condition by occurrences
+        throw new NotImplementedException(
+          'End condition by occurrences is not implemented yet',
+        );
+      }
+
+      // undefined , past or equal to previously given date
+      if (
+        updateBody.recurrencePattern.recurringStartDate == undefined ||
+        !updateBody.recurrencePattern.recurringStartDate
+      ) {
+        // no start date is passed , make old date as start date
+        updateBody.recurrencePattern.recurringStartDate =
+          event.recurrencePattern.recurringStartDate;
+      }
+
+      this.checkValidRecurrenceTimeForUpdate(
+        endDatetime,
+        updateBody.recurrencePattern.endCondition.value,
+        startDatetime,
+        updateBody.recurrencePattern.recurringStartDate,
+      );
+
+      // compare date and time of old and new recurrence pattern
+      const isDateTimeUpdate = this.checkIfDateIsSame(
+        updateBody.recurrencePattern.recurringStartDate,
+        event.recurrencePattern.recurringStartDate,
+        updateBody.recurrencePattern.endCondition.value,
+        event.recurrencePattern.endCondition.value,
+      );
+
+      console.log(isDateTimeUpdate, 'isDateTimeUpdate');
+
+      // when date is different regenerate new events and delete old events if start date is not passed
+      if (
+        updateBody.recurrencePattern &&
+        event.recurrencePattern?.frequency &&
+        !isDateTimeUpdate.dateSame
+      ) {
+        console.log(
+          updateBody.recurrencePattern,
+          'updateBody.recurrencePattern-------------------------------------',
+        );
+        eventRepetition['startTime'] = startTime;
+        eventRepetition['endTime'] = endTime;
+        updatedEvents = await this.updateRecurringMeetings(
+          updateBody.recurrencePattern,
+          event.recurrencePattern,
+          eventRepetition,
+        );
+        console.log(updatedEvents, 'updatedEvents');
+      }
+
+      // just time is different so just update time
+      else if (!isDateTimeUpdate.timeSame && isDateTimeUpdate.dateSame) {
+        // update time in event table recurrence
+        const recurrenceRecords = await this.eventRepetitionRepository.find({
+          where: {
+            eventId: eventId,
+            startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
+          },
+        });
         const updateDateResult: {
           startDateTime?: () => string;
           endDateTime?: () => string;
           updatedAt?: Date;
         } = {};
         if (
-          new Date(updateBody.startDatetime).getTime() !==
+          new Date(startDatetime).getTime() !==
           new Date(eventRepetition.startDateTime).getTime()
         ) {
           updateDateResult.startDateTime = () =>
@@ -360,14 +727,10 @@ export class EventService {
         updateResult.recurrenceUpdate = result;
       }
     }
-    if (
-      updateBody.startDatetime &&
-      updateBody.endDatetime &&
-      !event.isRecurring
-    ) {
+    if (startDatetime && endDatetime && !updateBody.isRecurring) {
       new DateValidationPipe().transform(updateBody);
-      eventRepetition.startDateTime = updateBody.startDatetime;
-      eventRepetition.endDateTime = updateBody.endDatetime;
+      eventRepetition.startDateTime = new Date(startDatetime);
+      eventRepetition.endDateTime = new Date(updateBody.endDatetime);
       eventRepetition.updatedAt = new Date();
       await this.eventRepetitionRepository.save(eventRepetition);
       updateResult.repetationDetail = eventRepetition;
@@ -444,16 +807,18 @@ export class EventService {
 
   async handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition) {
     let updateResult: UpdateResult = {};
-
+    updateBody.isRecurring = true;
     if (updateBody.startDatetime && updateBody.endDatetime) {
-      const startDate = updateBody.startDatetime.split('T')[0];
-      const endDate = updateBody.endDatetime.split('T')[0];
-      if (startDate !== endDate) {
-        throw new BadRequestException(
-          'Start Date and End Date should be equal',
-        );
-      }
-      new DateValidationPipe().transform(updateBody);
+      // const startDate = updateBody.startDatetime.split('T')[0];
+      // const endDate = updateBody.endDatetime.split('T')[0];
+      // if (startDate !== endDate) {
+      //   throw new BadRequestException(
+      //     'Start Date and End Date should be equal',
+      //   );
+      // }
+      // console.log(updateBody, 'updateBody specific');
+      const test = new DateValidationPipe().transform(updateBody);
+      // console.log(test, 'test');
       eventRepetition.startDateTime = updateBody.startDatetime;
       eventRepetition.endDateTime = updateBody.endDatetime;
       eventRepetition.updatedAt = new Date();
@@ -791,11 +1156,36 @@ export class EventService {
       currentDay: number,
       daysOfWeek: DaysOfWeek[],
     ): number => {
+      //  [  0, 1, 2, 3,  4, 5, 6]
+      console.log(
+        currentDay,
+        // daysOfWeek,
+        // daysOfWeek.length,
+        'CURRENTDAY',
+        // 'daysOfWeek',
+      );
       for (let i = 0; i < daysOfWeek.length; i++) {
+        // console.log(daysOfWeek[i] >= currentDay, '===============', i);
+
+        console.log(daysOfWeek[i], currentDay, 'daysOfWeek[i] - currentDay', i);
         if (daysOfWeek[i] > currentDay) {
+          console.log(
+            daysOfWeek[i] > currentDay,
+            'daysOfWeek[i] > currentDay',
+            i,
+          );
+          console.log(
+            daysOfWeek[i] - currentDay > 0,
+            daysOfWeek[i] - currentDay,
+            'is greater than 0',
+          );
           return daysOfWeek[i] - currentDay;
         }
       }
+      console.log(
+        7 - currentDay + daysOfWeek[0],
+        '7 - currentDay + daysOfWeek[0] last',
+      );
       return 7 - currentDay + daysOfWeek[0]; // Move to the next valid week
     };
 

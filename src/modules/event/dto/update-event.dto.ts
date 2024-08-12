@@ -19,6 +19,7 @@ import {
 import { MeetingDetails } from 'src/common/utils/types';
 import { Type } from 'class-transformer';
 import { UrlWithProviderValidator } from 'src/common/utils/validation.util';
+import { RecurrencePatternDto } from './create-event.dto';
 export interface UpdateResult {
   onlineDetails?: any;
   erMetaData?: any;
@@ -128,7 +129,7 @@ export class UpdateEventDto {
   })
   @ValidateIf((o) => o.endDatetime !== undefined)
   @IsDateString()
-  startDatetime: Date;
+  startDatetime: string;
 
   @ApiProperty({
     type: String,
@@ -137,7 +138,7 @@ export class UpdateEventDto {
   })
   @ValidateIf((o) => o.startDatetime !== undefined)
   @IsDateString()
-  endDatetime: Date;
+  endDatetime: string;
 
   @ApiProperty({
     type: String,
@@ -167,16 +168,32 @@ export class UpdateEventDto {
   @IsLatitude()
   latitude: number;
 
-  @IsString()
+  @ApiProperty({
+    type: RecurrencePatternDto,
+    description: 'recurrencePattern',
+    example: { frequency: 'daily', interval: 1 },
+  })
+  @IsObject()
+  @ValidateNested({ each: true })
+  @Type(() => RecurrencePatternDto)
   @IsOptional()
-  createdBy: string;
+  recurrencePattern: RecurrencePatternDto;
 
+  // @IsString()
+  // @IsOptional()
+  // createdBy: string; // createdBy is not required
+
+  @ApiProperty({
+    type: String,
+    description: 'updatedBy',
+    example: 'eff008a8-2573-466d-b877-fddf6a4fc13e',
+  })
   @IsString()
-  @IsOptional()
   updatedBy: string;
 
-  @IsOptional()
-  updateAt: Date;
+  isRecurring: boolean;
+  // @IsOptional()
+  // updateAt: Date;
 
   // Validation to ensure if isMainEvent is true, title or status must be provided
   @ValidateIf(
@@ -193,5 +210,5 @@ export class UpdateEventDto {
     message:
       'If isMainEvent is provided, at least one of title or status must be provided.',
   })
-  dummyField?: any;
+  dummyField?: any; // ??
 }

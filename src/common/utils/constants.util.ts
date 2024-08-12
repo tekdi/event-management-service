@@ -6,7 +6,7 @@ export const ERROR_MESSAGES = {
   BAD_REQUEST: 'Bad request',
   INVALID_REQUEST_BODY: 'Invalid request body',
   INTERNAL_SERVER_ERROR: 'Internal Server Error',
-  START_DATE_INVALID: 'Start date must be today or a future date',
+  START_DATE_INVALID: 'Start and End date must be today or a future date',
   END_DATE_INVALID: 'End date time should be greater than start date time',
   REGISTRATION_DATE_INVALID: 'Registration date must be in the future',
   REGISTRATION_START_DATE_BEFORE_EVENT_DATE:
