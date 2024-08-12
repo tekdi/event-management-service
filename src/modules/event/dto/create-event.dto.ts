@@ -40,6 +40,7 @@ export class MeetingDetailsDto {
   @ApiProperty({ description: 'Meeting ID', example: 94292617 })
   @IsString()
   // @IsNotEmpty()
+  @IsOptional()
   id: string;
 
   @ApiProperty({
@@ -53,6 +54,7 @@ export class MeetingDetailsDto {
 
   @ApiProperty({ description: 'Meeting password', example: 'xxxxxx' })
   @IsString()
+  @IsOptional()
   password: string;
 
   @ApiProperty({
@@ -115,6 +117,7 @@ export class RecurrencePatternDto {
   @ValidateIf((o) => o.frequency === 'weekly')
   @IsArray()
   @IsInt({ each: true })
+  @ArrayMinSize(1)
   daysOfWeek: number[];
 
   // @ApiProperty({
@@ -304,12 +307,10 @@ export class CreateEventDto {
   @ApiProperty({
     type: Object,
     description: 'Attendees',
-    example: {
-      attendees: [
-        'eff008a8-2573-466d-b877-fddf6a4fc13e',
-        'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9',
-      ],
-    },
+    example: [
+      'eff008a8-2573-466d-b877-fddf6a4fc13e',
+      'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9',
+    ],
   })
   @ValidateIf((o) => o.isRestricted === true && o.autoEnroll)
   @IsDefined({ message: ERROR_MESSAGES.ATTENDEES_REQUIRED })
