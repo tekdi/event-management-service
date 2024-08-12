@@ -39,7 +39,7 @@ export class MeetingDetailsDto {
 
   @ApiProperty({ description: 'Meeting ID', example: 94292617 })
   @IsString()
-  @IsNotEmpty()
+  // @IsNotEmpty()
   id: string;
 
   @ApiProperty({
