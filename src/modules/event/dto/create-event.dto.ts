@@ -40,6 +40,7 @@ export class MeetingDetailsDto {
   @ApiProperty({ description: 'Meeting ID', example: 94292617 })
   @IsString()
   // @IsNotEmpty()
+  @IsOptional()
   id: string;
 
   @ApiProperty({
@@ -53,6 +54,7 @@ export class MeetingDetailsDto {
 
   @ApiProperty({ description: 'Meeting password', example: 'xxxxxx' })
   @IsString()
+  @IsOptional()
   password: string;
 
   @ApiProperty({
@@ -115,6 +117,7 @@ export class RecurrencePatternDto {
   @ValidateIf((o) => o.frequency === 'weekly')
   @IsArray()
   @IsInt({ each: true })
+  @ArrayMinSize(1)
   daysOfWeek: number[];
 
   // @ApiProperty({
