@@ -254,7 +254,7 @@ export class EventService {
     const apiId = API_ID.UPDATE_EVENT;
     try {
       const currentTimestamp = new Date();
-      // Event repetition record must not be of passed date
+      // To do optimize both cases in one queries
       const eventRepetition = await this.eventRepetitionRepository.findOne({
         where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) },
       });
@@ -277,6 +277,7 @@ export class EventService {
           'You can not pass isMainEvent false because event is non recurring',
         );
       }
+
       const eventDetail = await this.eventDetailRepository.findOne({
         where: { eventDetailId: event.eventDetailId },
       }); //
@@ -458,6 +459,7 @@ export class EventService {
       } else {
         eventStartDate = new Date(eventRepetition.startDateTime);
       }
+
       //if startrecuuring or startDate is equal to passed eventRepetationId startDate
       if (
         eventRepetition.startDateTime.toISOString().split('T')[0] ===
@@ -483,6 +485,7 @@ export class EventService {
             { eventDetailId: event.eventDetailId },
           );
         }
+        // }
         // delete eventDetail from eventDetail table if futher created single-single for upcoming session
         if (upcomingrecurrenceRecords.length > 0) {
           await this.eventDetailRepository.delete({
@@ -491,7 +494,6 @@ export class EventService {
             ),
           });
         }
-        // }
       } else {
         // Not going in this condition if event is non recurring
         let neweventDetailsId;
@@ -504,6 +506,7 @@ export class EventService {
           neweventDetailsId = saveNewEntry.eventDetailId;
           updateResult.eventDetails = saveNewEntry;
 
+          //repeated code
           const upcomingnewrecurrenceRecords =
             await this.eventRepetitionRepository.find({
               where: {
