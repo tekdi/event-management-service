@@ -398,6 +398,8 @@ export class EventService {
             'pahile',
           );
 
+          // is start date and time greater than current date
+
           // might create issue
           currentEventRepetition['startDatetime'] =
             currentEventRepetition['endDatetime'].split('T')[0] +
@@ -498,6 +500,10 @@ export class EventService {
       );
       throw new NotImplementedException('Pattern different');
     }
+  }
+
+  async deleteFollowingEvents(eventId: string) {
+    return await this.eventRepetitionRepository.delete({});
   }
 
   async updateEventRepetitionDate(eventRepetitionId, updateDate) {
@@ -620,7 +626,7 @@ export class EventService {
         .split('T')[0];
       if (startDate !== dateOfCurrentEvent || endDate !== dateOfCurrentEvent) {
         throw new BadRequestException(
-          `Invalid Date passed for recurring event`,
+          `Invalid Date passed for this recurring event`,
         );
       }
       new DateValidationPipe().transform(updateBody);

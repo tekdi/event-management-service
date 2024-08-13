@@ -54,7 +54,7 @@ export class EventController {
   @ApiBody({ type: CreateEventDto })
   @UsePipes(
     new ValidationPipe({ transform: true }),
-    new DateValidationPipe(),
+    // new DateValidationPipe(),
     new RegistrationDateValidationPipe(),
     new RecurringEndDateValidationPipe(),
     new AttendeesValidationPipe(),
