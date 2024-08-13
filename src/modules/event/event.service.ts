@@ -321,14 +321,14 @@ export class EventService {
     eventRepetition['endDatetime'] = endDatetime;
 
     let updateResult: UpdateResult = {};
-    //get all event which date is equal and greater than currnt date[coming from eventRepetation startdateTime] --- use for update
+    //Get all event which date is equal and greater than cuurent selected event date [use for update]
     const recurrenceRecords = await this.eventRepetitionRepository.find({
       where: {
         eventId: eventId,
         startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
       },
     });
-    //Get event which eventDetailId is diffrent from main eventDetailId[use for delete]
+    //Get event which eventDetailId is diffrent from main eventDetailId from eventRepetation table[use for delete]
     const startDateTimes = eventRepetition.startDateTime;
     const upcomingrecurrenceRecords = await this.eventRepetitionRepository.find(
       {
@@ -472,6 +472,7 @@ export class EventService {
         const result =
           await this.eventDetailRepository.save(existingEventDetails);
         updateResult.eventDetails = result;
+        // if (event.isRecurring) { // below code run for only delete and update of recurring event
         if (recurrenceRecords.length > 0) {
           const result = await this.eventRepetitionRepository.update(
             {
@@ -491,36 +492,11 @@ export class EventService {
           });
         }
         // }
-        //  else {
-        //   // need to check with kshitija
-        //   Object.assign(existingEventDetails, updateBody);
-        //   await this.eventDetailRepository.save(existingEventDetails);
-        //   if (recurrenceRecords.length > 0) {
-        //     const result = await this.eventRepetitionRepository.update(
-        //       {
-        //         eventRepetitionId: In(
-        //           recurrenceRecords.map((record) => record.eventRepetitionId),
-        //         ),
-        //       },
-        //       { eventDetailId: event.eventDetailId },
-        //     );
-        //   }
-
-        //   // delete eventDetail from eventDetail table if futher created single-single for upcoming session
-        //   if (upcomingrecurrenceRecords.length > 0) {
-        //     await this.eventDetailRepository.delete({
-        //       eventDetailId: In(
-        //         upcomingrecurrenceRecords.map((record) => record.eventDetailId),
-        //       ),
-        //     });
-        //   }
-        // }
       } else {
-        // not going in this condition if event is non recurring
+        // Not going in this condition if event is non recurring
         let neweventDetailsId;
         // create new entry for new updated record which connect all upcoming and this event
         if (eventRepetition.eventDetailId === event.eventDetailId) {
-          // create new entry
           Object.assign(existingEventDetails, updateBody);
           delete existingEventDetails.eventDetailId;
           const saveNewEntry =
@@ -569,7 +545,7 @@ export class EventService {
           neweventDetailsId = saveNewEntry.eventDetailId;
           updateResult.eventDetails = saveNewEntry;
 
-          // get those id whicha are not equal ---- 101,102,101,103 and we are doing archived usinf 102 id
+          // Get those id whicha are not equal ---- 101,102,101,103 and we are doing archived usinf 102 id
           const upcomingnewrecurrenceRecords =
             await this.eventRepetitionRepository.find({
               where: {
@@ -593,7 +569,6 @@ export class EventService {
               { eventDetailId: neweventDetailsId },
             );
           }
-
           // delete eventDetail from eventDetail table if futher created single-single for upcoming session
           if (upcomingnewrecurrenceRecords.length > 0) {
             await this.eventDetailRepository.delete({
