@@ -246,6 +246,7 @@ export class EventService {
     const apiId = 'api.update.event';
     try {
       const currentTimestamp = new Date();
+      // To do optimize both cases in one queries
       const eventRepetition = await this.eventRepetitionRepository.findOne({
         where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) },
       });
@@ -268,6 +269,7 @@ export class EventService {
           'You can not pass isMainEvent false beacuse event is non recurring',
         );
       }
+
       const eventDetail = await this.eventDetailRepository.findOne({
         where: { eventDetailId: event.eventDetailId },
       });
@@ -305,21 +307,38 @@ export class EventService {
     const eventDetailId = event.eventDetailId;
     let updateResult: UpdateResult = {};
     //Get all event which date is equal and greater than cuurent selected event date [use for update]
-    const recurrenceRecords = await this.eventRepetitionRepository.find({
-      where: {
-        eventId: eventId,
-        startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
-      },
-    });
+    // const recurrenceRecordss = await this.eventRepetitionRepository.find({
+    //   where: {
+    //     eventId: eventId,
+    //     startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
+    //   },
+    // });
+
+    const recurrenceRecords = await this.eventRepetitionRepository
+      .createQueryBuilder('eventRepetition')
+      .innerJoinAndSelect('eventRepetition.eventDetail', 'eventDetail')
+      .where('eventRepetition.eventId = :eventId', { eventId })
+      .andWhere('eventRepetition.startDateTime >= :startDateTime', { startDateTime: eventRepetition.startDateTime })
+      .andWhere('eventDetail.status != :status', { status: 'archived' })
+      .getMany();
+
     //Get event which eventDetailId is diffrent from main eventDetailId from eventRepetation table[use for delete]
     const startDateTimes = eventRepetition.startDateTime;
-    const upcomingrecurrenceRecords = await this.eventRepetitionRepository.find({
-      where: {
-        eventId: eventId,
-        eventDetailId: Not(eventDetailId),
-        startDateTime: MoreThanOrEqual(startDateTimes),
-      },
-    });
+    // const upcomingrecurrenceRecordss = await this.eventRepetitionRepository.find({
+    //   where: {
+    //     eventId: eventId,
+    //     eventDetailId: Not(eventDetailId),
+    //     startDateTime: MoreThanOrEqual(startDateTimes),
+    //   },
+    // });
+    const upcomingrecurrenceRecords = await this.eventRepetitionRepository
+      .createQueryBuilder('eventRepetition')
+      .innerJoinAndSelect('eventRepetition.eventDetail', 'eventDetail')
+      .where('eventRepetition.eventId = :eventId', { eventId })
+      .andWhere('eventRepetition.eventDetailId != :eventDetailId', { eventDetailId })
+      .andWhere('eventRepetition.startDateTime >= :startDateTime', { startDateTime: startDateTimes })
+      .andWhere('eventDetail.status != :status', { status: 'archived' })
+      .getMany();
     // Handle recurring events
     if (
       updateBody.startDatetime &&
@@ -439,9 +458,9 @@ export class EventService {
       } else {
         eventStartDate = new Date(eventRepetition.startDateTime);
       }
+
       //if startrecuuring or startDate is equal to passed eventRepetationId startDate
       if (eventRepetition.startDateTime.toISOString().split('T')[0] === eventStartDate.toISOString().split('T')[0]) {
-        // if (event.eventDetailId === eventRepetition.eventDetailId) {
         // Always true in case of non recurring 
         Object.assign(existingEventDetails, updateBody, {
           eventRepetitionId: eventRepetition.eventRepetitionId,
@@ -450,7 +469,7 @@ export class EventService {
         const result =
           await this.eventDetailRepository.save(existingEventDetails);
         updateResult.eventDetails = result;
-        // if (event.isRecurring) { // below code run for only delete and update of recurring event
+        // below code run for update of recurring event
         if (recurrenceRecords.length > 0) {
           const result = await this.eventRepetitionRepository.update(
             {
@@ -469,7 +488,6 @@ export class EventService {
             ),
           });
         }
-        // }
       } else {
         // Not going in this condition if event is non recurring 
         let neweventDetailsId;
@@ -481,13 +499,14 @@ export class EventService {
           neweventDetailsId = saveNewEntry.eventDetailId;
           updateResult.eventDetails = saveNewEntry;
 
-          const upcomingnewrecurrenceRecords = await this.eventRepetitionRepository.find({
-            where: {
-              eventId: eventId,
-              eventDetailId: Not(eventDetailId),
-              startDateTime: MoreThanOrEqual(startDateTimes),
-            },
-          });
+          //repeated code
+          // const upcomingrecurrenceRecords = await this.eventRepetitionRepository.find({
+          //   where: {
+          //     eventId: eventId,
+          //     eventDetailId: Not(eventDetailId),
+          //     startDateTime: MoreThanOrEqual(startDateTimes),
+          //   },
+          // });
           // update eventDetail id in all places which are greater than and equal to curreitn repetation startDate in repetation table
           if (recurrenceRecords.length > 0) {
             const result = await this.eventRepetitionRepository.update(
@@ -499,32 +518,39 @@ export class EventService {
               { eventDetailId: neweventDetailsId },
             );
           }
-
           // delete eventDetail from eventDetail table if futher created single-single for upcoming session 
-          if (upcomingnewrecurrenceRecords.length > 0) {
+          if (upcomingrecurrenceRecords.length > 0) {
             await this.eventDetailRepository.delete({
               eventDetailId: In(
-                upcomingnewrecurrenceRecords.map((record) => record.eventDetailId),
+                upcomingrecurrenceRecords.map((record) => record.eventDetailId),
               ),
             });
           }
         } else {
           //do change in existing eventDetail row [eventRepetition.eventDetails me] table 
-          const newexistingResult = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventRepetition.eventDetailId } })
-          Object.assign(newexistingResult, updateBody);
-          const saveNewEntry = await this.eventDetailRepository.save(newexistingResult);
-          neweventDetailsId = saveNewEntry.eventDetailId;
-          updateResult.eventDetails = saveNewEntry;
-
-          // Get those id whicha are not equal ---- 101,102,101,103 and we are doing archived usinf 102 id
-          const upcomingnewrecurrenceRecords = await this.eventRepetitionRepository.find({
-            where: {
-              eventId: eventId,
-              // eventDetailId: Not(neweventDetailsId),
-              eventDetailId: Not(In([neweventDetailsId, event.eventDetailId])),
-              startDateTime: MoreThanOrEqual(startDateTimes),
-            },
-          });
+          const repetationeventDetailexistingResult = await this.eventDetailRepository.findOne({ where: { eventDetailId: eventRepetition.eventDetailId } })
+          let neweventDetailsId;
+          const numberOfEntryInEventReperationTable = await this.eventRepetitionRepository.find({ where: { eventDetailId: eventRepetition.eventDetailId } })
+          if (numberOfEntryInEventReperationTable.length === 1) {
+            Object.assign(repetationeventDetailexistingResult, updateBody, {
+              eventRepetitionId: eventRepetition.eventRepetitionId,
+            });
+            const result =
+              await this.eventDetailRepository.save(repetationeventDetailexistingResult);
+            neweventDetailsId = result.eventDetailId;
+            updateResult.eventDetails = result;
+          }
+          else {
+            //if greater than then create new entry in eventDetail Table
+            Object.assign(repetationeventDetailexistingResult, updateBody, {
+              eventRepetitionId: eventRepetition.eventRepetitionId,
+            });
+            delete repetationeventDetailexistingResult.eventDetailId;
+            const result =
+              await this.eventDetailRepository.save(repetationeventDetailexistingResult);
+            neweventDetailsId = result.eventDetailId;
+            updateResult.eventDetails = result;
+          }
 
           // update eventDetail id in all places which are greater than and equal to curreitn repetation startDate in repetation table
           if (recurrenceRecords.length > 0) {
@@ -536,14 +562,6 @@ export class EventService {
               },
               { eventDetailId: neweventDetailsId },
             );
-          }
-          // delete eventDetail from eventDetail table if futher created single-single for upcoming session 
-          if (upcomingnewrecurrenceRecords.length > 0) {
-            await this.eventDetailRepository.delete({
-              eventDetailId: In(
-                upcomingnewrecurrenceRecords.map((record) => record.eventDetailId),
-              ),
-            });
           }
         }
       }
@@ -588,9 +606,9 @@ export class EventService {
         );
       }
       if (event.eventDetailId === existingEventDetails.eventDetailId) {
-        if (existingEventDetails.status === 'archived') {
-          throw new BadRequestException('Event is already archived');
-        }
+        // if (existingEventDetails.status === 'archived') {
+        //   throw new BadRequestException('Event is already archived');
+        // }
         Object.assign(existingEventDetails, updateBody, {
           eventRepetitionId: eventRepetition.eventRepetitionId,
         });
@@ -603,9 +621,8 @@ export class EventService {
         updateResult.eventDetails = result;
       } else {
         // check in event repetation table where existingEventDetails.eventDetailId aginst how many record exist 
-        //if zero then use same below code 
         const numberOfEntryInEventReperationTable = await this.eventRepetitionRepository.find({ where: { eventDetailId: existingEventDetails.eventDetailId } })
-        if (numberOfEntryInEventReperationTable.length === 0) {
+        if (numberOfEntryInEventReperationTable.length === 1) {
           Object.assign(existingEventDetails, updateBody, {
             eventRepetitionId: eventRepetition.eventRepetitionId,
           });
