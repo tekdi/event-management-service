@@ -254,6 +254,7 @@ export class EventService {
       const eventRepetition = await this.eventRepetitionRepository.findOne({
         where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) },
       });
+
       if (!eventRepetition) {
         throw new BadRequestException('Event Not found');
       }
@@ -308,7 +309,13 @@ export class EventService {
     }
   }
 
-  async handleAllEventUpdate(updateBody, event, eventRepetition) {
+  async handleAllEventUpdate(
+    updateBody,
+    event,
+    eventRepetition: EventRepetition,
+  ) {
+    console.log(typeof eventRepetition.startDateTime, 'handleAllEventUpdate');
+
     const eventId = event.eventId;
     const eventDetailId = event.eventDetailId;
     updateBody.isRecurring = event.isRecurring;
@@ -330,6 +337,9 @@ export class EventService {
       .createQueryBuilder('eventRepetition')
       .innerJoinAndSelect('eventRepetition.eventDetail', 'eventDetail')
       .where('eventRepetition.eventId = :eventId', { eventId })
+      .andWhere('eventRepetition.startDateTime >= :startDateTime', {
+        startDateTime: eventRepetition.startDateTime,
+      })
       .andWhere('eventRepetition.startDateTime >= :startDateTime', {
         startDateTime: eventRepetition.startDateTime,
       })
@@ -420,7 +430,7 @@ export class EventService {
       !event.isRecurring
     ) {
       new DateValidationPipe().transform(updateBody);
-      eventRepetition.startDateTime = new Date(startDatetime);
+      eventRepetition.startDateTime = new Date(updateBody.startDatetime);
       eventRepetition.endDateTime = new Date(updateBody.endDatetime);
       eventRepetition.updatedAt = new Date();
       await this.eventRepetitionRepository.save(eventRepetition);
@@ -476,7 +486,6 @@ export class EventService {
       } else {
         eventStartDate = new Date(eventRepetition.startDateTime);
       }
-
       //if startrecuuring or startDate is equal to passed eventRepetationId startDate
       if (
         eventRepetition.startDateTime.toISOString().split('T')[0] ===
