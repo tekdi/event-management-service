@@ -314,8 +314,6 @@ export class EventService {
     event,
     eventRepetition: EventRepetition,
   ) {
-    console.log(typeof eventRepetition.startDateTime, 'handleAllEventUpdate');
-
     const eventId = event.eventId;
     const eventDetailId = event.eventDetailId;
     updateBody.isRecurring = event.isRecurring;
