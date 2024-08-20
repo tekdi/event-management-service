@@ -246,11 +246,7 @@ export class EventService {
     return finalquery;
   }
 
-  async updateEvent(
-    eventRepetitionId: string,
-    updateBody: UpdateEventDto,
-    response: Response,
-  ) {
+  async updateEvent(eventRepetitionId, updateBody, response) {
     const apiId = API_ID.UPDATE_EVENT;
     try {
       const currentTimestamp = new Date();
