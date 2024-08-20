@@ -250,6 +250,7 @@ export class EventService {
       const eventRepetition = await this.eventRepetitionRepository.findOne({
         where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) },
       });
+
       if (!eventRepetition) {
         throw new BadRequestException('Event Not found');
       }
@@ -302,7 +303,11 @@ export class EventService {
     }
   }
 
-  async handleAllEventUpdate(updateBody, event, eventRepetition) {
+  async handleAllEventUpdate(
+    updateBody,
+    event,
+    eventRepetition: EventRepetition,
+  ) {
     const eventId = event.eventId;
     const eventDetailId = event.eventDetailId;
     let updateResult: UpdateResult = {};
@@ -408,8 +413,8 @@ export class EventService {
       !event.isRecurring
     ) {
       new DateValidationPipe().transform(updateBody);
-      eventRepetition.startDateTime = updateBody.startDatetime;
-      eventRepetition.endDateTime = updateBody.endDatetime;
+      eventRepetition.startDateTime = new Date(updateBody.startDatetime);
+      eventRepetition.endDateTime = new Date(updateBody.endDatetime);
       eventRepetition.updatedAt = new Date();
       await this.eventRepetitionRepository.save(eventRepetition);
       updateResult.repetationDetail = eventRepetition;
@@ -464,7 +469,6 @@ export class EventService {
       } else {
         eventStartDate = new Date(eventRepetition.startDateTime);
       }
-
       //if startrecuuring or startDate is equal to passed eventRepetationId startDate
       if (
         eventRepetition.startDateTime.toISOString().split('T')[0] ===
