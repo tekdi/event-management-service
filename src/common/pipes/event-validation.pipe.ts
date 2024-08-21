@@ -1,4 +1,9 @@
-import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+import {
+  PipeTransform,
+  Injectable,
+  BadRequestException,
+  ArgumentMetadata,
+} from '@nestjs/common';
 import { CreateEventDto } from 'src/modules/event/dto/create-event.dto';
 import { ERROR_MESSAGES } from '../utils/constants.util';
 import {
@@ -231,6 +236,72 @@ export class AttendeesValidationPipe implements PipeTransform {
     }
 
     return createEventDto;
+  }
+}
+
+@Injectable()
+export class SearchDateValidationPipe implements PipeTransform {
+  transform(value: any, metadata: ArgumentMetadata) {
+    const { date, startDate, endDate } = value.filters || {};
+
+    // Check if both startDate and endDate are passed with date
+    if (date && (startDate || endDate)) {
+      throw new BadRequestException(
+        'Only one of date, startDate, or endDate should be provided.',
+      );
+    }
+
+    // Check if after and before are provided with date
+    if (date && (!date.after || !date.before)) {
+      throw new BadRequestException(
+        'Both "after" and "before" fields are required when date is provided.',
+      );
+    }
+
+    if (
+      startDate &&
+      (!startDate.after || !startDate.before) &&
+      endDate === undefined
+    ) {
+      throw new BadRequestException(
+        'Both "after" and "before" fields are required when startDate is provided.',
+      );
+    }
+
+    if (
+      endDate &&
+      (!endDate.after || !endDate.before) &&
+      startDate === undefined
+    ) {
+      throw new BadRequestException(
+        'Both "after" and "before" fields are required when endDate is provided.',
+      );
+    }
+
+    if (startDate && endDate && (!startDate.after || !endDate.before)) {
+      throw new BadRequestException(
+        'if StartDate and EndDate Provided then "after" fields is required in startDate and "before fields is required in endDate',
+      );
+    }
+
+    if (
+      (date && new Date(date.after) > new Date(date.before)) ||
+      (startDate &&
+        !endDate &&
+        new Date(startDate.after) > new Date(startDate.before)) ||
+      (endDate &&
+        !startDate &&
+        new Date(endDate.after) > new Date(endDate.before)) ||
+      (startDate &&
+        endDate &&
+        new Date(startDate.after) > new Date(endDate.before))
+    ) {
+      throw new BadRequestException(
+        '"after" should be less than and equal to  "before" fields ',
+      );
+    }
+
+    return value;
   }
 }
 
