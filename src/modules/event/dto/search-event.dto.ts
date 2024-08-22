@@ -80,6 +80,14 @@ export class FilterDto {
   @IsOptional()
   @IsUUID('4')
   cohortId?: string;
+
+  @ApiProperty({
+    example: 'eff008a8-2573-466d-b877-fddf6a4fc13e',
+    description: 'CreatedBy',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  createdBy?: string;
 }
 
 export class SearchFilterDto {
