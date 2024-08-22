@@ -118,6 +118,7 @@ export class EventService {
 
       let finalquery = `SELECT 
       er."eventDetailId" AS "eventRepetition_eventDetailId", 
+      er."createdBy" AS "eventRepetition_createdBy",
       er.*, 
       e."eventId" AS "event_eventId", 
       e."eventDetailId" AS "event_eventDetailId",
@@ -242,7 +243,7 @@ export class EventService {
     }
 
     // Handle status filter
-    if (filters.status && filters.status.length > 0) {
+    if (filters?.status && filters?.status.length > 0) {
       const statusConditions = filters.status
         .map((status) => `ed."status" = '${status}'`)
         .join(' OR ');
@@ -253,8 +254,12 @@ export class EventService {
     }
 
     // Handle cohortId filter
-    if (filters.cohortId) {
+    if (filters?.cohortId) {
       whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`);
+    }
+
+    if (filters?.createdBy) {
+      whereClauses.push(`er."createdBy" = '${filters.createdBy}'`);
     }
 
     // Construct final query
