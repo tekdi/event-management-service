@@ -106,6 +106,7 @@ export class EventService {
 
       let finalquery = `SELECT 
       er."eventDetailId" AS "eventRepetition_eventDetailId", 
+      er."createdBy" AS "eventRepetition_createdBy",
       er.*, 
       e."eventId" AS "event_eventId", 
       e."eventDetailId" AS "event_eventDetailId",
@@ -170,9 +171,11 @@ export class EventService {
 
     // Handle specific date records
     if (filters?.date) {
-      const startDate = filters?.date;
-      const startDateTime = `${startDate} 00:00:00`;
-      const endDateTime = `${startDate} 23:59:59`;
+      // const startDate = filters?.date;
+      // const startDateTime = `${startDate} 00:00:00`;
+      // const endDateTime = `${startDate} 23:59:59`;
+      const startDateTime = filters?.date.after; // min date
+      const endDateTime = filters?.date.before; // max date ---> seraching on the basis of max date
       whereClauses.push(
         `(er."startDateTime" <= '${endDateTime}'::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}'::timestamp AT TIME ZONE 'UTC')`,
       );
@@ -181,8 +184,11 @@ export class EventService {
     // Handle startDate
     if (filters?.startDate && filters.endDate === undefined) {
       const startDate = filters?.startDate;
-      const startDateTime = `${startDate} 00:00:00`;
-      const endDateTime = `${startDate} 23:59:59`;
+      // const startDateTime = `${startDate} 00:00:00`;
+      // const endDateTime = `${startDate} 23:59:59`;
+      const startDateTime = filters.startDate.after;
+      const endDateTime = filters.startDate.before;
+
       whereClauses.push(
         `(er."startDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."startDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
       );
@@ -190,17 +196,22 @@ export class EventService {
 
     if (filters?.startDate && filters.endDate) {
       const startDate = filters?.startDate;
-      const startDateTime = `${startDate} 00:00:00`;
-      const endDateTime = `${filters?.endDate} 23:59:59`;
+      // const startDateTime = `${startDate} 00:00:00`;
+      // const endDateTime = `${filters?.endDate} 23:59:59`;
+      const startDateTime = filters.startDate.after; // 21 -> startDate
+      const endDateTime = filters.endDate.before;
+
       whereClauses.push(
         `(er."startDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
       );
     }
 
     if (filters.endDate && filters.startDate === undefined) {
-      const endDate = filters?.endDate;
-      const startDateTime = `${endDate} 00:00:00`;
-      const endDateTime = `${endDate} 23:59:59`;
+      // const endDate = filters?.endDate;
+      // const startDateTime = `${endDate} 00:00:00`;
+      // const endDateTime = `${endDate} 23:59:59`;
+      const startDateTime = filters.endDate.after;
+      const endDateTime = filters.endDate.before;
       whereClauses.push(
         `(er."endDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
       );
@@ -220,19 +231,23 @@ export class EventService {
     }
 
     // Handle status filter
-    if (filters.status && filters.status.length > 0) {
+    if (filters?.status && filters?.status.length > 0) {
       const statusConditions = filters.status
-        .map((status) => `"status" = '${status}'`)
+        .map((status) => `ed."status" = '${status}'`)
         .join(' OR ');
       whereClauses.push(`(${statusConditions})`);
     } else {
       // Add default status condition if no status is passed in the filter
-      whereClauses.push(`"status" = 'live'`);
+      whereClauses.push(`ed."status" = 'live'`);
     }
 
     // Handle cohortId filter
-    if (filters.cohortId) {
+    if (filters?.cohortId) {
       whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`);
+    }
+
+    if (filters?.createdBy) {
+      whereClauses.push(`er."createdBy" = '${filters.createdBy}'`);
     }
 
     // Construct final query
