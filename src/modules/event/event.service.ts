@@ -326,13 +326,6 @@ export class EventService {
     const eventId = event.eventId;
     const eventDetailId = event.eventDetailId;
     let updateResult: UpdateResult = {};
-    //Get all event which date is equal and greater than cuurent selected event date [use for update]
-    // const recurrenceRecordss = await this.eventRepetitionRepository.find({
-    //   where: {
-    //     eventId: eventId,
-    //     startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
-    //   },
-    // });
 
     const recurrenceRecords = await this.eventRepetitionRepository
       .createQueryBuilder('eventRepetition')
@@ -346,13 +339,7 @@ export class EventService {
 
     //Get event which eventDetailId is diffrent from main eventDetailId from eventRepetation table[use for delete]
     const startDateTimes = eventRepetition.startDateTime;
-    // const upcomingrecurrenceRecordss = await this.eventRepetitionRepository.find({
-    //   where: {
-    //     eventId: eventId,
-    //     eventDetailId: Not(eventDetailId),
-    //     startDateTime: MoreThanOrEqual(startDateTimes),
-    //   },
-    // });
+
     const upcomingrecurrenceRecords = await this.eventRepetitionRepository
       .createQueryBuilder('eventRepetition')
       .innerJoinAndSelect('eventRepetition.eventDetail', 'eventDetail')
@@ -466,7 +453,8 @@ export class EventService {
       updateBody.location ||
       updateBody.latitude ||
       updateBody.status ||
-      updateBody.onlineDetails
+      updateBody.onlineDetails ||
+      updateBody.metadata
     ) {
       const existingEventDetails = await this.eventDetailRepository.findOne({
         where: { eventDetailId: eventDetailId },
@@ -477,6 +465,10 @@ export class EventService {
           updateBody.onlineDetails,
         );
       }
+      if (updateBody.metadata) {
+        Object.assign(existingEventDetails.metadata, updateBody.metadata);
+      }
+
       //below code for identify date like it is startRecuuring day or not
       let eventStartDate;
       if (event.isRecurring) {
@@ -566,10 +558,17 @@ export class EventService {
             await this.eventRepetitionRepository.find({
               where: { eventDetailId: eventRepetition.eventDetailId },
             });
+          if (updateBody.onlineDetails) {
+            Object.assign(
+              repetationeventDetailexistingResult.meetingDetails,
+              updateBody.onlineDetails,
+            );
+          }
           if (numberOfEntryInEventReperationTable.length === 1) {
             Object.assign(repetationeventDetailexistingResult, updateBody, {
               eventRepetitionId: eventRepetition.eventRepetitionId,
             });
+
             const result = await this.eventDetailRepository.save(
               repetationeventDetailexistingResult,
             );
@@ -633,7 +632,8 @@ export class EventService {
       updateBody.location ||
       updateBody.latitude ||
       updateBody.status ||
-      updateBody.onlineDetails
+      updateBody.onlineDetails ||
+      updateBody.metadata
     ) {
       if (updateBody.onlineDetails) {
         Object.assign(
@@ -641,10 +641,8 @@ export class EventService {
           updateBody.onlineDetails,
         );
       }
+
       if (event.eventDetailId === existingEventDetails.eventDetailId) {
-        // if (existingEventDetails.status === 'archived') {
-        //   throw new BadRequestException('Event is already archived');
-        // }
         Object.assign(existingEventDetails, updateBody, {
           eventRepetitionId: eventRepetition.eventRepetitionId,
         });
