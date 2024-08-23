@@ -91,9 +91,20 @@ export class UpdateEventDto {
   @ApiProperty({
     description: 'MetaData Details',
     example: {
-      topic: 'Java',
-      mentorId: '1244546647',
-      subTopic: 'Type of fetaures',
+      framework: {
+        board: '',
+        medium: '',
+        grade: '',
+        subject: '',
+        topic: '',
+        subTopic: '',
+        teacherName: 'Vivek Kasture',
+      },
+      eventType: 'PLANNED_SESSION',
+      doId: '',
+      cohortId: '71bdbed4-388a-4c79-bd69-65b08e857f1e',
+      cycleId: '',
+      tenant: '',
     },
   })
   @IsObject()
