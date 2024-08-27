@@ -7,10 +7,17 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import { EndConditionType } from '../utils/types';
+import { UpdateEventDto } from 'src/modules/event/dto/update-event.dto';
 
 @Injectable()
 export class DateValidationPipe implements PipeTransform {
-  transform(createEventDto: CreateEventDto) {
+  transform(createEventDto: CreateEventDto | UpdateEventDto) {
+    console.log(
+      createEventDto,
+      'createEventDto',
+      createEventDto.startDatetime,
+      createEventDto.endDatetime,
+    );
     const eventStartDate = createEventDto.startDatetime.split('T')[0];
     const eventEndDate = createEventDto.endDatetime.split('T')[0];
 
@@ -18,12 +25,20 @@ export class DateValidationPipe implements PipeTransform {
     const endDate = new Date(createEventDto.endDatetime);
     const currentDate = new Date();
 
+    console.log(
+      startDate,
+      'start',
+      endDate,
+      'end',
+      currentDate,
+      createEventDto.isRecurring,
+    );
     if (eventStartDate !== eventEndDate && createEventDto.isRecurring) {
       throw new BadRequestException(
         ERROR_MESSAGES.MULTIDAY_EVENT_NOT_RECURRING,
       );
     }
-    if (startDate <= currentDate) {
+    if (startDate <= currentDate || endDate <= currentDate) {
       throw new BadRequestException(ERROR_MESSAGES.START_DATE_INVALID);
     }
     if (endDate < startDate) {
@@ -97,7 +112,7 @@ export class RegistrationDateValidationPipe implements PipeTransform {
 }
 
 export class RecurringEndDateValidationPipe implements PipeTransform {
-  transform(createEventDto: CreateEventDto) {
+  transform(createEventDto: CreateEventDto | UpdateEventDto) {
     if (createEventDto.isRecurring) {
       const endConditionValue =
         createEventDto.recurrencePattern?.endCondition?.value;
@@ -110,7 +125,7 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
         );
       }
 
-      if (endConditionType === 'endDate') {
+      if (endConditionType === EndConditionType.endDate) {
         const recurrenceEndDate = new Date(endConditionValue);
 
         const dateValid =
@@ -130,11 +145,24 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
           );
         }
 
-        if (recurrenceEndDate <= startDate) {
+        if (
+          recurrenceEndDate <= startDate &&
+          createEventDto instanceof CreateEventDto
+        ) {
+          console.log('recurrenceEndDate', recurrenceEndDate);
           throw new BadRequestException(
             ERROR_MESSAGES.RECURRENCE_END_DATE_AFTER_EVENT_DATE,
           );
         }
+
+        if (
+          endConditionValue.split('T')[1] !==
+          createEventDto.endDatetime.split('T')[1]
+        ) {
+          throw new BadRequestException(
+            'Event End time does not match with Recurrence End time',
+          );
+        } // do for recurrence start time also in edit
         // createEventDto.recurrencePattern.endCondition.value = endDate;
       } else if (endConditionType === EndConditionType.occurrences) {
         const occurrences = Number(endConditionValue);
