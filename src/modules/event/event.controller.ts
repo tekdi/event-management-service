@@ -32,6 +32,7 @@ import {
   RegistrationDateValidationPipe,
   AttendeesValidationPipe,
   RecurringEndDateValidationPipe,
+  SearchDateValidationPipe,
 } from 'src/common/pipes/event-validation.pipe';
 import { ConfigService } from '@nestjs/config';
 import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
@@ -79,7 +80,10 @@ export class EventController {
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
   })
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(
+    new ValidationPipe({ transform: true }),
+    new SearchDateValidationPipe(),
+  )
   @ApiOkResponse({
     description: 'Searched',
     status: 200,

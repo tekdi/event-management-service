@@ -89,7 +89,7 @@ export class UpdateEventDto {
   onlineDetails: MeetingDetails;
 
   @ApiProperty({
-    description: 'MetaData Details',
+    description: 'ErMetaData Details',
     example: {
       topic: 'Java',
       mentorId: '1244546647',
@@ -99,6 +99,29 @@ export class UpdateEventDto {
   @IsObject()
   @IsOptional()
   erMetaData: any;
+
+  @ApiProperty({
+    description: 'MetaData Details',
+    example: {
+      framework: {
+        board: '',
+        medium: '',
+        grade: '',
+        subject: '',
+        topic: '',
+        subTopic: '',
+        teacherName: 'Vivek Kasture',
+      },
+      eventType: 'PLANNED_SESSION',
+      doId: '',
+      cohortId: '71bdbed4-388a-4c79-bd69-65b08e857f1e',
+      cycleId: '',
+      tenant: '',
+    },
+  })
+  @IsObject()
+  @IsOptional()
+  metadata: any;
 
   @ApiProperty({
     type: String,
@@ -196,7 +219,8 @@ export class UpdateEventDto {
       !o.latitude &&
       !o.erMetaData &&
       !o.startDatetime &&
-      !o.onlineProvider,
+      !o.onlineProvider &&
+      !o.metadata,
   )
   @IsNotEmpty({
     message:

@@ -1,54 +1,38 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: /snap/kompose/19/kompose-linux-amd64 convert -f event.yaml
-    kompose.version: 1.21.0 (992df58d8)
-  creationTimestamp: null
   labels:
-    io.kompose.service: eventmanagement
+    app: eventmanagement
   name: eventmanagement
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: eventmanagement
-  strategy: {}
+      app: eventmanagement
   template:
     metadata:
-      annotations:
-        kompose.cmd: /snap/kompose/19/kompose-linux-amd64 convert -f event.yaml
-        kompose.version: 1.21.0 (992df58d8)
-      creationTimestamp: null
       labels:
-        io.kompose.service: eventmanagement
+        app: eventmanagement
     spec:
       containers:
       - image: ${ECR_REPOSITORY}:${IMAGE_TAG}
-        imagePullPolicy: ""
+        imagePullPolicy: "Always"
         name: event-management-service
-        ports:
-        - containerPort: 3000
         envFrom:
         - configMapRef:
             name: event-service-config
+        ports:
+        - containerPort: 3000        
         resources: {}
-      restartPolicy: Always
-      serviceAccountName: ""
-      volumes: null
-status: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: eventmanagement
-  labels:
-    app: eventmanagement
 spec:
   type: ClusterIP
   ports:
-  - name: http-tracking
+  - port: 3000
     protocol: TCP
-    port: 3000
   selector:
     app: eventmanagement
