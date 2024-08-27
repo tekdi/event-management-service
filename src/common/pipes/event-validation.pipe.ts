@@ -145,7 +145,11 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
           );
         }
 
-        if (recurrenceEndDate <= startDate) {
+        if (
+          recurrenceEndDate <= startDate &&
+          createEventDto instanceof CreateEventDto
+        ) {
+          console.log('recurrenceEndDate', recurrenceEndDate);
           throw new BadRequestException(
             ERROR_MESSAGES.RECURRENCE_END_DATE_AFTER_EVENT_DATE,
           );

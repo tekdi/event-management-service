@@ -26,8 +26,8 @@ export class Events {
   recurrenceEndDate: Date;
 
   @Column({ type: 'jsonb' })
+  // recurrencePattern: object;
   recurrencePattern: any;
-  // recurrencePattern: RecurrencePatternDto;
 
   @CreateDateColumn({
     type: 'timestamptz',

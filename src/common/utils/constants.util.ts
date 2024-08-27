@@ -48,7 +48,6 @@ export const SUCCESS_MESSAGES = {
   EVENT_CREATED: 'Event created successfully',
   EVENT_UPDATED: 'Event updated successfully',
   EVENT_DELETED: 'Event deleted successfully',
-  EVENT_NOT_FOUND: 'Event not found',
   EVENT_ATTENDEE_CREATED: 'Event attendee created successfully',
   EVENT_ATTENDEE_UPDATED: 'Event attendee updated successfully',
   EVENT_ATTENDEE_DELETED: 'Event attendee deleted successfully',

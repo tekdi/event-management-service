@@ -117,13 +117,19 @@ export class EventController {
   //   // new RegistrationDateValidationPipe(),
   //   new RecurringEndDateValidationPipe(),
   // )
+  // @UsePipes(
+  //   new ValidationPipe({ transform: true }),
+  //   new DateValidationPipe(),
+  //   // new RegistrationDateValidationPipe(),
+  //   new RecurringEndDateValidationPipe(),
+  // )
   updateEvent(
     @Param('id') id: string,
     @Body(
       new ValidationPipe({ transform: true }),
-      // new DateValidationPipe(),
+      new DateValidationPipe(),
       // new RegistrationDateValidationPipe(),
-      new RecurringEndDateValidationPipe(),
+      // new RecurringEndDateValidationPipe(),
     )
     updateEventDto: UpdateEventDto,
     @Res() response: Response,
@@ -137,7 +143,7 @@ export class EventController {
   @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
   @Delete('/:id')
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_DELETED })
-  @ApiResponse({ status: 404, description: SUCCESS_MESSAGES.EVENT_NOT_FOUND })
+  @ApiResponse({ status: 404, description: ERROR_MESSAGES.EVENT_NOT_FOUND })
   deleteEvent(
     @Param('id', ParseUUIDPipe) id: string,
     @Res() response: Response,
