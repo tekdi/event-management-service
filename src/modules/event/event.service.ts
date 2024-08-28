@@ -13,6 +13,7 @@ import {
   In,
   Not,
   MoreThan,
+  LessThan,
   MoreThanOrEqual,
   Between,
 } from 'typeorm';
@@ -461,9 +462,9 @@ export class EventService {
           let updateRemainingEvents;
           if (
             currentEventRepetition.orignalEventStartTime !==
-              currentEventRepetition.startDatetime.split('T')[1] ||
+            currentEventRepetition.startDatetime.split('T')[1] ||
             currentEventRepetition.orignalEventEndTime !==
-              currentEventRepetition.endDatetime.split('T')[1]
+            currentEventRepetition.endDatetime.split('T')[1]
           ) {
             updateRemainingEvents = await this.updateEventRepetitionTime(
               currentEventRepetition.startDateTime,
@@ -518,8 +519,28 @@ export class EventService {
         newEndDate.getTime() === oldEndDate.getTime()
       ) {
         // postpone events when new start date is after old start date
+        // Get all eventRepetationId which are are less than new recuurnecestartDate and delete all 
+        const removedEvent = await this.eventRepetitionRepository.find({
+          select: ["eventRepetitionId"],
+          where: {
+            startDateTime: LessThan(new Date(newRecurrencePattern.recurringStartDate))
+          }
+        });
+        const idsArray = removedEvent.map(repetition => repetition.eventRepetitionId);
         // remove events
+        if (idsArray.length > 0) {
+          await this.eventRepetitionRepository.delete(idsArray);
+        }
         // update start date in recpattern
+        const newEvent = await this.eventRepository.findOne({
+          where: {
+            eventId: currentEventRepetition.eventId
+          }
+        })
+        newEvent.recurrencePattern = newRecurrencePattern;
+        await this.eventRepository.save(newEvent);
+        return { removedEvent, updateRemainingEvents: 0 };
+
       } else if (
         newEndDate.getTime() !== oldEndDate.getTime() &&
         newStartDate > currentDate &&
@@ -706,6 +727,8 @@ export class EventService {
       const startDateAndTimeOfCurrentEvent = eventRepetition.startDateTime
         .toISOString()
         .split('T');
+      console.log(startDateAndTimeOfCurrentEvent, "startDate");
+
       const endDateAndTimeOfCurrentEvent = eventRepetition.endDateTime
         .toISOString()
         .split('T');
@@ -1515,7 +1538,7 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
-        new Date(config.endCondition.value)
+      new Date(config.endCondition.value)
     ) {
       occurrences.pop();
     }
