@@ -507,6 +507,8 @@ export class EventService {
           currentEventRepetition.endDatetime.split('T')[1];
         currentEventRepetition.recurrencePattern.recurringStartDate =
           newRecurrencePattern.recurringStartDate;
+        // currentEventRepetition.recurrencePattern.endCondition.value = currentEventRepetition.startDateTime
+
 
         currentEventRepetition.createdAt = new Date();
         currentEventRepetition.updatedAt = new Date();
@@ -516,6 +518,10 @@ export class EventService {
         //   currentEventRepetition,
         // );
         const removedEvents = await this.removeEventsLessInRange(
+          currentEventRepetition.startDateTime,
+          currentEventRepetition.eventId,
+        );
+        const removedEvent = await this.removeEventsInRange(
           currentEventRepetition.startDateTime,
           currentEventRepetition.eventId,
         );
