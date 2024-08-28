@@ -115,23 +115,33 @@ export class EventController {
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
   })
-  @UsePipes(new ValidationPipe({ transform: true }))
+  // @UsePipes(
+  //   new ValidationPipe({ transform: true }),
+  //   new DateValidationPipe(),
+  //   // new RegistrationDateValidationPipe(),
+  //   new RecurringEndDateValidationPipe(),
+  // )
   updateEvent(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateEventDto: UpdateEventDto,
+    @Param('id') id: string,
+    @Body(
+      new ValidationPipe({ transform: true }),
+      new DateValidationPipe(),
+      // new RegistrationDateValidationPipe(),
+      // new RecurringEndDateValidationPipe(),
+    )
+    updateEventDto: UpdateEventDto,
     @Res() response: Response,
   ) {
     if (!updateEventDto || Object.keys(updateEventDto).length === 0) {
       throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
     }
-    const userId = '01455719-e84f-4bc8-8efa-7024874ade08'; // later come from JWT-token
     return this.eventService.updateEvent(id, updateEventDto, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
   @Delete('/:id')
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_DELETED })
-  @ApiResponse({ status: 404, description: SUCCESS_MESSAGES.EVENT_NOT_FOUND })
+  @ApiResponse({ status: 404, description: ERROR_MESSAGES.EVENT_NOT_FOUND })
   deleteEvent(
     @Param('id', ParseUUIDPipe) id: string,
     @Res() response: Response,

@@ -20,6 +20,7 @@ import {
 import { MeetingDetails } from 'src/common/utils/types';
 import { Transform, Type } from 'class-transformer';
 import { UrlWithProviderValidator } from 'src/common/utils/validation.util';
+import { RecurrencePatternDto } from './create-event.dto';
 import { MeetingDetailsDto } from './create-event.dto';
 export interface UpdateResult {
   onlineDetails?: any;
@@ -129,7 +130,7 @@ export class UpdateEventDto {
   })
   @ValidateIf((o) => o.endDatetime !== undefined)
   @IsDateString()
-  startDatetime: Date;
+  startDatetime: string;
 
   @ApiProperty({
     type: String,
@@ -138,7 +139,7 @@ export class UpdateEventDto {
   })
   @ValidateIf((o) => o.startDatetime !== undefined)
   @IsDateString()
-  endDatetime: Date;
+  endDatetime: string;
 
   @ApiProperty({
     type: String,
@@ -169,6 +170,17 @@ export class UpdateEventDto {
   latitude: number;
 
   @ApiProperty({
+    type: RecurrencePatternDto,
+    description: 'recurrencePattern',
+    example: { frequency: 'daily', interval: 1 },
+  })
+  @IsObject()
+  @ValidateNested({ each: true })
+  @Type(() => RecurrencePatternDto)
+  @IsOptional()
+  recurrencePattern: RecurrencePatternDto;
+
+  @ApiProperty({
     type: String,
     description: 'Online Provider',
     example: 'Zoom',
@@ -179,16 +191,23 @@ export class UpdateEventDto {
   @IsIn(['Zoom', 'GoogleMeet'])
   onlineProvider: string;
 
-  @IsString()
-  @IsOptional()
-  createdBy: string;
+  //   @IsString()
+  //   @IsOptional()
+  //   createdBy: string;
 
+  @ApiProperty({
+    type: String,
+    description: 'updatedBy',
+    example: 'eff008a8-2573-466d-b877-fddf6a4fc13e',
+  })
   @IsString()
-  @IsOptional()
+  //   @IsOptional()
   updatedBy: string;
 
   @IsOptional()
   updateAt: Date;
+
+  isRecurring: boolean;
 
   // Validation to ensure if isMainEvent is true, title or status must be provided
   @ValidateIf(
