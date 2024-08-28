@@ -48,7 +48,7 @@ export class EventController {
   constructor(
     private readonly eventService: EventService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   @UseFilters(new AllExceptionsFilter(API_ID.CREATE_EVENT))
   @Post('/create')
@@ -131,7 +131,7 @@ export class EventController {
     @Param('id') id: string,
     @Body(
       new ValidationPipe({ transform: true }),
-      // new DateValidationPipe(),
+      new DateValidationPipe(),
       // new RegistrationDateValidationPipe(),
       // new RecurringEndDateValidationPipe(),
     )
