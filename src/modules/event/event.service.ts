@@ -15,6 +15,7 @@ import {
   MoreThan,
   LessThan,
   MoreThanOrEqual,
+  LessThanOrEqual,
   Between,
 } from 'typeorm';
 import { Events } from './entities/event.entity';
@@ -501,17 +502,35 @@ export class EventService {
 
         currentEventRepetition['startDatetime'] =
           newRecurrencePattern.recurringStartDate;
-        currentEventRepetition.recurrencePattern.endCondition.type = 'endDate';
-        currentEventRepetition.recurrencePattern.endCondition.value =
-          oldRecurrencePattern.endCondition.value;
+        currentEventRepetition['endDatetime'] =
+          currentEventRepetition['startDatetime'].split('T')[0] +
+          'T' +
+          currentEventRepetition.endDatetime.split('T')[1];
+        currentEventRepetition.recurrencePattern.recurringStartDate =
+          newRecurrencePattern.recurringStartDate;
+
+        currentEventRepetition.createdAt = new Date();
+        currentEventRepetition.updatedAt = new Date();
         // const newlyAddedEvents = await this.addEventsInRange(
         //   newStartDate,
         //   oldStartDate,
         //   currentEventRepetition,
         // );
-        // console.log('--------------------------');
-        // console.log(newlyAddedEvents, 'newlyAddedEvents');
-        // finalStartDate = newStartDate;
+        const removedEvents = await this.removeEventsLessInRange(
+          currentEventRepetition.startDateTime,
+          currentEventRepetition.eventId,
+        );
+        const newlyAddedEvents = await this.createRecurringEvents(
+          currentEventRepetition,
+          currentEventRepetition.eventId,
+          currentEventRepetition.eventDetailId,
+          true,
+        );
+
+        const extUpdt = await this.updateEventRepetitionPattern(
+          currentEventRepetition.eventId,
+          currentEventRepetition.recurrencePattern,
+        );
         return { newlyAddedEvents: true };
       } else if (
         newStartDate > oldStartDate &&
@@ -607,6 +626,16 @@ export class EventService {
     });
     return removedEvents;
   }
+
+  async removeEventsLessInRange(fromDate: Date, eventId: string) {
+    const removedEvents = await this.eventRepetitionRepository.delete({
+      eventId: eventId,
+      startDateTime: LessThanOrEqual(fromDate),
+      // endDateTime: MoreThanOrEqual(toDate),
+    });
+    return removedEvents;
+  }
+
 
   checkIfDateIsSame(
     newRecurrenceStartDt: string,
