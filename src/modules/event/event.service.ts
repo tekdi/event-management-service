@@ -507,8 +507,6 @@ export class EventService {
           currentEventRepetition.endDatetime.split('T')[1];
         currentEventRepetition.recurrencePattern.recurringStartDate =
           newRecurrencePattern.recurringStartDate;
-        // currentEventRepetition.recurrencePattern.endCondition.value = currentEventRepetition.startDateTime
-
 
         currentEventRepetition.createdAt = new Date();
         currentEventRepetition.updatedAt = new Date();
@@ -574,6 +572,41 @@ export class EventService {
         // remove events
         // add events
         // update start date and end date in recpattern
+
+        currentEventRepetition['startDatetime'] =
+          newRecurrencePattern.recurringStartDate;
+        currentEventRepetition['endDatetime'] =
+          currentEventRepetition['startDatetime'].split('T')[0] +
+          'T' +
+          currentEventRepetition.endDatetime.split('T')[1];
+        currentEventRepetition.recurrencePattern.recurringStartDate =
+          newRecurrencePattern.recurringStartDate;
+        currentEventRepetition.recurrencePattern.endCondition.value =
+          newRecurrencePattern.endCondition.value;
+
+        currentEventRepetition.createdAt = new Date();
+        currentEventRepetition.updatedAt = new Date();
+        const removedEvents = await this.removeEventsLessInRange(
+          currentEventRepetition.startDateTime,
+          currentEventRepetition.eventId,
+        );
+        const removedEvent = await this.removeEventsInRange(
+          currentEventRepetition.startDateTime,
+          currentEventRepetition.eventId,
+        );
+
+        const newlyAddedEvents = await this.createRecurringEvents(
+          currentEventRepetition,
+          currentEventRepetition.eventId,
+          currentEventRepetition.eventDetailId,
+          true,
+        );
+
+        const extUpdt = await this.updateEventRepetitionPattern(
+          currentEventRepetition.eventId,
+          currentEventRepetition.recurrencePattern,
+        );
+        return { newlyAddedEvents: true };
       }
     } else {
       // Frequency and interval are different
