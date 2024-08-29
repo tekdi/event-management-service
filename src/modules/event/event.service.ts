@@ -384,12 +384,25 @@ export class EventService {
       const newEndDate = new Date(newRecurringEnd);
       const oldEndDate = new Date(oldRecurringEnd);
 
-      // new start date is passed
       // check if new start date is greater than old start date
 
       if (nstartDate === ostartDate && nstartTime !== ostartTime) {
         throw new BadRequestException(
           'Recurring Start Time cannot be changed pass orignal start time',
+        );
+      }
+
+      // new start date is passed
+      if (nstartDate !== ostartDate && oldStartDate < currentDate) {
+        throw new BadRequestException(
+          'Start Date can not be changes beacuse it is passed away',
+        );
+      }
+
+      // new End date is passed
+      if (newRecurringEnd !== oldRecurringEnd && oldEndDate < currentDate) {
+        throw new BadRequestException(
+          'End Date can not be changes beacuse it is passed away',
         );
       }
 
@@ -463,9 +476,9 @@ export class EventService {
           let updateRemainingEvents;
           if (
             currentEventRepetition.orignalEventStartTime !==
-            currentEventRepetition.startDatetime.split('T')[1] ||
+              currentEventRepetition.startDatetime.split('T')[1] ||
             currentEventRepetition.orignalEventEndTime !==
-            currentEventRepetition.endDatetime.split('T')[1]
+              currentEventRepetition.endDatetime.split('T')[1]
           ) {
             updateRemainingEvents = await this.updateEventRepetitionTime(
               currentEventRepetition.startDateTime,
@@ -542,14 +555,18 @@ export class EventService {
         newEndDate.getTime() === oldEndDate.getTime()
       ) {
         // postpone events when new start date is after old start date
-        // Get all eventRepetationId which are are less than new recuurnecestartDate and delete all 
+        // Get all eventRepetationId which are are less than new recuurnecestartDate and delete all
         const removedEvent = await this.eventRepetitionRepository.find({
-          select: ["eventRepetitionId"],
+          select: ['eventRepetitionId'],
           where: {
-            startDateTime: LessThan(new Date(newRecurrencePattern.recurringStartDate))
-          }
+            startDateTime: LessThan(
+              new Date(newRecurrencePattern.recurringStartDate),
+            ),
+          },
         });
-        const idsArray = removedEvent.map(repetition => repetition.eventRepetitionId);
+        const idsArray = removedEvent.map(
+          (repetition) => repetition.eventRepetitionId,
+        );
         // remove events
         if (idsArray.length > 0) {
           await this.eventRepetitionRepository.delete(idsArray);
@@ -557,13 +574,12 @@ export class EventService {
         // update start date in recpattern
         const newEvent = await this.eventRepository.findOne({
           where: {
-            eventId: currentEventRepetition.eventId
-          }
-        })
+            eventId: currentEventRepetition.eventId,
+          },
+        });
         newEvent.recurrencePattern = newRecurrencePattern;
         await this.eventRepository.save(newEvent);
         return { removedEvent, updateRemainingEvents: 0 };
-
       } else if (
         newEndDate.getTime() !== oldEndDate.getTime() &&
         newStartDate > currentDate &&
@@ -674,7 +690,6 @@ export class EventService {
     });
     return removedEvents;
   }
-
 
   checkIfDateIsSame(
     newRecurrenceStartDt: string,
@@ -795,7 +810,7 @@ export class EventService {
       const startDateAndTimeOfCurrentEvent = eventRepetition.startDateTime
         .toISOString()
         .split('T');
-      console.log(startDateAndTimeOfCurrentEvent, "startDate");
+      console.log(startDateAndTimeOfCurrentEvent, 'startDate');
 
       const endDateAndTimeOfCurrentEvent = eventRepetition.endDateTime
         .toISOString()
@@ -1606,7 +1621,7 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
-      new Date(config.endCondition.value)
+        new Date(config.endCondition.value)
     ) {
       occurrences.pop();
     }
