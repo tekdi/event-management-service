@@ -1,8 +1,8 @@
-FROM node:20 as dependencies
+FROM node:16 as dependencies
 WORKDIR /app
 COPY . ./
-RUN npm i --force
-RUN npm install fcm-node --force
+RUN npm i
+RUN npm install pg --save
 RUN apt-get update 
-EXPOSE 4000
+EXPOSE 3000
 CMD ["npm", "start"]
