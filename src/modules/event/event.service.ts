@@ -13,7 +13,9 @@ import {
   In,
   Not,
   MoreThan,
+  LessThan,
   MoreThanOrEqual,
+  LessThanOrEqual,
   Between,
 } from 'typeorm';
 import { Events } from './entities/event.entity';
@@ -349,6 +351,38 @@ export class EventService {
       );
     }
 
+    const currentDate = new Date();
+    const newRecurringStart = newRecurrencePattern.recurringStartDate;
+    const newStartDate = new Date(newRecurringStart);
+    const nstartDateTime = newRecurringStart.split('T');
+    const nstartDate = nstartDateTime[0];
+    const nstartTime = nstartDateTime[1];
+    const oldRecurringStart = oldRecurrencePattern.recurringStartDate;
+    const oldStartDate = new Date(oldRecurringStart);
+    const ostartDateTime = oldRecurringStart.split('T');
+    const ostartDate = ostartDateTime[0];
+    const ostartTime = ostartDateTime[1];
+
+    const newRecurringEnd = newRecurrencePattern.endCondition.value;
+    const oldRecurringEnd = oldRecurrencePattern.endCondition.value;
+    const newEndDate = new Date(newRecurringEnd);
+    const oldEndDate = new Date(oldRecurringEnd);
+    const nEndDate = newEndDate[0];
+    const oEndDate = oldEndDate[0];
+
+    if (nstartDate === ostartDate && nstartTime !== ostartTime) {
+      throw new BadRequestException(
+        'Recurring Start Time cannot be changed pass orignal start time',
+      );
+    }
+
+    // new End date is passed
+    if (newRecurringEnd !== oldRecurringEnd && oldEndDate < currentDate) {
+      throw new BadRequestException(
+        'End Date can not be changes beacuse it is passed away',
+      );
+    }
+
     if (
       newRecurrencePattern.frequency === Frequency.weekly &&
       newRecurrencePattern.frequency === oldRecurrencePattern.frequency &&
@@ -358,37 +392,17 @@ export class EventService {
         oldRecurrencePattern.daysOfWeek,
       )
     ) {
-      // either add or subtract events as pattern is same
-      currentEventRepetition['recurrencePattern'] = oldRecurrencePattern;
-
-      const currentDate = new Date();
-      const currentDateTime = currentDate.toISOString();
-
       // new start date is passed
-      const newRecurringStart = newRecurrencePattern.recurringStartDate;
-      const newStartDate = new Date(newRecurringStart);
-      const nstartDateTime = newRecurringStart.split('T');
-      const nstartDate = nstartDateTime[0];
-      const nstartTime = nstartDateTime[1];
-      const oldRecurringStart = oldRecurrencePattern.recurringStartDate;
-      const oldStartDate = new Date(oldRecurringStart);
-      const ostartDateTime = oldRecurringStart.split('T');
-      const ostartDate = ostartDateTime[0];
-      const ostartTime = ostartDateTime[1];
-
-      const newRecurringEnd = newRecurrencePattern.endCondition.value;
-      const oldRecurringEnd = oldRecurrencePattern.endCondition.value;
-      const newEndDate = new Date(newRecurringEnd);
-      const oldEndDate = new Date(oldRecurringEnd);
-
-      // new start date is passed
-      // check if new start date is greater than old start date
-
-      if (nstartDate === ostartDate && nstartTime !== ostartTime) {
+      if (nstartDate !== ostartDate && oldStartDate < currentDate) {
         throw new BadRequestException(
-          'Recurring Start Time cannot be changed pass orignal start time',
+          'Start Date can not be changes beacuse it is passed away',
         );
       }
+
+      // either add or subtract events as pattern is same
+      currentEventRepetition['recurrencePattern'] = oldRecurrencePattern;
+      // remove lines of code and put it on out of the function
+      // check if new start date is greater than old start date
 
       if (
         newRecurringStart === oldRecurringStart &&
@@ -499,17 +513,34 @@ export class EventService {
 
         currentEventRepetition['startDatetime'] =
           newRecurrencePattern.recurringStartDate;
-        currentEventRepetition.recurrencePattern.endCondition.type = 'endDate';
-        currentEventRepetition.recurrencePattern.endCondition.value =
-          oldRecurrencePattern.endCondition.value;
-        // const newlyAddedEvents = await this.addEventsInRange(
-        //   newStartDate,
-        //   oldStartDate,
-        //   currentEventRepetition,
-        // );
-        // console.log('--------------------------');
-        // console.log(newlyAddedEvents, 'newlyAddedEvents');
-        // finalStartDate = newStartDate;
+        currentEventRepetition['endDatetime'] =
+          currentEventRepetition['startDatetime'].split('T')[0] +
+          'T' +
+          currentEventRepetition.endDatetime.split('T')[1];
+        currentEventRepetition.recurrencePattern.recurringStartDate =
+          newRecurrencePattern.recurringStartDate;
+
+        currentEventRepetition.createdAt = new Date();
+        currentEventRepetition.updatedAt = new Date();
+        const removedEvents = await this.removeEventsLessInRange(
+          currentEventRepetition.startDateTime,
+          currentEventRepetition.eventId,
+        );
+        const removedEvent = await this.removeEventsInRange(
+          currentEventRepetition.startDateTime,
+          currentEventRepetition.eventId,
+        );
+        const newlyAddedEvents = await this.createRecurringEvents(
+          currentEventRepetition,
+          currentEventRepetition.eventId,
+          currentEventRepetition.eventDetailId,
+          true,
+        );
+
+        const extUpdt = await this.updateEventRepetitionPattern(
+          currentEventRepetition.eventId,
+          currentEventRepetition.recurrencePattern,
+        );
         return { newlyAddedEvents: true };
       } else if (
         newStartDate > oldStartDate &&
@@ -517,8 +548,31 @@ export class EventService {
         newEndDate.getTime() === oldEndDate.getTime()
       ) {
         // postpone events when new start date is after old start date
+        // Get all eventRepetationId which are are less than new recuurnecestartDate and delete all
+        const removedEvent = await this.eventRepetitionRepository.find({
+          select: ['eventRepetitionId'],
+          where: {
+            startDateTime: LessThan(
+              new Date(newRecurrencePattern.recurringStartDate),
+            ),
+          },
+        });
+        const idsArray = removedEvent.map(
+          (repetition) => repetition.eventRepetitionId,
+        );
         // remove events
+        if (idsArray.length > 0) {
+          await this.eventRepetitionRepository.delete(idsArray);
+        }
         // update start date in recpattern
+        const newEvent = await this.eventRepository.findOne({
+          where: {
+            eventId: currentEventRepetition.eventId,
+          },
+        });
+        newEvent.recurrencePattern = newRecurrencePattern;
+        await this.eventRepository.save(newEvent);
+        return { removedEvent, updateRemainingEvents: 0 };
       } else if (
         newEndDate.getTime() !== oldEndDate.getTime() &&
         newStartDate > currentDate &&
@@ -528,18 +582,45 @@ export class EventService {
         // remove events
         // add events
         // update start date and end date in recpattern
+
+        currentEventRepetition['startDatetime'] =
+          newRecurrencePattern.recurringStartDate;
+        currentEventRepetition['endDatetime'] =
+          currentEventRepetition['startDatetime'].split('T')[0] +
+          'T' +
+          currentEventRepetition.endDatetime.split('T')[1];
+        currentEventRepetition.recurrencePattern.recurringStartDate =
+          newRecurrencePattern.recurringStartDate;
+        currentEventRepetition.recurrencePattern.endCondition.value =
+          newRecurrencePattern.endCondition.value;
+
+        currentEventRepetition.createdAt = new Date();
+        currentEventRepetition.updatedAt = new Date();
+        const removedEvents = await this.removeEventsLessInRange(
+          currentEventRepetition.startDateTime,
+          currentEventRepetition.eventId,
+        );
+        const removedEvent = await this.removeEventsInRange(
+          currentEventRepetition.startDateTime,
+          currentEventRepetition.eventId,
+        );
+
+        const newlyAddedEvents = await this.createRecurringEvents(
+          currentEventRepetition,
+          currentEventRepetition.eventId,
+          currentEventRepetition.eventDetailId,
+          true,
+        );
+
+        const extUpdt = await this.updateEventRepetitionPattern(
+          currentEventRepetition.eventId,
+          currentEventRepetition.recurrencePattern,
+        );
+        return { newlyAddedEvents: true };
       }
     } else {
       // Frequency and interval are different
       // make start date as end date for old events and create new events
-      console.log(
-        newRecurrencePattern.daysOfWeek,
-        oldRecurrencePattern.daysOfWeek,
-        compareArrays(
-          newRecurrencePattern.daysOfWeek,
-          oldRecurrencePattern.daysOfWeek,
-        ),
-      );
       throw new NotImplementedException('Pattern different');
     }
   }
@@ -581,6 +662,15 @@ export class EventService {
     const removedEvents = await this.eventRepetitionRepository.delete({
       eventId: eventId,
       startDateTime: MoreThanOrEqual(fromDate),
+      // endDateTime: MoreThanOrEqual(toDate),
+    });
+    return removedEvents;
+  }
+
+  async removeEventsLessInRange(fromDate: Date, eventId: string) {
+    const removedEvents = await this.eventRepetitionRepository.delete({
+      eventId: eventId,
+      startDateTime: LessThanOrEqual(fromDate),
       // endDateTime: MoreThanOrEqual(toDate),
     });
     return removedEvents;
@@ -636,6 +726,20 @@ export class EventService {
     }
   }
 
+  checkIfPatternIsSame(newdaysOfWeek, olddaysOfWeek) {
+    if (newdaysOfWeek.length !== olddaysOfWeek.length) {
+      return false;
+    }
+    newdaysOfWeek.sort();
+    olddaysOfWeek.sort();
+    for (let i = 0; i <= newdaysOfWeek.length; i++) {
+      if (newdaysOfWeek[i] !== olddaysOfWeek[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   checkValidRecurrenceTimeForUpdate(endDate, recurrenceEndDate) {
     if (endDate.split('T')[1] !== recurrenceEndDate.split('T')[1]) {
       throw new BadRequestException(
@@ -659,16 +763,6 @@ export class EventService {
     eventRepetition['endDatetime'] = endDatetime;
 
     let updateResult: UpdateResult = {};
-
-    // console.log(updateBody.recurrencePattern, 'new');
-    // console.log(event.recurrencePattern, 'old');
-    // Get all event which date is equal and greater than cuurent selected event date [use for update]
-    // const recurrenceRecordss = await this.eventRepetitionRepository.find({
-    //   where: {
-    //     eventId: eventId,
-    //     startDateTime: MoreThanOrEqual(eventRepetition.startDateTime),
-    //   },
-    // });
 
     const recurrenceRecords = await this.eventRepetitionRepository
       .createQueryBuilder('eventRepetition')
@@ -712,6 +806,8 @@ export class EventService {
       const startDateAndTimeOfCurrentEvent = eventRepetition.startDateTime
         .toISOString()
         .split('T');
+      console.log(startDateAndTimeOfCurrentEvent, 'startDate');
+
       const endDateAndTimeOfCurrentEvent = eventRepetition.endDateTime
         .toISOString()
         .split('T');
@@ -768,13 +864,18 @@ export class EventService {
         event.recurrencePattern.endCondition.value,
       );
 
+      const isWeekPatternChange = this.checkIfPatternIsSame(
+        updateBody.recurrencePattern.daysOfWeek,
+        event.recurrencePattern.daysOfWeek,
+      );
+
       console.log(isDateTimeUpdate, 'isDateTimeUpdate');
 
       // when date is different regenerate new events
       if (
         updateBody.recurrencePattern &&
         event.recurrencePattern?.frequency &&
-        !isDateTimeUpdate.dateSame
+        (!isDateTimeUpdate.dateSame || !isWeekPatternChange)
       ) {
         console.log(
           updateBody.recurrencePattern,
