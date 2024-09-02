@@ -367,8 +367,8 @@ export class EventService {
     const oldRecurringEnd = oldRecurrencePattern.endCondition.value;
     const newEndDate = new Date(newRecurringEnd);
     const oldEndDate = new Date(oldRecurringEnd);
-    const nEndDate = newEndDate[0];
-    const oEndDate = oldEndDate[0];
+    // const nEndDate = newEndDate[0];
+    // const oEndDate = oldEndDate[0];
 
     if (nstartDate === ostartDate && nstartTime !== ostartTime) {
       throw new BadRequestException(
@@ -434,7 +434,6 @@ export class EventService {
             'T' +
             currentEventRepetition.endDatetime.split('T')[1];
 
-          currentEventRepetition.createdAt = new Date();
           currentEventRepetition.updatedAt = new Date();
 
           // delete old events
@@ -474,9 +473,9 @@ export class EventService {
           let updateRemainingEvents;
           if (
             currentEventRepetition.orignalEventStartTime !==
-            currentEventRepetition.startDatetime.split('T')[1] ||
+              currentEventRepetition.startDatetime.split('T')[1] ||
             currentEventRepetition.orignalEventEndTime !==
-            currentEventRepetition.endDatetime.split('T')[1]
+              currentEventRepetition.endDatetime.split('T')[1]
           ) {
             updateRemainingEvents = await this.updateEventRepetitionTime(
               currentEventRepetition.startDateTime,
@@ -520,7 +519,6 @@ export class EventService {
         currentEventRepetition.recurrencePattern.recurringStartDate =
           newRecurrencePattern.recurringStartDate;
 
-        currentEventRepetition.createdAt = new Date();
         currentEventRepetition.updatedAt = new Date();
         const removedEvents = await this.removeEventsLessInRange(
           currentEventRepetition.startDateTime,
@@ -595,7 +593,6 @@ export class EventService {
         currentEventRepetition.recurrencePattern.endCondition.value =
           newRecurrencePattern.endCondition.value;
 
-        currentEventRepetition.createdAt = new Date();
         currentEventRepetition.updatedAt = new Date();
         const removedEvents = await this.removeEventsLessInRange(
           currentEventRepetition.startDateTime,
@@ -644,7 +641,6 @@ export class EventService {
         currentEventRepetition.recurrencePattern.endCondition.value =
           newRecurrencePattern.endCondition.value;
 
-        currentEventRepetition.createdAt = new Date();
         currentEventRepetition.updatedAt = new Date();
         const newlyAddedEvents = await this.createRecurringEvents(
           currentEventRepetition,
@@ -692,7 +688,6 @@ export class EventService {
         currentEventRepetition.recurrencePattern.endCondition.value =
           newRecurrencePattern.endCondition.value;
 
-        currentEventRepetition.createdAt = new Date();
         currentEventRepetition.updatedAt = new Date();
 
         //Create new event and eventDetail
@@ -1684,7 +1679,7 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
-      new Date(config.endCondition.value)
+        new Date(config.endCondition.value)
     ) {
       occurrences.pop();
     }
