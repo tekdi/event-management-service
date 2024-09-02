@@ -474,9 +474,9 @@ export class EventService {
           let updateRemainingEvents;
           if (
             currentEventRepetition.orignalEventStartTime !==
-              currentEventRepetition.startDatetime.split('T')[1] ||
+            currentEventRepetition.startDatetime.split('T')[1] ||
             currentEventRepetition.orignalEventEndTime !==
-              currentEventRepetition.endDatetime.split('T')[1]
+            currentEventRepetition.endDatetime.split('T')[1]
           ) {
             updateRemainingEvents = await this.updateEventRepetitionTime(
               currentEventRepetition.startDateTime,
@@ -629,7 +629,6 @@ export class EventService {
             'Recurrence start date must be in future',
           );
         }
-        console.log('yes');
         const removedEvent = await this.eventRepetitionRepository.delete({
           eventId: currentEventRepetition.eventId,
         });
@@ -903,7 +902,6 @@ export class EventService {
       const startDateAndTimeOfCurrentEvent = eventRepetition.startDateTime
         .toISOString()
         .split('T');
-      console.log(startDateAndTimeOfCurrentEvent, 'startDate');
 
       const endDateAndTimeOfCurrentEvent = eventRepetition.endDateTime
         .toISOString()
@@ -1686,7 +1684,7 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
-        new Date(config.endCondition.value)
+      new Date(config.endCondition.value)
     ) {
       occurrences.pop();
     }
