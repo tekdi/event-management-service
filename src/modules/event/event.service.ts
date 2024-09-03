@@ -379,7 +379,7 @@ export class EventService {
     // new End date is passed
     if (newRecurringEnd !== oldRecurringEnd && oldEndDate < currentDate) {
       throw new BadRequestException(
-        'End Date can not be changes beacuse it is passed away',
+        'End Date can not be changes because it is passed away',
       );
     }
 
@@ -413,6 +413,7 @@ export class EventService {
         // no action on start dates but end date is different
 
         if (oldStartDate > newEndDate) {
+          // end date is passed is less than recurring start date
           throw new BadRequestException(
             'End date is passed is less than recurring start date',
           );
@@ -620,7 +621,7 @@ export class EventService {
       // Frequency and interval are different
       // make start date as end date for old events and create new events
       if (oldStartDate > currentDate) {
-        //check newrecuurmnece startDate should be greater than cuurentDate
+        // check newrecurrence startDate should be greater than currentDate
         if (newStartDate < currentDate) {
           throw new BadRequestException(
             'Recurrence start date must be in future',
@@ -912,6 +913,17 @@ export class EventService {
           'Invalid Date passed for this recurring event',
         );
       }
+
+      // undefined , past or equal to previously given date
+      if (
+        updateBody.recurrencePattern.recurringStartDate == undefined ||
+        !updateBody.recurrencePattern.recurringStartDate
+      ) {
+        // no start date is passed , make old date as start date
+        updateBody.recurrencePattern.recurringStartDate =
+          event.recurrencePattern.recurringStartDate;
+      }
+
       new DateValidationPipe().transform(updateBody);
       new RecurringEndDateValidationPipe().transform(updateBody);
 
@@ -929,16 +941,6 @@ export class EventService {
         );
       }
 
-      // undefined , past or equal to previously given date
-      if (
-        updateBody.recurrencePattern.recurringStartDate == undefined ||
-        !updateBody.recurrencePattern.recurringStartDate
-      ) {
-        // no start date is passed , make old date as start date
-        updateBody.recurrencePattern.recurringStartDate =
-          event.recurrencePattern.recurringStartDate;
-      }
-
       this.checkValidRecurrenceTimeForUpdate(
         endDatetime,
         updateBody.recurrencePattern.endCondition.value,
@@ -954,17 +956,20 @@ export class EventService {
         event.recurrencePattern.endCondition.value,
       );
 
-      const isWeekPatternChange = this.checkIfPatternIsSame(
+      const isWeekPatternSame = this.checkIfPatternIsSame(
         updateBody.recurrencePattern.daysOfWeek,
         event.recurrencePattern.daysOfWeek,
       );
 
+      console.log(isWeekPatternSame, 'isWeekPatternSame', isDateTimeUpdate);
       // when date is different regenerate new events
       if (
         updateBody.recurrencePattern &&
         event.recurrencePattern?.frequency &&
-        (!isDateTimeUpdate.dateSame || !isWeekPatternChange)
+        (!isDateTimeUpdate.dateSame || !isWeekPatternSame)
       ) {
+        console.log('hereeeeeeeeeeeeeee134566798');
+        // if date is different or pattern is different
         eventRepetition['startTime'] = startTime;
         eventRepetition['endTime'] = endTime;
         eventRepetition['orignalEventStartTime'] = startTimeOfCurrentEvent;
@@ -979,6 +984,7 @@ export class EventService {
 
       // just time is different so just update time
       else if (!isDateTimeUpdate.timeSame && isDateTimeUpdate.dateSame) {
+        console.log('hereeeeeeeeeeeeeee');
         // update time in event table recurrence
         const recurrenceRecords = await this.eventRepetitionRepository.find({
           where: {
