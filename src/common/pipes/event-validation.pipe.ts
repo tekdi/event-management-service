@@ -167,7 +167,21 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
           throw new BadRequestException(
             'Event End time does not match with Recurrence End time',
           );
-        } // do for recurrence start time also in edit
+        }
+
+        // do for recurrence start time also in edit
+        if (createEventDto instanceof UpdateEventDto) {
+          if (
+            createEventDto.recurrencePattern.recurringStartDate.split(
+              'T',
+            )[1] !== createEventDto.startDatetime.split('T')[1]
+          ) {
+            throw new BadRequestException(
+              'Event Start time does not match with Recurrence Start time',
+            );
+          }
+        }
+
         // createEventDto.recurrencePattern.endCondition.value = endDate;
       } else if (endConditionType === EndConditionType.occurrences) {
         const occurrences = Number(endConditionValue);
