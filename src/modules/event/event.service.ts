@@ -693,7 +693,6 @@ export class EventService {
     currentEventRepetition,
     newRecurrencePattern,
   ) {
-    console.log('deleteOldAndRecreateNewEvents');
     // delete old events associated with the eventId
     const removedEvents = await this.eventRepetitionRepository.delete({
       eventId: currentEventRepetition.eventId,
@@ -729,7 +728,6 @@ export class EventService {
     oldRecurrencePattern,
     newRecurrencePattern,
   ) {
-    console.log('editThisAndFollowingEvents');
     // remove upcoming events
     const removedEvents = await this.removeEventsInRange(
       currentEventRepetition.startDateTime,
@@ -737,7 +735,6 @@ export class EventService {
     );
 
     // update recurrence pattern in which update endDate so that old event ends on new start date
-    // currentEventRepetition['recurrencePattern'] = oldRecurrencePattern;
     // set start of new event as end of old event
     console.log(
       oldRecurrencePattern.endCondition.value,
@@ -1033,7 +1030,6 @@ export class EventService {
         event.recurrencePattern?.frequency &&
         (!isDateTimeUpdate.dateSame || !isWeekPatternSame)
       ) {
-        console.log('hereeeeeeeeeeeeeee134566798');
         // if date is different or pattern is different
 
         eventRepetition['orignalEventStartTime'] = startTimeOfCurrentEvent;
@@ -1047,7 +1043,7 @@ export class EventService {
         console.log('updatedEvents', updatedEvents);
       } else if (!isDateTimeUpdate.timeSame && isDateTimeUpdate.dateSame) {
         // just time is different so just update time
-        console.log('hereeeeeeeeeeeeeee');
+
         // update time in event table recurrence
         const recurrenceRecords = await this.eventRepetitionRepository.find({
           where: {
