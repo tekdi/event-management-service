@@ -1,4 +1,4 @@
-export const compareArrays = (a: any[], b: any[]): boolean => {
+export const compareArrays = (a: number[], b: number[]): boolean => {
   if (a.length !== b.length) {
     return false;
   }
