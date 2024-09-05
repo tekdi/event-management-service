@@ -1436,7 +1436,7 @@ export class EventService {
 
     if (recurrencePattern?.endCondition?.value) {
       recurrencePattern.recurringStartDate = createEventDto.startDatetime;
-      recurrencePattern.daysOfWeek.sort();
+      recurrencePattern.daysOfWeek.sort((a, b) => a - b);
     }
     event.isRecurring = isRecurring;
     // event.recurrenceEndDate = recurrenceEndDate

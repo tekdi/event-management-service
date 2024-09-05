@@ -2,8 +2,8 @@ export const compareArrays = (a: number[], b: number[]): boolean => {
   if (a.length !== b.length) {
     return false;
   }
-  a.sort();
-  b.sort();
+  a.sort((a, b) => a - b);
+  b.sort((a, b) => a - b);
   // Comparing each element of your array
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) {
