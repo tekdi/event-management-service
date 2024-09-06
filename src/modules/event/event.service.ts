@@ -289,16 +289,15 @@ export class EventService {
         // when id does not exist or event date is passed
         throw new BadRequestException(ERROR_MESSAGES.EVENT_NOT_FOUND);
       }
-      const isEventArchived = await this.eventDetailRepository.findOne({
-        where: { eventDetailId: eventRepetition.eventDetailId },
-      });
+      const isEventArchived = await this.getEventDetails(
+        eventRepetition.eventDetailId,
+      );
       if (isEventArchived.status === 'archived') {
         throw new BadRequestException('Event is archived you can not Edit');
       }
 
-      const event = await this.eventRepository.findOne({
-        where: { eventId: eventRepetition.eventId },
-      });
+      const event = await this.findEventById(eventRepetition.eventId);
+
       // condition for prevent non recuring event
       if (!event.isRecurring && !updateBody.isMainEvent) {
         throw new BadRequestException(
@@ -307,9 +306,7 @@ export class EventService {
         );
       }
 
-      const eventDetail = await this.eventDetailRepository.findOne({
-        where: { eventDetailId: event.eventDetailId },
-      }); //
+      const eventDetail = await this.getEventDetails(event.eventDetailId);
 
       const validationResult = this.isInvalidUpdate(updateBody, eventDetail);
       if (!validationResult.isValid) {
@@ -565,11 +562,10 @@ export class EventService {
           await this.eventRepetitionRepository.delete(idsArray);
         }
         // update start date in recpattern
-        const newEvent = await this.eventRepository.findOne({
-          where: {
-            eventId: currentEventRepetition.eventId,
-          },
-        });
+        const newEvent = await this.findEventById(
+          currentEventRepetition.eventId,
+        );
+
         newEvent.recurrencePattern = newRecurrencePattern;
         await this.eventRepository.save(newEvent);
         return { removedEvent, updateRemainingEvents: 0 };
@@ -653,16 +649,13 @@ export class EventService {
     newRecurrencePattern,
   ) {
     // Create new event and eventDetail as per details of orignal event
-    const oldEvent = await this.eventRepository.findOne({
-      where: { eventId },
-    });
+    const oldEvent = await this.findEventById(eventId);
+
     oldEvent.eventId = undefined; // so that new event is created and new id is generated for it
     oldEvent.createdAt = new Date();
     oldEvent.updatedAt = new Date();
 
-    const oldEventDetail = await this.eventDetailRepository.findOne({
-      where: { eventDetailId },
-    });
+    const oldEventDetail = await this.getEventDetails(eventDetailId);
     oldEventDetail.eventDetailId = undefined; // so that new eventDetail is created and new id is generated for it
     oldEventDetail.createdAt = new Date();
     oldEventDetail.updatedAt = new Date();
@@ -1123,9 +1116,8 @@ export class EventService {
       updateBody.onlineDetails ||
       updateBody.metadata
     ) {
-      const existingEventDetails = await this.eventDetailRepository.findOne({
-        where: { eventDetailId: eventDetailId },
-      });
+      const existingEventDetails = await this.getEventDetails(eventDetailId);
+
       if (updateBody.onlineDetails) {
         Object.assign(
           existingEventDetails.meetingDetails,
@@ -1164,11 +1156,9 @@ export class EventService {
         }
         // delete eventDetail from eventDetail table if futher created single-single for upcoming session
         if (upcomingrecurrenceRecords.length > 0) {
-          await this.eventDetailRepository.delete({
-            eventDetailId: In(
-              upcomingrecurrenceRecords.map((record) => record.eventDetailId),
-            ),
-          });
+          await this.deleteEventDetail(
+            upcomingrecurrenceRecords.map((record) => record.eventDetailId),
+          );
         }
       } else {
         // Not going in this condition if event is non recurring
@@ -1189,18 +1179,15 @@ export class EventService {
           }
           // delete eventDetail from eventDetail table if futher created single-single for upcoming session
           if (upcomingrecurrenceRecords.length > 0) {
-            await this.eventDetailRepository.delete({
-              eventDetailId: In(
-                upcomingrecurrenceRecords.map((record) => record.eventDetailId),
-              ),
-            });
+            await this.deleteEventDetail(
+              upcomingrecurrenceRecords.map((record) => record.eventDetailId),
+            );
           }
         } else {
           //do change in existing eventDetail row [eventRepetition.eventDetails me] table
           const repetationeventDetailexistingResult =
-            await this.eventDetailRepository.findOne({
-              where: { eventDetailId: eventRepetition.eventDetailId },
-            });
+            await this.getEventDetails(eventRepetition.eventDetailId);
+
           let neweventDetailsId;
           const numberOfEntryInEventReperationTable =
             await this.eventRepetitionRepository.find({
@@ -1208,7 +1195,7 @@ export class EventService {
             });
           if (updateBody.onlineDetails) {
             Object.assign(
-              repetationeventDetailexistingResult.meetingDetails,
+              repetationeventDetailexistingResult['meetingDetails'],
               updateBody.onlineDetails,
             );
           }
@@ -1265,9 +1252,8 @@ export class EventService {
       updateResult.repetationDetail = eventRepetition;
     }
     const eventDetailId = eventRepetition.eventDetailId;
-    const existingEventDetails = await this.eventDetailRepository.findOne({
-      where: { eventDetailId: eventDetailId },
-    });
+    const existingEventDetails = await this.getEventDetails(eventDetailId);
+
     existingEventDetails.updatedAt = new Date();
 
     if (
@@ -1608,6 +1594,14 @@ export class EventService {
     return this.eventRepetitionRepository.find({ where: { eventId: eventId } });
   }
 
+  async getEventDetails(eventDetailId: string): Promise<EventDetail> {
+    return this.eventDetailRepository.findOne({ where: { eventDetailId } });
+  }
+
+  async findEventById(eventId: string): Promise<Events> {
+    return this.eventRepository.findOne({ where: { eventId } });
+  }
+
   generateEventOccurences(
     createEventDto: CreateEventDto,
     eventDetailId: string,
@@ -1757,8 +1751,10 @@ export class EventService {
     return this.eventRepository.delete({ eventId });
   }
 
-  async deleteEventDetail(eventDetailId: string): Promise<DeleteResult> {
-    return this.eventDetailRepository.delete({ eventDetailId });
+  async deleteEventDetail(eventDetailIds: string[]): Promise<DeleteResult> {
+    return this.eventDetailRepository.delete({
+      eventDetailId: In(eventDetailIds),
+    });
   }
 
   async removePartiallyCreatedData(
@@ -1767,7 +1763,7 @@ export class EventService {
   ): Promise<PromiseSettledResult<undefined | DeleteResult>[]> {
     const promises = [
       this.deleteEvent(eventId),
-      this.deleteEventDetail(eventDetailId),
+      this.deleteEventDetail([eventDetailId]),
     ];
 
     const responses = await Promise.allSettled(promises);
