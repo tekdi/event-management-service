@@ -85,14 +85,14 @@ export class EventService {
         //   createEventDto.createdBy,
         // );
 
-        // new approach of adding attendees against eventId
-        await this.attendeesService.createAttendeesForEvents(
-          createEventDto.attendees,
-          createdEvent.res.eventId,
-          createEventDto.createdBy,
-        );
+        // TODO: new approach of adding attendees
+        // await this.attendeesService.createAttendeesForEvents(
+        //   createEventDto.attendees,
+        //   createdEvent.res.eventId,
+        //   createEventDto.createdBy,
+        // );
       } else {
-        throw new NotImplementedException();
+        throw new NotImplementedException('Public events not implemented!');
         // if event is public then registrationDate is required
         if (createEventDto.eventType === 'online') {
           // create online event
@@ -811,6 +811,17 @@ export class EventService {
     );
   }
 
+  async updateEventRepetition(recurrenceRecords: EventRepetition[], set) {
+    return await this.eventRepetitionRepository.update(
+      {
+        eventRepetitionId: In(
+          recurrenceRecords.map((record) => record.eventRepetitionId),
+        ),
+      },
+      set,
+    );
+  }
+
   async removeEventsInRange(fromDate: Date, eventId: string) {
     const removedEvents = await this.eventRepetitionRepository.delete({
       eventId: eventId,
@@ -1071,14 +1082,11 @@ export class EventService {
             `DATE_TRUNC('day', "endDateTime") + '${endTime}'::time`;
         }
         updateDateResult.updatedAt = new Date();
-        const result = await this.eventRepetitionRepository.update(
-          {
-            eventRepetitionId: In(
-              recurrenceRecords.map((record) => record.eventRepetitionId),
-            ),
-          },
+        const result = await this.updateEventRepetition(
+          recurrenceRecords,
           updateDateResult,
         );
+
         updateResult.recurrenceUpdate = result;
       }
     }
@@ -1106,13 +1114,8 @@ export class EventService {
         updateData.erMetaData = eventRepetition.erMetaData;
         updateResult.erMetaData = updateBody.erMetaData;
       }
-
-      await this.eventRepetitionRepository.update(
-        {
-          eventRepetitionId: In(
-            recurrenceRecords.map((record) => record.eventRepetitionId),
-          ),
-        },
+      const result = await this.updateEventRepetition(
+        recurrenceRecords,
         updateData,
       );
     }
@@ -1146,7 +1149,7 @@ export class EventService {
       } else {
         eventStartDate = new Date(eventRepetition.startDateTime);
       }
-      //if startrecuuring or startDate is equal to passed eventRepetationId startDate
+      // if startrecurring or startDate is equal to passed eventRepetationId startDate
       if (
         eventRepetition.startDateTime.toISOString().split('T')[0] ===
         eventStartDate.toISOString().split('T')[0]
@@ -1161,14 +1164,9 @@ export class EventService {
         updateResult.eventDetails = result;
         // below code run for update of recurring event
         if (recurrenceRecords.length > 0) {
-          const result = await this.eventRepetitionRepository.update(
-            {
-              eventRepetitionId: In(
-                recurrenceRecords.map((record) => record.eventRepetitionId),
-              ),
-            },
-            { eventDetailId: event.eventDetailId },
-          );
+          const result = await this.updateEventRepetition(recurrenceRecords, {
+            eventDetailId: event.eventDetailId,
+          });
         }
         // delete eventDetail from eventDetail table if futher created single-single for upcoming session
         if (upcomingrecurrenceRecords.length > 0) {
@@ -1180,34 +1178,20 @@ export class EventService {
         }
       } else {
         // Not going in this condition if event is non recurring
-        let neweventDetailsId;
         // create new entry for new updated record which connect all upcoming and this event
         if (eventRepetition.eventDetailId === event.eventDetailId) {
           Object.assign(existingEventDetails, updateBody);
           existingEventDetails.eventDetailId = undefined;
           const saveNewEntry =
             await this.eventDetailRepository.save(existingEventDetails);
-          neweventDetailsId = saveNewEntry.eventDetailId;
+
           updateResult.eventDetails = saveNewEntry;
 
-          //repeated code
-          // const upcomingrecurrenceRecords = await this.eventRepetitionRepository.find({
-          //   where: {
-          //     eventId: eventId,
-          //     eventDetailId: Not(eventDetailId),
-          //     startDateTime: MoreThanOrEqual(startDateTimes),
-          //   },
-          // });
           // update eventDetail id in all places which are greater than and equal to curreitn repetation startDate in repetation table
           if (recurrenceRecords.length > 0) {
-            const result = await this.eventRepetitionRepository.update(
-              {
-                eventRepetitionId: In(
-                  recurrenceRecords.map((record) => record.eventRepetitionId),
-                ),
-              },
-              { eventDetailId: neweventDetailsId },
-            );
+            const result = await this.updateEventRepetition(recurrenceRecords, {
+              eventDetailId: saveNewEntry.eventDetailId,
+            });
           }
           // delete eventDetail from eventDetail table if futher created single-single for upcoming session
           if (upcomingrecurrenceRecords.length > 0) {
@@ -1259,14 +1243,9 @@ export class EventService {
 
           // update eventDetail id in all places which are greater than and equal to curreitn repetation startDate in repetation table
           if (recurrenceRecords.length > 0) {
-            const result = await this.eventRepetitionRepository.update(
-              {
-                eventRepetitionId: In(
-                  recurrenceRecords.map((record) => record.eventRepetitionId),
-                ),
-              },
-              { eventDetailId: neweventDetailsId },
-            );
+            const result = await this.updateEventRepetition(recurrenceRecords, {
+              eventDetailId: neweventDetailsId,
+            });
           }
         }
       }
