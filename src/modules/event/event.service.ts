@@ -744,8 +744,6 @@ export class EventService {
 
     oldRecurrencePattern.endCondition.value =
       currentEventRepetition.startDatetime.split('T')[0];
-    //   + 'T';
-    // oldRecurrencePattern.endCondition.value.split('T')[1];
 
     const extUpdt = await this.updateEventRepetitionPattern(
       currentEventRepetition.eventId,
@@ -756,18 +754,10 @@ export class EventService {
       currentEventRepetition.startDatetime;
     currentEventRepetition['recurrencePattern'] = newRecurrencePattern;
 
-    // currentEventRepetition['startDatetime'] =
-    //   newRecurrencePattern.recurringStartDate;
-
     currentEventRepetition['endDatetime'] =
       currentEventRepetition['startDatetime'].split('T')[0] +
       'T' +
       currentEventRepetition.endDatetime.split('T')[1];
-
-    // currentEventRepetition.recurrencePattern.recurringStartDate =
-    //   newRecurrencePattern.recurringStartDate;
-    // currentEventRepetition.recurrencePattern.endCondition.value =
-    //   newRecurrencePattern.endCondition.value;
 
     currentEventRepetition.updatedAt = new Date();
 
