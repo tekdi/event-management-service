@@ -1,14 +1,16 @@
-export const compareArrays = (a: any[], b: any[]): boolean => {
-  if (a.length !== b.length) return false;
-  else {
-    // Comparing each element of your array
-    for (let i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) {
-        return false;
-      }
-    }
-    return true;
+export const compareArrays = (a: number[], b: number[]): boolean => {
+  if (a.length !== b.length) {
+    return false;
   }
+  a.sort((a, b) => a - b);
+  b.sort((a, b) => a - b);
+  // Comparing each element of your array
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
 };
 
 export const getNextDay = (currentDate: Date): Date => {

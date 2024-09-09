@@ -160,14 +160,20 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
           );
         }
 
+        const endDateTime = endConditionValue.split('T');
+        const endDate = endDateTime[0]; // recurring end date
+
         if (
-          endConditionValue.split('T')[1] !==
-          createEventDto.endDatetime.split('T')[1]
+          new Date(endConditionValue).getTime() !==
+          new Date(
+            endDate + 'T' + createEventDto.endDatetime.split('T')[1],
+          ).getTime() // compare with current event end time
         ) {
           throw new BadRequestException(
             'Event End time does not match with Recurrence End time',
           );
-        } // do for recurrence start time also in edit
+        }
+
         // createEventDto.recurrencePattern.endCondition.value = endDate;
       } else if (endConditionType === EndConditionType.occurrences) {
         const occurrences = Number(endConditionValue);
