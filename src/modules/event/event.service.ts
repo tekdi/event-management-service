@@ -472,8 +472,7 @@ export class EventService {
           );
         } else if (
           newRecStartDate < oldRecStartDate &&
-          newRecStartDate > currentDate &&
-          newRecEndDate.getTime() === oldEndDate.getTime()
+          newRecStartDate > currentDate
         ) {
           // prepone events when new start date lies between current date and old start date
           // end date remains same
@@ -483,36 +482,6 @@ export class EventService {
             currentEventRepetition,
             newRecurrencePattern,
           );
-          currentEventRepetition['startDatetime'] =
-            newRecurrencePattern.recurringStartDate;
-          currentEventRepetition['endDatetime'] =
-            currentEventRepetition['startDatetime'].split('T')[0] +
-            'T' +
-            currentEventRepetition.endDatetime.split('T')[1];
-          currentEventRepetition.recurrencePattern.recurringStartDate =
-            newRecurrencePattern.recurringStartDate;
-
-          currentEventRepetition.updatedAt = new Date();
-          const removedEvents = await this.removeEventsLessThanOrEqualToDate(
-            currentEventRepetition.startDateTime,
-            currentEventRepetition.eventId,
-          );
-          const removedEvent = await this.removeEventsMoreThanOrEqualToDate(
-            currentEventRepetition.startDateTime,
-            currentEventRepetition.eventId,
-          );
-          const newlyAddedEvents = await this.createRecurringEvents(
-            currentEventRepetition,
-            currentEventRepetition.eventId,
-            currentEventRepetition.eventDetailId,
-            true,
-          );
-
-          const extUpdt = await this.updateEventRepetitionPattern(
-            currentEventRepetition.eventId,
-            currentEventRepetition.recurrencePattern,
-          );
-          return { newlyAddedEvents: true };
         } else if (
           newRecStartDate > oldRecStartDate &&
           newRecStartDate > currentDate
@@ -523,12 +492,7 @@ export class EventService {
           // end date remains same
           // remove events and update start date in recpattern
           // modify time of all existing events if changed
-          console.log(
-            newRecStartDate,
-            currentDate,
-            'newStartDate, currentDate',
-            'postpone',
-          );
+
           return await this.deleteOldAndRecreateNewEvents(
             currentEventRepetition,
             newRecurrencePattern,
