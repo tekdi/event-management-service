@@ -28,10 +28,12 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: 21.1.0
-    - name: Copy .env file
+    - name: Copy .env file to configmap.yaml
       env:
-       ENV_FILE_CONTENT: '${{ secrets.ENV_FILE_CONTENT }}'
-      run: echo "$ENV_FILE_CONTENT" | sed 's/\\n/\'$'\n''/g' > manifest/configmap.yaml
+        ENV_FILE_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
+      run: |
+        echo "$ENV_FILE_CONTENT" | sed 's/\\n/\'$'\n''/g' > manifest/configmap.yaml
+
 #echo "$ENV_FILE_CONTENT" > manifest/configmap.yaml
     - name: Show PWD and list content
       run: |
