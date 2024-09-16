@@ -48,7 +48,7 @@ export class EventController {
   constructor(
     private readonly eventService: EventService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   @UseFilters(new AllExceptionsFilter(API_ID.CREATE_EVENT))
   @Post('/create')
@@ -95,18 +95,18 @@ export class EventController {
     return this.eventService.getEvents(response, requestBody);
   }
 
-  @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_BY_ID))
-  @Get('/:id')
-  @ApiOkResponse({
-    description: 'Get event details by id',
-    status: 200,
-  })
-  @ApiInternalServerErrorResponse({
-    description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-  })
-  findOne(@Param('id', ParseUUIDPipe) id: string, @Res() response: Response) {
-    // return this.eventService.getEventByID(id, response);
-  }
+  // @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_BY_ID))
+  // @Get('/:id')
+  // @ApiOkResponse({
+  //   description: 'Get event details by id',
+  //   status: 200,
+  // })
+  // @ApiInternalServerErrorResponse({
+  //   description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+  // })
+  // findOne(@Param('id', ParseUUIDPipe) id: string, @Res() response: Response) {
+  //   // return this.eventService.getEventByID(id, response);
+  // }
 
   @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
   @Patch('/:id')
@@ -138,14 +138,14 @@ export class EventController {
     return this.eventService.updateEvent(id, updateEventDto, response);
   }
 
-  @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
-  @Delete('/:id')
-  @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_DELETED })
-  @ApiResponse({ status: 404, description: ERROR_MESSAGES.EVENT_NOT_FOUND })
-  deleteEvent(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Res() response: Response,
-  ) {
-    // return this.eventService.deleteEvent(id, response);
-  }
+  // @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
+  // @Delete('/:id')
+  // @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_DELETED })
+  // @ApiResponse({ status: 404, description: ERROR_MESSAGES.EVENT_NOT_FOUND })
+  // deleteEvent(
+  //   @Param('id', ParseUUIDPipe) id: string,
+  //   @Res() response: Response,
+  // ) {
+  //   // return this.eventService.deleteEvent(id, response);
+  // }
 }
