@@ -17,12 +17,6 @@ import { UpdateEventDto } from 'src/modules/event/dto/update-event.dto';
 @Injectable()
 export class DateValidationPipe implements PipeTransform {
   transform(createEventDto: CreateEventDto | UpdateEventDto) {
-    console.log(
-      createEventDto,
-      'createEventDto',
-      createEventDto.startDatetime,
-      createEventDto.endDatetime,
-    );
     const eventStartDate = createEventDto.startDatetime.split('T')[0];
     const eventEndDate = createEventDto.endDatetime.split('T')[0];
 
@@ -30,14 +24,6 @@ export class DateValidationPipe implements PipeTransform {
     const endDate = new Date(createEventDto.endDatetime);
     const currentDate = new Date();
 
-    console.log(
-      startDate,
-      'start',
-      endDate,
-      'end',
-      currentDate,
-      createEventDto.isRecurring,
-    );
     if (eventStartDate !== eventEndDate && createEventDto.isRecurring) {
       throw new BadRequestException(
         ERROR_MESSAGES.MULTIDAY_EVENT_NOT_RECURRING,
@@ -123,6 +109,8 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
         createEventDto.recurrencePattern?.endCondition?.value;
       const endConditionType =
         createEventDto.recurrencePattern?.endCondition?.type;
+      const recurringStartDate =
+        createEventDto.recurrencePattern.recurringStartDate;
 
       if (!endConditionType || !endConditionValue) {
         throw new BadRequestException(
@@ -142,7 +130,6 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
           );
         }
 
-        const startDate = new Date(createEventDto.startDatetime);
         const currentDate = new Date();
         if (recurrenceEndDate < currentDate) {
           throw new BadRequestException(
@@ -151,17 +138,19 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
         }
 
         if (
-          recurrenceEndDate <= startDate &&
+          recurrenceEndDate <= new Date(createEventDto.startDatetime) &&
           createEventDto instanceof CreateEventDto
         ) {
-          console.log('recurrenceEndDate', recurrenceEndDate);
           throw new BadRequestException(
             ERROR_MESSAGES.RECURRENCE_END_DATE_AFTER_EVENT_DATE,
           );
         }
 
+        // const startDate = createEventDto.startDatetime.split('T')[0];
         const endDateTime = endConditionValue.split('T');
         const endDate = endDateTime[0]; // recurring end date
+        const startDateTime = recurringStartDate.split('T');
+        const startDate = startDateTime[0];
 
         if (
           new Date(endConditionValue).getTime() !==
@@ -171,6 +160,17 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
         ) {
           throw new BadRequestException(
             'Event End time does not match with Recurrence End time',
+          );
+        }
+
+        if (
+          new Date(recurringStartDate).getTime() !==
+          new Date(
+            startDate + 'T' + createEventDto.startDatetime.split('T')[1],
+          ).getTime()
+        ) {
+          throw new BadRequestException(
+            'Event Start time does not match with Recurrence Start time',
           );
         }
 
