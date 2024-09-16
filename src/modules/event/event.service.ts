@@ -1153,7 +1153,14 @@ export class EventService {
     return updateResult;
   }
 
-  isInvalidUpdate(updateBody, eventDetail) {
+  isInvalidUpdate(updateBody: UpdateEventDto, eventDetail: EventDetail) {
+    if (updateBody['eventType']) {
+      return {
+        isValid: false,
+        message: ERROR_MESSAGES.EVENT_TYPE_CHANGE_NOT_SUPPORTED,
+      };
+    }
+
     if (updateBody.location || (updateBody.latitude && updateBody.longitude)) {
       if (eventDetail.eventType === 'online') {
         return {

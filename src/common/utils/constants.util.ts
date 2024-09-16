@@ -63,6 +63,7 @@ export const ERROR_MESSAGES = {
   DAILY_FREQUENCY: 'Daily frequency is not implemented yet',
   END_CONDITION_BY_OCCURENCES:
     'End condition by occurrences is not implemented yet',
+  EVENT_TYPE_CHANGE_NOT_SUPPORTED: 'Event type change not supported',
 };
 
 export const SUCCESS_MESSAGES = {
