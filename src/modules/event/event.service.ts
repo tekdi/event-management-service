@@ -91,7 +91,7 @@ export class EventService {
         //   createEventDto.createdBy,
         // );
       } else {
-        throw new NotImplementedException('Public events not implemented!');
+        throw new NotImplementedException(ERROR_MESSAGES.PUBLIC_EVENTS);
         // if event is public then registrationDate is required
         if (createEventDto.eventType === 'online') {
           // create online event
@@ -292,7 +292,9 @@ export class EventService {
         eventRepetition.eventDetailId,
       );
       if (isEventArchived.status === 'archived') {
-        throw new BadRequestException('Event is archived you can not Edit');
+        throw new BadRequestException(
+          ERROR_MESSAGES.CANNOT_EDIT_ARCHIVED_EVENTS,
+        );
       }
 
       const event = await this.findEventById(eventRepetition.eventId);
@@ -300,7 +302,7 @@ export class EventService {
       // condition for prevent non recuring event
       if (!event.isRecurring && !updateBody.isMainEvent) {
         throw new BadRequestException(
-          'You can not pass isMainEvent false because event is non recurring',
+          ERROR_MESSAGES.CANNOT_PASS_MAIN_EVENT_FALSE,
         );
       }
 
@@ -343,9 +345,7 @@ export class EventService {
     currentEventRepetition,
   ) {
     if (newRecurrencePattern.frequency === Frequency.daily) {
-      throw new NotImplementedException(
-        'Daily frequency is not implemented yet',
-      );
+      throw new NotImplementedException(ERROR_MESSAGES.DAILY_FREQUENCY);
     }
 
     if (
@@ -353,7 +353,7 @@ export class EventService {
     ) {
       // TODO: Implement end condition by occurrences
       throw new NotImplementedException(
-        'End condition by occurrences is not implemented yet',
+        ERROR_MESSAGES.END_CONDITION_BY_OCCURENCES,
       );
     }
 
@@ -370,21 +370,17 @@ export class EventService {
     const oldRecEndDate = new Date(oldRecurringEnd);
 
     if (newRecEndDate < currentDate) {
-      throw new BadRequestException(
-        'End Date cannot be changed because it is passed away',
-      );
+      throw new BadRequestException(ERROR_MESSAGES.END_DATE_CANNOT_CHANGE);
     }
 
     if (oldRecEndDate < currentDate) {
-      throw new BadRequestException(
-        'End Date cannot be changed because it is passed away',
-      );
+      throw new BadRequestException(ERROR_MESSAGES.END_DATE_CANNOT_CHANGE);
     }
 
     if (newRecStartDate > newRecEndDate) {
       // end date is passed is less than recurring start date
       throw new BadRequestException(
-        'End date is passed is less than recurring start date',
+        ERROR_MESSAGES.END_DATE_LESS_THAN_START_DATE,
       );
     }
 
@@ -442,7 +438,7 @@ export class EventService {
           // not possible because cannot create events in past throw error
           // start date remains same
           throw new BadRequestException(
-            'Cannot update events prepone not allowed for past events',
+            ERROR_MESSAGES.CANNOT_PREPONE_PAST_EVENTS,
           );
         } else if (
           (newRecStartDate < oldRecStartDate &&
@@ -468,7 +464,7 @@ export class EventService {
 
           if (newRecStartDate < currentDate) {
             throw new BadRequestException(
-              'Recurrence start date must be in future',
+              ERROR_MESSAGES.RECURRENCE_START_DATE_IN_FUTURE,
             );
           }
           return await this.deleteOldAndRecreateNewEvents(
@@ -1170,7 +1166,7 @@ export class EventService {
         return {
           isValid: false,
           message:
-            'Cannot update location or lat or long details for an online event',
+            ERROR_MESSAGES.CANNOT_UPDATE_LOCATION_DETAILS_FOR_ONLINE_EVENT,
         };
       }
     }
@@ -1179,7 +1175,8 @@ export class EventService {
       if (eventDetail.eventType === 'offline') {
         return {
           isValid: false,
-          message: 'Cannot update online details for an offline event',
+          message:
+            ERROR_MESSAGES.CANNOT_UPDATE_ONLINE_DETAILS_FOR_OFFLINE_EVENT,
         };
       }
     }
@@ -1380,17 +1377,18 @@ export class EventService {
     );
 
     if (!(this.eventCreationLimit > 0)) {
-      const errmsg = 'Event creation limit unavailable';
       await this.removePartiallyCreatedData(eventId, eventDetailId);
-      throw new BadRequestException(errmsg);
+      throw new BadRequestException(ERROR_MESSAGES.CREATION_LIMIT_UNAVAILABLE);
     }
 
     if (eventOccurences.length > this.eventCreationLimit) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
-      throw new BadRequestException('Event Creation Count exceeded');
+      throw new BadRequestException(ERROR_MESSAGES.CREATION_COUNT_EXCEEDED);
     } else if (eventOccurences.length <= 0) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
-      throw new BadRequestException('Event recurrence period insufficient');
+      throw new BadRequestException(
+        ERROR_MESSAGES.RECURRENCE_PERIOD_INSUFFICIENT,
+      );
     } else {
       const insertedOccurences = await this.eventRepetitionRepository
         .createQueryBuilder()
