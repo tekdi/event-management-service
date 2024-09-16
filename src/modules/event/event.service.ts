@@ -813,10 +813,6 @@ export class EventService {
         .toISOString()
         .split('T');
 
-      const endDateAndTimeOfCurrentEvent = eventRepetition.endDateTime
-        .toISOString()
-        .split('T');
-
       const startDateOfCurrentEvent = startDateAndTimeOfCurrentEvent[0];
 
       if (
