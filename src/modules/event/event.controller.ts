@@ -1,16 +1,13 @@
 import {
   Controller,
-  Get,
   Post,
   Body,
   Patch,
   Param,
-  Delete,
   UsePipes,
   Res,
   ValidationPipe,
   BadRequestException,
-  ParseUUIDPipe,
   UseFilters,
 } from '@nestjs/common';
 import { EventService } from './event.service';
