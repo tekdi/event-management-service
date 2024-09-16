@@ -146,7 +146,6 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
           );
         }
 
-        // const startDate = createEventDto.startDatetime.split('T')[0];
         const endDateTime = endConditionValue.split('T');
         const endDate = endDateTime[0]; // recurring end date
         const startDateTime = recurringStartDate.split('T');

@@ -821,7 +821,7 @@ export class EventService {
         .split('T');
 
       const startDateOfCurrentEvent = startDateAndTimeOfCurrentEvent[0];
-      const startTimeOfCurrentEvent = startDateAndTimeOfCurrentEvent[1];
+
       if (
         startDate !== startDateOfCurrentEvent ||
         endDate !== startDateOfCurrentEvent
@@ -837,9 +837,7 @@ export class EventService {
           updateBody.recurrencePattern.recurringStartDate == undefined ||
           !new Date(updateBody.recurrencePattern.recurringStartDate)
         ) {
-          // // no start date is passed , make old date as start date
-          // updateBody.recurrencePattern.recurringStartDate =
-          //   event.recurrencePattern.recurringStartDate;
+          // no start date is passed , make old date as start date
           throw new BadRequestException(
             'Please Provide Valid Recurring Start Date',
           );
@@ -853,7 +851,6 @@ export class EventService {
           event.recurrencePattern,
           eventRepetition,
         );
-        // console.log('updatedEvents', updatedEvents);
       }
       if (updatedEvents) {
         if (
