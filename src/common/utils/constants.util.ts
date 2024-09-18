@@ -42,6 +42,28 @@ export const ERROR_MESSAGES = {
   EVENT_ATTENDEE_HISTORY_NOT_FOUND: 'Event attendee history not found',
   EVENT_ATTENDEE_HISTORY_ITEM_NOT_FOUND:
     'Event attendee history item not found',
+  RECURRENCE_START_DATE_IN_FUTURE: 'Recurrence start date must be in future',
+  END_DATE_CANNOT_CHANGE:
+    'End Date cannot be changed because it is passed away',
+  CANNOT_UPDATE_LOCATION_DETAILS_FOR_ONLINE_EVENT:
+    'Cannot update location or latitude or longitude details for an online event',
+  CANNOT_UPDATE_ONLINE_DETAILS_FOR_OFFLINE_EVENT:
+    'Cannot update online details for an offline event',
+  END_DATE_LESS_THAN_START_DATE:
+    'End date is passed is less than recurring start date',
+  CANNOT_PREPONE_PAST_EVENTS:
+    'Cannot update events prepone not allowed for past events',
+  CANNOT_EDIT_ARCHIVED_EVENTS: 'Cannot Edit archived events',
+  CANNOT_PASS_MAIN_EVENT_FALSE:
+    'You can not pass isMainEvent false because event is non recurring',
+  CREATION_LIMIT_UNAVAILABLE: 'Event creation limit unavailable',
+  CREATION_COUNT_EXCEEDED: 'Event Creation Count exceeded',
+  RECURRENCE_PERIOD_INSUFFICIENT: 'Event recurrence period insufficient',
+  PUBLIC_EVENTS: 'Public events not implemented!',
+  DAILY_FREQUENCY: 'Daily frequency is not implemented yet',
+  END_CONDITION_BY_OCCURENCES:
+    'End condition by occurrences is not implemented yet',
+  EVENT_TYPE_CHANGE_NOT_SUPPORTED: 'Event type change not supported',
 };
 
 export const SUCCESS_MESSAGES = {
