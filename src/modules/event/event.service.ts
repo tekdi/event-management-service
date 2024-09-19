@@ -16,6 +16,8 @@ import {
   MoreThanOrEqual,
   LessThanOrEqual,
   Between,
+  DeleteResult,
+  InsertResult,
 } from 'typeorm';
 import { Events } from './entities/event.entity';
 import { Response } from 'express';
@@ -35,12 +37,11 @@ import {
   RepetitionDetail,
 } from 'src/common/utils/types';
 import { ConfigService } from '@nestjs/config';
-import { DeleteResult, InsertResult } from 'typeorm';
 import {
   DateValidationPipe,
   RecurringEndDateValidationPipe,
 } from 'src/common/pipes/event-validation.pipe';
-import { compareArrays, getNextDay } from 'src/common/utils/functions.util';
+import { compareArrays } from 'src/common/utils/functions.util';
 
 @Injectable()
 export class EventService {
@@ -276,67 +277,61 @@ export class EventService {
     response: Response,
   ) {
     const apiId = API_ID.UPDATE_EVENT;
-    try {
-      // Event repetition record must not be of passed date
-      const currentTimestamp = new Date();
-      // To do optimize both cases in one queries
-      const eventRepetition = await this.eventRepetitionRepository.findOne({
-        where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) },
-      });
+    // Event repetition record must not be of passed date
+    const currentTimestamp = new Date();
+    // To do optimize both cases in one queries
+    const eventRepetition = await this.eventRepetitionRepository.findOne({
+      where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) },
+    });
 
-      if (!eventRepetition) {
-        // when id does not exist or event date is passed
-        throw new BadRequestException(ERROR_MESSAGES.EVENT_NOT_FOUND);
-      }
-      const isEventArchived = await this.getEventDetails(
-        eventRepetition.eventDetailId,
-      );
-      if (isEventArchived.status === 'archived') {
-        throw new BadRequestException(
-          ERROR_MESSAGES.CANNOT_EDIT_ARCHIVED_EVENTS,
-        );
-      }
-
-      const event = await this.findEventById(eventRepetition.eventId);
-
-      // condition for prevent non recuring event
-      if (!event.isRecurring && !updateBody.isMainEvent) {
-        throw new BadRequestException(
-          ERROR_MESSAGES.CANNOT_PASS_MAIN_EVENT_FALSE,
-        );
-      }
-
-      const eventDetail = await this.getEventDetails(event.eventDetailId);
-
-      const validationResult = this.isInvalidUpdate(updateBody, eventDetail);
-      if (!validationResult.isValid) {
-        throw new BadRequestException(validationResult.message);
-      }
-      let result;
-      eventRepetition.updatedAt = new Date();
-      eventRepetition.updatedBy = updateBody.updatedBy;
-      if (updateBody?.isMainEvent) {
-        // Handle updates or deletions for all recurrence records
-        result = await this.handleAllEventUpdate(
-          updateBody,
-          event,
-          eventDetail,
-          eventRepetition,
-        );
-      } else {
-        // Handle updates or deletions for a specific recurrence record
-        result = await this.handleSpecificRecurrenceUpdate(
-          updateBody,
-          event,
-          eventRepetition,
-        );
-      }
-      return response
-        .status(HttpStatus.OK)
-        .json(APIResponse.success(apiId, result, 'OK'));
-    } catch (error) {
-      throw error;
+    if (!eventRepetition) {
+      // when id does not exist or event date is passed
+      throw new BadRequestException(ERROR_MESSAGES.EVENT_NOT_FOUND);
     }
+    const isEventArchived = await this.getEventDetails(
+      eventRepetition.eventDetailId,
+    );
+    if (isEventArchived.status === 'archived') {
+      throw new BadRequestException(ERROR_MESSAGES.CANNOT_EDIT_ARCHIVED_EVENTS);
+    }
+
+    const event = await this.findEventById(eventRepetition.eventId);
+
+    // condition for prevent non recuring event
+    if (!event.isRecurring && !updateBody.isMainEvent) {
+      throw new BadRequestException(
+        ERROR_MESSAGES.CANNOT_PASS_MAIN_EVENT_FALSE,
+      );
+    }
+
+    const eventDetail = await this.getEventDetails(event.eventDetailId);
+
+    const validationResult = this.isInvalidUpdate(updateBody, eventDetail);
+    if (!validationResult.isValid) {
+      throw new BadRequestException(validationResult.message);
+    }
+    let result;
+    eventRepetition.updatedAt = new Date();
+    eventRepetition.updatedBy = updateBody.updatedBy;
+    if (updateBody?.isMainEvent) {
+      // Handle updates or deletions for all recurrence records
+      result = await this.handleAllEventUpdate(
+        updateBody,
+        event,
+        eventDetail,
+        eventRepetition,
+      );
+    } else {
+      // Handle updates or deletions for a specific recurrence record
+      result = await this.handleSpecificRecurrenceUpdate(
+        updateBody,
+        event,
+        eventRepetition,
+      );
+    }
+    return response
+      .status(HttpStatus.OK)
+      .json(APIResponse.success(apiId, result, 'OK'));
   }
 
   async updateRecurringEvents(
@@ -454,32 +449,31 @@ export class EventService {
             newRecurrencePattern,
           );
         }
-      } else {
+      } else if (oldRecStartDate > currentDate) {
         // Pattern is different- date doesnt matter
         // Frequency and interval are different
         // make start date as end date for old events and create new events
-        if (oldRecStartDate > currentDate) {
-          // old start date is greater than current date that means event is in future
-          // check newrecurrence startDate should be greater than currentDate
+        //  {
+        // old start date is greater than current date that means event is in future
+        // check newrecurrence startDate should be greater than currentDate
 
-          if (newRecStartDate < currentDate) {
-            throw new BadRequestException(
-              ERROR_MESSAGES.RECURRENCE_START_DATE_IN_FUTURE,
-            );
-          }
-          return await this.deleteOldAndRecreateNewEvents(
-            currentEventRepetition,
-            newRecurrencePattern,
-          );
-        } else {
-          // old start date is less than current date that means event started in past
-
-          return await this.editThisAndFollowingEvents(
-            currentEventRepetition,
-            oldRecurrencePattern,
-            newRecurrencePattern,
+        if (newRecStartDate < currentDate) {
+          throw new BadRequestException(
+            ERROR_MESSAGES.RECURRENCE_START_DATE_IN_FUTURE,
           );
         }
+        return await this.deleteOldAndRecreateNewEvents(
+          currentEventRepetition,
+          newRecurrencePattern,
+        );
+      } else {
+        // old start date is less than current date that means event started in past
+
+        return await this.editThisAndFollowingEvents(
+          currentEventRepetition,
+          oldRecurrencePattern,
+          newRecurrencePattern,
+        );
       }
     } else if (
       !isDateTimeUpdate.timeSame &&
@@ -1393,7 +1387,6 @@ export class EventService {
       eventId,
       isEdit,
     );
-
     if (!(this.eventCreationLimit > 0)) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
       throw new BadRequestException(ERROR_MESSAGES.CREATION_LIMIT_UNAVAILABLE);
@@ -1415,8 +1408,7 @@ export class EventService {
         .values(eventOccurences)
         .returning(['onlineDetails', 'erMetaData'])
         .execute();
-      // const insertedOccurences =
-      //   await this.eventRepetitionRepository.insert(eventOccurences);
+
       return insertedOccurences;
     }
   }
@@ -1503,9 +1495,9 @@ export class EventService {
       currentDay: number,
       daysOfWeek: DaysOfWeek[],
     ): number => {
-      for (let i = 0; i < daysOfWeek.length; i++) {
-        if (daysOfWeek[i] > currentDay) {
-          return daysOfWeek[i] - currentDay;
+      for (const day of daysOfWeek) {
+        if (day > currentDay) {
+          return day - currentDay;
         }
       }
       return 7 - currentDay + daysOfWeek[0]; // Move to the next valid week
