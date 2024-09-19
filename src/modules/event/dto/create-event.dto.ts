@@ -131,7 +131,7 @@ export class RecurrencePatternDto {
 
   @Validate(EndsWithZConstraint)
   @IsDateString({ strict: true, strictSeparator: true })
-  @IsOptional()
+  // @IsOptional()
   recurringStartDate: string;
 
   @ApiProperty({

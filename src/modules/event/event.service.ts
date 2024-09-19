@@ -800,13 +800,30 @@ export class EventService {
     eventRepetition['startDatetime'] = startDatetime;
     eventRepetition['endDatetime'] = endDatetime;
 
-    let updateResult;
-    // : UpdateResult = {};
+    let updateResult: UpdateResult = {};
     let updatedEvents;
     let eventAndEventDetails;
+    eventAndEventDetails = {};
+    eventAndEventDetails['newEvent'] = event;
+    eventAndEventDetails['newEventDetail'] = eventDetail;
+
+    if (
+      (!startDatetime || !endDatetime) &&
+      updateBody.recurrencePattern &&
+      event.isRecurring
+    ) {
+      throw new BadRequestException('Please Provide Valid Start and End Date');
+    }
 
     // Handle recurring events
     if (startDatetime && endDatetime && event.isRecurring) {
+      // check if rec is passed
+      if (!updateBody.recurrencePattern) {
+        throw new BadRequestException(
+          'Recurring Pattern is missing for this event',
+        );
+      }
+
       const startDateTime = startDatetime.split('T');
       const endDateTime = endDatetime.split('T');
       const startDate = startDateTime[0];
@@ -906,7 +923,7 @@ export class EventService {
         updateData.erMetaData = eventRepetition.erMetaData;
         updateResult.erMetaData = updateBody.erMetaData;
       }
-      updateResult['updatedRecurringEvent'] = await this.updateEventRepetition(
+      updateResult.updatedRecurringEvent = await this.updateEventRepetition(
         recurrenceRecords,
         updateData,
       );
@@ -921,13 +938,14 @@ export class EventService {
       updateBody.onlineDetails ||
       updateBody.metadata
     ) {
-      updateResult = await this.updateEventDetailsForRecurringEvents(
-        updateBody,
-        recurrenceRecords,
-        eventAndEventDetails.newEvent,
-        eventAndEventDetails.newEventDetail,
-        eventRepetition,
-      );
+      updateResult.updatedEventDetails =
+        await this.updateEventDetailsForRecurringEvents(
+          updateBody,
+          recurrenceRecords,
+          eventAndEventDetails.newEvent,
+          eventAndEventDetails.newEventDetail,
+          eventRepetition,
+        );
     }
     return updateResult;
   }
@@ -972,13 +990,13 @@ export class EventService {
         await this.eventDetailRepository.save(existingEventDetails);
       // below code run for update of recurring event
       if (recurrenceRecords.length > 0) {
-        const updateResult = await this.updateEventRepetition(
+        const updatedEventRepetition = await this.updateEventRepetition(
           recurrenceRecords,
           {
             eventDetailId: event.eventDetailId,
           },
         );
-        updateResult['updatedEvents'] = updateResult.affected;
+        updateResult['updatedEvents'] = updatedEventRepetition.affected;
       }
       // delete eventDetail from eventDetail table if futher created single-single for upcoming session
       if (upcomingrecurrenceRecords.length > 0) {
@@ -998,13 +1016,13 @@ export class EventService {
 
         // update eventDetail id in all places which are greater than and equal to curreitn repetation startDate in repetation table
         if (recurrenceRecords.length > 0) {
-          const updateResult = await this.updateEventRepetition(
+          const updatedEventRepetition = await this.updateEventRepetition(
             recurrenceRecords,
             {
               eventDetailId: saveNewEntry.eventDetailId,
             },
           );
-          updateResult['updatedEvents'] = updateResult.affected;
+          updateResult['updatedEvents'] = updatedEventRepetition.affected;
         }
         // delete eventDetail from eventDetail table if futher created single-single for upcoming session
         if (upcomingrecurrenceRecords.length > 0) {
@@ -1056,13 +1074,13 @@ export class EventService {
 
         // update eventDetail id in all places which are greater than and equal to curreitn repetation startDate in repetation table
         if (recurrenceRecords.length > 0) {
-          const updateResult = await this.updateEventRepetition(
+          const updatedEventRepetition = await this.updateEventRepetition(
             recurrenceRecords,
             {
               eventDetailId: neweventDetailsId,
             },
           );
-          updateResult['updatedEvents'] = updateResult.affected;
+          updateResult['updatedEvents'] = updatedEventRepetition.affected;
         }
       }
     }
