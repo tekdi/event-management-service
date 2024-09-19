@@ -28,6 +28,8 @@ export interface UpdateResult {
   eventDetails?: any;
   repetationDetail?: any;
   recurrenceUpdate?: any;
+  updatedRecurringEvent?: any;
+  updatedEventDetails?: any;
 }
 
 export class UpdateEventDto {
