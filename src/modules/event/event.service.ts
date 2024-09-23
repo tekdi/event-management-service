@@ -7,8 +7,7 @@ import {
 } from '@nestjs/common';
 import { CreateEventDto, RecurrencePatternDto } from './dto/create-event.dto';
 import { UpdateEventDto, UpdateResult } from './dto/update-event.dto';
-import { CreateEventDto, RecurrencePatternDto } from './dto/create-event.dto';
-import { UpdateEventDto, UpdateResult } from './dto/update-event.dto';
+
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Repository,
@@ -21,17 +20,7 @@ import {
   DeleteResult,
   InsertResult,
 } from 'typeorm';
-import {
-  Repository,
-  In,
-  Not,
-  MoreThan,
-  MoreThanOrEqual,
-  LessThanOrEqual,
-  Between,
-  DeleteResult,
-  InsertResult,
-} from 'typeorm';
+;
 import { Events } from './entities/event.entity';
 import e, { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
@@ -40,7 +29,7 @@ import { AttendeesService } from '../attendees/attendees.service';
 import { EventAttendeesDTO } from '../attendees/dto/EventAttendance.dto';
 import { EventDetail } from './entities/eventDetail.entity';
 import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
-import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
+
 import { EventRepetition } from './entities/eventRepetition.entity';
 import {
   DaysOfWeek,
@@ -57,11 +46,6 @@ import {
 } from 'src/common/pipes/event-validation.pipe';
 import { compareArrays } from 'src/common/utils/functions.util';
 
-import {
-  DateValidationPipe,
-  RecurringEndDateValidationPipe,
-} from 'src/common/pipes/event-validation.pipe';
-import { compareArrays } from 'src/common/utils/functions.util';
 
 @Injectable()
 export class EventService {
@@ -87,7 +71,7 @@ export class EventService {
     response: Response,
   ): Promise<Response> {
     const apiId = API_ID.CREATE_EVENT;
-    const apiId = API_ID.CREATE_EVENT;
+  
     try {
       // this.validateCreateEventDto(createEventDto);
       // true for private, false for public
@@ -112,12 +96,7 @@ export class EventService {
         //   createdEvent.res.eventId,
         //   createEventDto.createdBy,
         // );
-        // TODO: new approach of adding attendees
-        // await this.attendeesService.createAttendeesForEvents(
-        //   createEventDto.attendees,
-        //   createdEvent.res.eventId,
-        //   createEventDto.createdBy,
-        // );
+        
       } else {
         throw new NotImplementedException(ERROR_MESSAGES.PUBLIC_EVENTS);
         throw new NotImplementedException(ERROR_MESSAGES.PUBLIC_EVENTS);
@@ -142,7 +121,7 @@ export class EventService {
 
   async getEvents(response, requestBody) {
     const apiId = API_ID.GET_EVENTS;
-    const apiId = API_ID.GET_EVENTS;
+    
     try {
       const { filters } = requestBody;
       const today = new Date();
