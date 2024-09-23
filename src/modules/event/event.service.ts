@@ -730,9 +730,7 @@ export class EventService {
 
   checkValidRecurrenceTimeForUpdate(endDate, recurrenceEndDate) {
     if (endDate.split('T')[1] !== recurrenceEndDate.split('T')[1]) {
-      throw new BadRequestException(
-        'Event End time does not match with Recurrence Start or End time',
-      );
+      throw new BadRequestException(ERROR_MESSAGES.ENDTIME_DOES_NOT_MATCH);
     }
   }
 
@@ -796,7 +794,9 @@ export class EventService {
       updateBody.recurrencePattern &&
       event.isRecurring
     ) {
-      throw new BadRequestException('Please Provide Valid Start and End Date');
+      throw new BadRequestException(
+        ERROR_MESSAGES.PROVIDE_VALID_START_AND_END_DATETIME,
+      );
     }
 
     // Handle recurring events
@@ -804,7 +804,7 @@ export class EventService {
       // check if rec is passed
       if (!updateBody.recurrencePattern) {
         throw new BadRequestException(
-          'Recurring Pattern is missing for this event',
+          ERROR_MESSAGES.RECURRENCE_PATTERN_MISSING,
         );
       }
 
@@ -850,8 +850,6 @@ export class EventService {
         );
       }
 
-      console.log(updatedEvents, 'updatedEvents');
-
       if (updatedEvents) {
         if (
           !(updatedEvents.newEvent instanceof Events) &&
@@ -882,7 +880,7 @@ export class EventService {
     // get current first event as we regenerate new events and make other changes first event might change
     let firstEventDate =
       eventAndEventDetails.newEvent.recurrencePattern.recurringStartDate;
-    console.log(event.isRecurring, 'event.isRecurring');
+
     if (!firstEventDate && !event.isRecurring) {
       firstEventDate = eventRepetition.startDateTime;
     }
@@ -1497,10 +1495,7 @@ export class EventService {
           return day - currentDay;
         }
       }
-      console.log(
-        7 - currentDay + daysOfWeek[0],
-        '7 - currentDay + daysOfWeek[0] last',
-      );
+
       return 7 - currentDay + daysOfWeek[0]; // Move to the next valid week
     };
 
