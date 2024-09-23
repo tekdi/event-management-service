@@ -16,10 +16,14 @@ import {
   ValidateNested,
   Validate,
   IsIn,
+  IsIn,
 } from 'class-validator';
 import { MeetingDetails } from 'src/common/utils/types';
 import { Transform, Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { UrlWithProviderValidator } from 'src/common/utils/validation.util';
+import { RecurrencePatternDto } from './create-event.dto';
+import { MeetingDetailsDto } from './create-event.dto';
 import { RecurrencePatternDto } from './create-event.dto';
 import { MeetingDetailsDto } from './create-event.dto';
 export interface UpdateResult {
@@ -28,6 +32,8 @@ export interface UpdateResult {
   eventDetails?: any;
   repetationDetail?: any;
   recurrenceUpdate?: any;
+  updatedRecurringEvent?: any;
+  updatedEventDetails?: any;
   updatedRecurringEvent?: any;
   updatedEventDetails?: any;
 }
@@ -82,13 +88,45 @@ export class UpdateEventDto {
   @ValidateIf(
     (o) => o.onlineProvider != undefined || o.onlineDetails != undefined,
   )
+  // @ValidateIf((o => o.onlineProvider != undefined))
+  @ValidateIf(
+    (o) => o.onlineProvider != undefined || o.onlineDetails != undefined,
+  )
   @ValidateNested({ each: true })
   @Type(() => MeetingDetailsDto)
   @Transform(({ value, obj }) => {
     value.onlineProvider = obj.onlineProvider; // Pass the provider to the nested DTO
     return value;
   })
+  @Type(() => MeetingDetailsDto)
+  @Transform(({ value, obj }) => {
+    value.onlineProvider = obj.onlineProvider; // Pass the provider to the nested DTO
+    return value;
+  })
   onlineDetails: MeetingDetails;
+
+  @ApiProperty({
+    description: 'ErMetaData Details',
+    example: {
+      framework: {
+        board: '',
+        medium: '',
+        grade: '',
+        subject: '',
+        topic: '',
+        subTopic: '',
+        teacherName: 'Vivek Kasture',
+      },
+      eventType: 'PLANNED_SESSION',
+      doId: '',
+      cohortId: '71bdbed4-388a-4c79-bd69-65b08e857f1e',
+      cycleId: '',
+      tenant: '',
+    },
+  })
+  @IsObject()
+  @IsOptional()
+  erMetaData: any;
 
   @ApiProperty({
     description: 'MetaData Details',
@@ -111,7 +149,7 @@ export class UpdateEventDto {
   })
   @IsObject()
   @IsOptional()
-  erMetaData: any;
+  metadata: any;
 
   @ApiProperty({
     type: String,
@@ -167,7 +205,16 @@ export class UpdateEventDto {
   @IsObject()
   @ValidateNested({ each: true })
   @Type(() => RecurrencePatternDto)
+  @ApiProperty({
+    type: RecurrencePatternDto,
+    description: 'recurrencePattern',
+    example: { frequency: 'daily', interval: 1 },
+  })
+  @IsObject()
+  @ValidateNested({ each: true })
+  @Type(() => RecurrencePatternDto)
   @IsOptional()
+  recurrencePattern: RecurrencePatternDto;
   recurrencePattern: RecurrencePatternDto;
 
   @ApiProperty({

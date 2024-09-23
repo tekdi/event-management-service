@@ -7,7 +7,20 @@ import {
 } from '@nestjs/common';
 import { CreateEventDto, RecurrencePatternDto } from './dto/create-event.dto';
 import { UpdateEventDto, UpdateResult } from './dto/update-event.dto';
+import { CreateEventDto, RecurrencePatternDto } from './dto/create-event.dto';
+import { UpdateEventDto, UpdateResult } from './dto/update-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
+import {
+  Repository,
+  In,
+  Not,
+  MoreThan,
+  MoreThanOrEqual,
+  LessThanOrEqual,
+  Between,
+  DeleteResult,
+  InsertResult,
+} from 'typeorm';
 import {
   Repository,
   In,
@@ -27,6 +40,7 @@ import { AttendeesService } from '../attendees/attendees.service';
 import { EventAttendeesDTO } from '../attendees/dto/EventAttendance.dto';
 import { EventDetail } from './entities/eventDetail.entity';
 import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
+import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
 import {
   DaysOfWeek,
@@ -37,6 +51,12 @@ import {
   RepetitionDetail,
 } from 'src/common/utils/types';
 import { ConfigService } from '@nestjs/config';
+import {
+  DateValidationPipe,
+  RecurringEndDateValidationPipe,
+} from 'src/common/pipes/event-validation.pipe';
+import { compareArrays } from 'src/common/utils/functions.util';
+
 import {
   DateValidationPipe,
   RecurringEndDateValidationPipe,
@@ -67,6 +87,7 @@ export class EventService {
     response: Response,
   ): Promise<Response> {
     const apiId = API_ID.CREATE_EVENT;
+    const apiId = API_ID.CREATE_EVENT;
     try {
       // this.validateCreateEventDto(createEventDto);
       // true for private, false for public
@@ -91,7 +112,14 @@ export class EventService {
         //   createdEvent.res.eventId,
         //   createEventDto.createdBy,
         // );
+        // TODO: new approach of adding attendees
+        // await this.attendeesService.createAttendeesForEvents(
+        //   createEventDto.attendees,
+        //   createdEvent.res.eventId,
+        //   createEventDto.createdBy,
+        // );
       } else {
+        throw new NotImplementedException(ERROR_MESSAGES.PUBLIC_EVENTS);
         throw new NotImplementedException(ERROR_MESSAGES.PUBLIC_EVENTS);
         // if event is public then registrationDate is required
         if (createEventDto.eventType === 'online') {
@@ -114,12 +142,14 @@ export class EventService {
 
   async getEvents(response, requestBody) {
     const apiId = API_ID.GET_EVENTS;
+    const apiId = API_ID.GET_EVENTS;
     try {
       const { filters } = requestBody;
       const today = new Date();
 
       let finalquery = `SELECT 
       er."eventDetailId" AS "eventRepetition_eventDetailId", 
+      er."createdBy" AS "eventRepetition_createdBy",
       er."createdBy" AS "eventRepetition_createdBy",
       er.*, 
       e."eventId" AS "event_eventId", 
@@ -157,6 +187,7 @@ export class EventService {
       const finalResult = result.map((event) => {
         delete event.total_count;
 
+
         const endDateTime = new Date(event.endDateTime);
         return {
           ...event,
@@ -164,6 +195,7 @@ export class EventService {
         };
       });
       if (finalResult.length === 0) {
+        throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
         throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
       }
       return response
@@ -252,6 +284,10 @@ export class EventService {
       whereClauses.push(`er."createdBy" = '${filters.createdBy}'`);
     }
 
+    if (filters?.createdBy) {
+      whereClauses.push(`er."createdBy" = '${filters.createdBy}'`);
+    }
+
     // Construct final query
     if (whereClauses.length > 0) {
       finalquery += ` WHERE ${whereClauses.join(' AND ')}`;
@@ -259,6 +295,40 @@ export class EventService {
     return finalquery;
   }
 
+  async updateEvent(
+    eventRepetitionId: string,
+    updateBody: UpdateEventDto,
+    response: Response,
+  ) {
+    const apiId = API_ID.UPDATE_EVENT;
+    // Event repetition record must not be of passed date
+    const currentTimestamp = new Date();
+    // To do optimize both cases in one queries
+    const eventRepetition = await this.eventRepetitionRepository.findOne({
+      where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) },
+    });
+
+    if (!eventRepetition) {
+      // when id does not exist or event date is passed
+      throw new BadRequestException(ERROR_MESSAGES.EVENT_NOT_FOUND);
+    }
+    const isEventArchived = await this.getEventDetails(
+      eventRepetition.eventDetailId,
+    );
+    if (isEventArchived.status === 'archived') {
+      throw new BadRequestException(ERROR_MESSAGES.CANNOT_EDIT_ARCHIVED_EVENTS);
+    }
+
+    const event = await this.findEventById(eventRepetition.eventId);
+
+    // condition for prevent non recuring event
+    if (!event.isRecurring && !updateBody.isMainEvent) {
+      throw new BadRequestException(
+        ERROR_MESSAGES.CANNOT_PASS_MAIN_EVENT_FALSE,
+      );
+    }
+
+    const eventDetail = await this.getEventDetails(event.eventDetailId);
   async updateEvent(
     eventRepetitionId: string,
     updateBody: UpdateEventDto,
@@ -909,13 +979,20 @@ export class EventService {
       if (updateBody.erMetaData) {
         Object.assign(eventRepetition.erMetaData, updateBody.erMetaData);
         updateData.erMetaData = eventRepetition.erMetaData;
+        updateData.erMetaData = eventRepetition.erMetaData;
         updateResult.erMetaData = updateBody.erMetaData;
       }
       updateResult.updatedRecurringEvent = await this.updateEventRepetition(
         recurrenceRecords,
         updateData,
       );
+      updateResult.updatedRecurringEvent = await this.updateEventRepetition(
+        recurrenceRecords,
+        updateData,
+      );
     }
+
+    // Handle event detail updates
 
     // Handle event detail updates
     if (
