@@ -742,9 +742,7 @@ export class EventService {
 
   checkValidRecurrenceTimeForUpdate(endDate, recurrenceEndDate) {
     if (endDate.split('T')[1] !== recurrenceEndDate.split('T')[1]) {
-      throw new BadRequestException(
-        'Event End time does not match with Recurrence Start or End time',
-      );
+      throw new BadRequestException(ERROR_MESSAGES.ENDTIME_DOES_NOT_MATCH);
     }
   }
 
@@ -805,7 +803,9 @@ export class EventService {
       updateBody.recurrencePattern &&
       event.isRecurring
     ) {
-      throw new BadRequestException('Please Provide Valid Start and End Date');
+      throw new BadRequestException(
+        ERROR_MESSAGES.PROVIDE_VALID_START_AND_END_DATETIME,
+      );
     }
 
     // Handle recurring events
@@ -813,7 +813,7 @@ export class EventService {
       // check if rec is passed
       if (!updateBody.recurrencePattern) {
         throw new BadRequestException(
-          'Recurring Pattern is missing for this event',
+          ERROR_MESSAGES.RECURRENCE_PATTERN_MISSING,
         );
       }
 
