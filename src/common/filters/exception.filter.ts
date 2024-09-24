@@ -14,18 +14,14 @@ import { ERROR_MESSAGES } from '../utils/constants.util';
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(private readonly apiId?: string) {}
 
-  catch(exception: unknown, host: ArgumentsHost) {
-    console.log('exception', exception);
+  catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const status =
       exception instanceof HttpException ? exception.getStatus() : 500;
-    const exceptionResponse =
-      exception instanceof HttpException ? exception.getResponse() : null;
-    const errorMessage =
-      exception instanceof HttpException
-        ? (exceptionResponse as any).message || exception.message
-        : ERROR_MESSAGES.INTERNAL_SERVER_ERROR;
+
+    let errorMessage =
+      exception?.message || ERROR_MESSAGES.INTERNAL_SERVER_ERROR;
 
     if (exception instanceof QueryFailedError) {
       const statusCode = HttpStatus.UNPROCESSABLE_ENTITY;
