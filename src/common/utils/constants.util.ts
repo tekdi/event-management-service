@@ -61,6 +61,7 @@ export const ERROR_MESSAGES = {
   RECURRENCE_PATTERN_MISSING: 'Recurring Pattern is missing for this event',
   CANNOT_PASS_MAIN_EVENT_FALSE:
     'You can not pass isMainEvent false because event is non recurring',
+  TIMEZONE_NOT_PROVIDED: 'Timezone not provided',
   CREATION_LIMIT_UNAVAILABLE: 'Event creation limit unavailable',
   CREATION_COUNT_EXCEEDED: 'Event Creation Count exceeded',
   RECURRENCE_PERIOD_INSUFFICIENT: 'Event recurrence period insufficient',
