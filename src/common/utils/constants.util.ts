@@ -54,6 +54,11 @@ export const ERROR_MESSAGES = {
   CANNOT_PREPONE_PAST_EVENTS:
     'Cannot update events prepone not allowed for past events',
   CANNOT_EDIT_ARCHIVED_EVENTS: 'Cannot Edit archived events',
+  ENDTIME_DOES_NOT_MATCH:
+    'Event End time does not match with Recurrence Start or End time',
+  PROVIDE_VALID_START_AND_END_DATETIME:
+    'Please Provide Valid Start and End Date',
+  RECURRENCE_PATTERN_MISSING: 'Recurring Pattern is missing for this event',
   CANNOT_PASS_MAIN_EVENT_FALSE:
     'You can not pass isMainEvent false because event is non recurring',
   CREATION_LIMIT_UNAVAILABLE: 'Event creation limit unavailable',

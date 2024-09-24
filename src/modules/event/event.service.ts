@@ -354,9 +354,11 @@ export class EventService {
 
     const currentDate = new Date();
     const newRecurringStart = newRecurrencePattern.recurringStartDate;
+    const nstartDate = newRecurringStart.split('T')[0];
     const newRecStartDate = new Date(newRecurringStart);
 
     const oldRecurringStart = oldRecurrencePattern.recurringStartDate;
+    const ostartDate = oldRecurringStart.split('T')[0];
     const oldRecStartDate = new Date(oldRecurringStart);
 
     const newRecurringEnd = newRecurrencePattern.endCondition.value;
@@ -406,7 +408,7 @@ export class EventService {
         currentEventRepetition['recurrencePattern'] = oldRecurrencePattern;
 
         if (
-          newRecStartDate.getTime() === oldRecStartDate.getTime() &&
+          new Date(nstartDate).getTime() === new Date(ostartDate).getTime() && // check only date
           newRecEndDate.getTime() !== oldRecEndDate.getTime()
         ) {
           // start date and time is same
@@ -441,7 +443,7 @@ export class EventService {
           (newRecStartDate > oldRecStartDate && newRecStartDate > currentDate)
         ) {
           // prepone events when new start date lies between current date and old start date
-          // end date remains same
+          // end date does not matter
           // add events fully and update start date in recpattern
 
           return await this.deleteOldAndRecreateNewEvents(
@@ -740,9 +742,7 @@ export class EventService {
 
   checkValidRecurrenceTimeForUpdate(endDate, recurrenceEndDate) {
     if (endDate.split('T')[1] !== recurrenceEndDate.split('T')[1]) {
-      throw new BadRequestException(
-        'Event End time does not match with Recurrence Start or End time',
-      );
+      throw new BadRequestException(ERROR_MESSAGES.ENDTIME_DOES_NOT_MATCH);
     }
   }
 
@@ -793,17 +793,19 @@ export class EventService {
 
     let updateResult: UpdateResult = {};
     let updatedEvents;
-    let eventAndEventDetails;
-    eventAndEventDetails = {};
-    eventAndEventDetails['newEvent'] = event;
-    eventAndEventDetails['newEventDetail'] = eventDetail;
+    let eventAndEventDetails: {
+      newEvent: Events;
+      newEventDetail: EventDetail;
+    } = { newEvent: event, newEventDetail: eventDetail };
 
     if (
       (!startDatetime || !endDatetime) &&
       updateBody.recurrencePattern &&
       event.isRecurring
     ) {
-      throw new BadRequestException('Please Provide Valid Start and End Date');
+      throw new BadRequestException(
+        ERROR_MESSAGES.PROVIDE_VALID_START_AND_END_DATETIME,
+      );
     }
 
     // Handle recurring events
@@ -811,7 +813,7 @@ export class EventService {
       // check if rec is passed
       if (!updateBody.recurrencePattern) {
         throw new BadRequestException(
-          'Recurring Pattern is missing for this event',
+          ERROR_MESSAGES.RECURRENCE_PATTERN_MISSING,
         );
       }
 
@@ -861,19 +863,17 @@ export class EventService {
           !(updatedEvents.newEvent instanceof Events) &&
           updatedEvents.newEvent === event.eventId
         ) {
-          eventAndEventDetails = {};
-          eventAndEventDetails['newEvent'] = await this.findEventById(
+          eventAndEventDetails.newEvent = await this.findEventById(
             updatedEvents.newEvent,
           );
-          eventAndEventDetails['newEventDetail'] = await this.getEventDetails(
+          eventAndEventDetails.newEventDetail = await this.getEventDetails(
             updatedEvents.newEventDetail,
           );
         }
         // else as passed from function
       } else {
-        eventAndEventDetails = {};
-        eventAndEventDetails['newEvent'] = event;
-        eventAndEventDetails['newEventDetail'] = eventDetail;
+        eventAndEventDetails.newEvent = event;
+        eventAndEventDetails.newEventDetail = eventDetail;
       }
     } else if (startDatetime && endDatetime && !event.isRecurring) {
       // Handle non-recurring events
@@ -886,11 +886,17 @@ export class EventService {
     }
 
     // get current first event as we regenerate new events and make other changes first event might change
+
+    let firstEventDate =
+      eventAndEventDetails.newEvent.recurrencePattern.recurringStartDate;
+
+    if (!firstEventDate && !event.isRecurring) {
+      firstEventDate = eventRepetition.startDateTime;
+    }
+
     const currentFirstEvent = await this.getFirstEvent(
       eventAndEventDetails.newEvent.eventId,
-      new Date(
-        eventAndEventDetails.newEvent.recurrencePattern.recurringStartDate,
-      ), // updatedEvents.newEvent.recurrencePattern.recurringStartDate --- startDatetime
+      new Date(firstEventDate),
     );
 
     eventRepetition = currentFirstEvent;
@@ -938,7 +944,7 @@ export class EventService {
           eventRepetition,
         );
     }
-    return updateResult;
+    return { ...updateResult, event: eventAndEventDetails.newEvent };
   }
 
   async updateEventDetailsForRecurringEvents(
