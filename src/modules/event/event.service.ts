@@ -69,7 +69,7 @@ export class EventService {
     response: Response,
   ): Promise<Response> {
     const apiId = API_ID.CREATE_EVENT;
-    if (!this.timezone || !this.timezone.trim().length) {
+    if (!this.timezone?.trim()?.length) {
       throw new BadRequestException(ERROR_MESSAGES.TIMEZONE_NOT_PROVIDED);
     }
 
@@ -115,7 +115,7 @@ export class EventService {
 
   async getEvents(response, requestBody) {
     const apiId = API_ID.GET_EVENTS;
-    if (!this.timezone || !this.timezone.trim().length) {
+    if (!this.timezone?.trim()?.length) {
       throw new BadRequestException(ERROR_MESSAGES.TIMEZONE_NOT_PROVIDED);
     }
 
@@ -275,7 +275,7 @@ export class EventService {
   ) {
     const apiId = API_ID.UPDATE_EVENT;
 
-    if (!this.timezone || !this.timezone.trim().length) {
+    if (!this.timezone?.trim()?.length) {
       throw new BadRequestException(ERROR_MESSAGES.TIMEZONE_NOT_PROVIDED);
     }
 
