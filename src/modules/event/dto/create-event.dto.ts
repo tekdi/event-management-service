@@ -281,8 +281,8 @@ export class CreateEventDto {
     description: 'Online Meeting Details',
     example: {
       url: 'https://example.com/meeting',
-      id: '123-456-789',
-      password: 'xxxxxxx',
+      id: 'meeting-id',
+      password: 'hidden-password',
     },
   })
   @IsObject()
