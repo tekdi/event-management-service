@@ -22,9 +22,7 @@ import {
 import { Events } from './entities/event.entity';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
-import { SearchFilterDto } from './dto/search-event.dto';
 import { AttendeesService } from '../attendees/attendees.service';
-import { EventAttendeesDTO } from '../attendees/dto/EventAttendance.dto';
 import { EventDetail } from './entities/eventDetail.entity';
 import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
@@ -98,14 +96,14 @@ export class EventService {
       // );
     } else {
       throw new NotImplementedException(ERROR_MESSAGES.PUBLIC_EVENTS);
-      // if event is public then registrationDate is required
-      if (createEventDto.eventType === 'online') {
-        // create online event
-        // this.createOnlineEvent(createEventDto);
-      } else if (createEventDto.eventType === 'offline') {
-        // create offline event
-        // this.createOfflineEvent(createEventDto);
-      }
+      // TODO: if event is public then registrationDate is required
+      // if (createEventDto.eventType === 'online') {
+      // create online event
+      // this.createOnlineEvent(createEventDto);
+      // } else if (createEventDto.eventType === 'offline') {
+      // create offline event
+      // this.createOfflineEvent(createEventDto);
+      // }
     }
 
     return response
@@ -182,9 +180,6 @@ export class EventService {
 
     // Handle specific date records
     if (filters?.date) {
-      // const startDate = filters?.date;
-      // const startDateTime = `${startDate} 00:00:00`;
-      // const endDateTime = `${startDate} 23:59:59`;
       const startDateTime = filters?.date.after; // min date
       const endDateTime = filters?.date.before; // max date ---> seraching on the basis of max date
       whereClauses.push(
@@ -194,9 +189,6 @@ export class EventService {
 
     // Handle startDate
     if (filters?.startDate && filters.endDate === undefined) {
-      const startDate = filters?.startDate;
-      // const startDateTime = `${startDate} 00:00:00`;
-      // const endDateTime = `${startDate} 23:59:59`;
       const startDateTime = filters.startDate.after;
       const endDateTime = filters.startDate.before;
 
@@ -206,9 +198,6 @@ export class EventService {
     }
 
     if (filters?.startDate && filters.endDate) {
-      const startDate = filters?.startDate;
-      // const startDateTime = `${startDate} 00:00:00`;
-      // const endDateTime = `${filters?.endDate} 23:59:59`;
       const startDateTime = filters.startDate.after; // 21 -> startDate
       const endDateTime = filters.endDate.before;
 
@@ -218,9 +207,6 @@ export class EventService {
     }
 
     if (filters.endDate && filters.startDate === undefined) {
-      // const endDate = filters?.endDate;
-      // const startDateTime = `${endDate} 00:00:00`;
-      // const endDateTime = `${endDate} 23:59:59`;
       const startDateTime = filters.endDate.after;
       const endDateTime = filters.endDate.before;
       whereClauses.push(
@@ -557,7 +543,7 @@ export class EventService {
       true,
     );
 
-    const extUpdt = await this.updateEventRepetitionPattern(
+    await this.updateEventRepetitionPattern(
       currentEventRepetition.eventId,
       currentEventRepetition.recurrencePattern,
     );
@@ -587,7 +573,7 @@ export class EventService {
     oldRecurrencePattern.endCondition.value =
       currentEventRepetition.startDatetime;
 
-    const extUpdt = await this.updateEventRepetitionPattern(
+    await this.updateEventRepetitionPattern(
       currentEventRepetition.eventId,
       oldRecurrencePattern,
     );
@@ -1361,7 +1347,7 @@ export class EventService {
         eventRepetitionIds: erep.identifiers,
       };
     } else {
-      // this.createNonRecurringEvent(createEventDto);
+      // createNonRecurringEvent
       erep = await this.createEventRepetitionDB(
         createEventDto,
         createdEventDB,
