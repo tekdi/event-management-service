@@ -3,25 +3,19 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
   IsEnum,
   IsLongitude,
   IsLatitude,
   IsBoolean,
-  IsInt,
-  Min,
   IsDateString,
   IsObject,
   ValidateIf,
   ValidateNested,
-  Validate,
   IsIn,
 } from 'class-validator';
 import { MeetingDetails } from 'src/common/utils/types';
 import { Transform, Type } from 'class-transformer';
-import { UrlWithProviderValidator } from 'src/common/utils/validation.util';
-import { RecurrencePatternDto } from './create-event.dto';
-import { MeetingDetailsDto } from './create-event.dto';
+import { RecurrencePatternDto, MeetingDetailsDto } from './create-event.dto';
 export interface UpdateResult {
   onlineDetails?: any;
   erMetaData?: any;

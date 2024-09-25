@@ -54,8 +54,37 @@ export class RegistrationDateValidationPipe implements PipeTransform {
       ? new Date(createEventDto.registrationEndDate)
       : null;
 
-    // Ensure registration dates are not provided for restricted events
+    this.validateRestrictedEventDates(
+      createEventDto,
+      registrationStartDate,
+      registrationEndDate,
+    );
+    this.validateRegistrationDatesNotInPast(
+      registrationStartDate,
+      registrationEndDate,
+      currentDate,
+      isRestricted,
+    );
+    this.validateRegistrationDatesOrder(
+      registrationStartDate,
+      registrationEndDate,
+      isRestricted,
+    );
+    this.validateRegistrationPeriodWithinEventPeriod(
+      registrationStartDate,
+      registrationEndDate,
+      startDate,
+      isRestricted,
+    );
 
+    return createEventDto;
+  }
+
+  private validateRestrictedEventDates(
+    createEventDto: CreateEventDto,
+    registrationStartDate: Date | null,
+    registrationEndDate: Date | null,
+  ) {
     if (
       (createEventDto.isRestricted && registrationStartDate) ||
       (createEventDto.isRestricted && registrationEndDate)
@@ -64,8 +93,14 @@ export class RegistrationDateValidationPipe implements PipeTransform {
         ERROR_MESSAGES.RESTRICTED_EVENT_NO_REGISTRATION_DATE,
       );
     }
+  }
 
-    // Ensure registration dates are not in the past
+  private validateRegistrationDatesNotInPast(
+    registrationStartDate: Date | null,
+    registrationEndDate: Date | null,
+    currentDate: Date,
+    isRestricted: boolean,
+  ) {
     if (registrationStartDate < currentDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_START_DATE_INVALID,
@@ -77,15 +112,26 @@ export class RegistrationDateValidationPipe implements PipeTransform {
         ERROR_MESSAGES.REGISTRATION_END_DATE_INVALID,
       );
     }
+  }
 
-    // Validate registration dates
+  private validateRegistrationDatesOrder(
+    registrationStartDate: Date | null,
+    registrationEndDate: Date | null,
+    isRestricted: boolean,
+  ) {
     if (registrationStartDate > registrationEndDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_START_DATE_BEFORE_END_DATE,
       );
     }
+  }
 
-    // Registration period must fall between the event period
+  private validateRegistrationPeriodWithinEventPeriod(
+    registrationStartDate: Date | null,
+    registrationEndDate: Date | null,
+    startDate: Date,
+    isRestricted: boolean,
+  ) {
     if (registrationStartDate > startDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_START_DATE_BEFORE_EVENT_DATE,
@@ -97,99 +143,13 @@ export class RegistrationDateValidationPipe implements PipeTransform {
         ERROR_MESSAGES.REGISTRATION_END_DATE_BEFORE_EVENT_DATE,
       );
     }
-
-    return createEventDto;
   }
 }
 
 export class RecurringEndDateValidationPipe implements PipeTransform {
   transform(createEventDto: CreateEventDto | UpdateEventDto) {
     if (createEventDto.isRecurring) {
-      const endConditionValue =
-        createEventDto.recurrencePattern?.endCondition?.value;
-      const endConditionType =
-        createEventDto.recurrencePattern?.endCondition?.type;
-      const recurringStartDate =
-        createEventDto.recurrencePattern.recurringStartDate;
-
-      if (!endConditionType || !endConditionValue) {
-        throw new BadRequestException(
-          ERROR_MESSAGES.RECURRING_PATTERN_REQUIRED,
-        );
-      }
-
-      if (endConditionType === EndConditionType.endDate) {
-        const recurrenceEndDate = new Date(endConditionValue);
-
-        const dateValid =
-          recurrenceEndDate && !Number.isNaN(recurrenceEndDate.getTime());
-
-        if (!dateValid) {
-          throw new BadRequestException(
-            ERROR_MESSAGES.RECURRENCE_END_DATE_INVALID,
-          );
-        }
-
-        const currentDate = new Date();
-        if (recurrenceEndDate < currentDate) {
-          throw new BadRequestException(
-            ERROR_MESSAGES.RECURRENCE_END_DATE_SHOULD_BE_GREATER_THAN_CURRENT_DATE,
-          );
-        }
-
-        if (
-          recurrenceEndDate <= new Date(createEventDto.startDatetime) &&
-          createEventDto instanceof CreateEventDto
-        ) {
-          throw new BadRequestException(
-            ERROR_MESSAGES.RECURRENCE_END_DATE_AFTER_EVENT_DATE,
-          );
-        }
-
-        const endDateTime = endConditionValue.split('T');
-        const endDate = endDateTime[0]; // recurring end date
-        const startDateTime = recurringStartDate.split('T');
-        const startDate = startDateTime[0];
-
-        if (
-          new Date(endConditionValue).getTime() !==
-          new Date(
-            endDate + 'T' + createEventDto.endDatetime.split('T')[1],
-          ).getTime() // compare with current event end time
-        ) {
-          throw new BadRequestException(
-            'Event End time does not match with Recurrence End time',
-          );
-        }
-
-        if (
-          new Date(recurringStartDate).getTime() !==
-          new Date(
-            startDate + 'T' + createEventDto.startDatetime.split('T')[1],
-          ).getTime()
-        ) {
-          throw new BadRequestException(
-            'Event Start time does not match with Recurrence Start time',
-          );
-        }
-
-        // createEventDto.recurrencePattern.endCondition.value = endDate;
-      } else if (endConditionType === EndConditionType.occurrences) {
-        const occurrences = Number(endConditionValue);
-
-        if (!occurrences || occurrences < 1) {
-          throw new BadRequestException(
-            ERROR_MESSAGES.RECURRENCE_OCCURRENCES_INVALID,
-          );
-        }
-      } else if (
-        endConditionType !== EndConditionType.occurrences &&
-        endConditionType !== EndConditionType.endDate
-      ) {
-        throw new BadRequestException(
-          ERROR_MESSAGES.RECURRENCE_PATTERN_INVALID,
-        );
-      }
+      this.validateRecurringEvent(createEventDto);
     } else if (
       !createEventDto.isRecurring &&
       Object.keys(createEventDto?.recurrencePattern ?? {})?.length
@@ -201,6 +161,113 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
 
     return createEventDto;
   }
+
+  private validateRecurringEvent(
+    createEventDto: CreateEventDto | UpdateEventDto,
+  ) {
+    const endConditionValue =
+      createEventDto.recurrencePattern?.endCondition?.value;
+    const endConditionType =
+      createEventDto.recurrencePattern?.endCondition?.type;
+    const recurringStartDate =
+      createEventDto.recurrencePattern.recurringStartDate;
+
+    if (!endConditionType || !endConditionValue) {
+      throw new BadRequestException(ERROR_MESSAGES.RECURRING_PATTERN_REQUIRED);
+    }
+
+    if (endConditionType === EndConditionType.endDate) {
+      this.validateEndDateCondition(
+        createEventDto,
+        endConditionValue,
+        recurringStartDate,
+      );
+    } else if (endConditionType === EndConditionType.occurrences) {
+      this.validateOccurrencesCondition(endConditionValue);
+    } else {
+      throw new BadRequestException(ERROR_MESSAGES.RECURRENCE_PATTERN_INVALID);
+    }
+  }
+
+  private validateEndDateCondition(
+    createEventDto: CreateEventDto | UpdateEventDto,
+    endConditionValue: string,
+    recurringStartDate: string,
+  ) {
+    const recurrenceEndDate = new Date(endConditionValue);
+
+    const dateValid =
+      recurrenceEndDate && !Number.isNaN(recurrenceEndDate.getTime());
+
+    if (!dateValid) {
+      throw new BadRequestException(ERROR_MESSAGES.RECURRENCE_END_DATE_INVALID);
+    }
+
+    const currentDate = new Date();
+    if (recurrenceEndDate < currentDate) {
+      throw new BadRequestException(
+        ERROR_MESSAGES.RECURRENCE_END_DATE_SHOULD_BE_GREATER_THAN_CURRENT_DATE,
+      );
+    }
+
+    if (
+      recurrenceEndDate <= new Date(createEventDto.startDatetime) &&
+      createEventDto instanceof CreateEventDto
+    ) {
+      throw new BadRequestException(
+        ERROR_MESSAGES.RECURRENCE_END_DATE_AFTER_EVENT_DATE,
+      );
+    }
+
+    this.validateEndDateTime(
+      createEventDto,
+      endConditionValue,
+      recurringStartDate,
+    );
+  }
+
+  private validateEndDateTime(
+    createEventDto: CreateEventDto | UpdateEventDto,
+    endConditionValue: string,
+    recurringStartDate: string,
+  ) {
+    const endDateTime = endConditionValue.split('T');
+    const endDate = endDateTime[0]; // recurring end date
+    const startDateTime = recurringStartDate.split('T');
+    const startDate = startDateTime[0];
+
+    if (
+      new Date(endConditionValue).getTime() !==
+      new Date(
+        endDate + 'T' + createEventDto.endDatetime.split('T')[1],
+      ).getTime() // compare with current event end time
+    ) {
+      throw new BadRequestException(
+        'Event End time does not match with Recurrence End time',
+      );
+    }
+
+    if (
+      new Date(recurringStartDate).getTime() !==
+      new Date(
+        startDate + 'T' + createEventDto.startDatetime.split('T')[1],
+      ).getTime()
+    ) {
+      throw new BadRequestException(
+        'Event Start time does not match with Recurrence Start time',
+      );
+    }
+  }
+
+  private validateOccurrencesCondition(endConditionValue: string) {
+    const occurrences = Number(endConditionValue);
+
+    if (!occurrences || occurrences < 1) {
+      throw new BadRequestException(
+        ERROR_MESSAGES.RECURRENCE_OCCURRENCES_INVALID,
+      );
+    }
+  }
 }
 
 @Injectable()
@@ -209,7 +276,7 @@ export class AttendeesValidationPipe implements PipeTransform {
     const attendees = createEventDto?.attendees;
 
     if (!createEventDto.isRestricted) {
-      if (attendees && attendees.length) {
+      if (attendees?.length) {
         throw new BadRequestException(ERROR_MESSAGES.ATTENDEES_NOT_REQUIRED);
       }
     }
@@ -223,14 +290,22 @@ export class SearchDateValidationPipe implements PipeTransform {
   transform(value: any, metadata: ArgumentMetadata) {
     const { date, startDate, endDate } = value.filters || {};
 
-    // Check if both startDate and endDate are passed with date
+    this.checkDateConflicts(date, startDate, endDate);
+    this.checkDateFields(date, startDate, endDate);
+    this.checkDateOrder(date, startDate, endDate);
+
+    return value;
+  }
+
+  private checkDateConflicts(date: any, startDate: any, endDate: any) {
     if (date && (startDate || endDate)) {
       throw new BadRequestException(
         'Only one of date, startDate, or endDate should be provided.',
       );
     }
+  }
 
-    // Check if after and before are provided with date
+  private checkDateFields(date: any, startDate: any, endDate: any) {
     if (date && (!date.after || !date.before)) {
       throw new BadRequestException(
         'Both "after" and "before" fields are required when date is provided.',
@@ -262,7 +337,9 @@ export class SearchDateValidationPipe implements PipeTransform {
         'if StartDate and EndDate Provided then "after" fields is required in startDate and "before fields is required in endDate',
       );
     }
+  }
 
+  private checkDateOrder(date: any, startDate: any, endDate: any) {
     if (
       (date && new Date(date.after) > new Date(date.before)) ||
       (startDate &&
@@ -279,8 +356,6 @@ export class SearchDateValidationPipe implements PipeTransform {
         '"after" should be less than and equal to  "before" fields ',
       );
     }
-
-    return value;
   }
 }
 

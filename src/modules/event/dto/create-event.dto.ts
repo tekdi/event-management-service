@@ -27,7 +27,6 @@ import {
   EventTypes,
   Frequency,
   MeetingDetails,
-  RecurrencePattern,
 } from 'src/common/utils/types';
 import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EndsWithZConstraint } from 'src/common/pipes/event-validation.pipe';
