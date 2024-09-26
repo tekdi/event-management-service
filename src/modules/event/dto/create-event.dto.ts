@@ -27,7 +27,6 @@ import {
   EventTypes,
   Frequency,
   MeetingDetails,
-  RecurrencePattern,
 } from 'src/common/utils/types';
 import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EndsWithZConstraint } from 'src/common/pipes/event-validation.pipe';
@@ -52,7 +51,10 @@ export class MeetingDetailsDto {
   @Validate(UrlWithProviderValidator)
   url: string;
 
-  @ApiProperty({ description: 'Meeting password', example: 'xxxxxx' })
+  @ApiProperty({
+    description: 'Meeting password',
+    writeOnly: true, // This will hide it from API response docs
+  })
   @IsString()
   @IsOptional()
   password: string;
@@ -282,8 +284,8 @@ export class CreateEventDto {
     description: 'Online Meeting Details',
     example: {
       url: 'https://example.com/meeting',
-      id: '123-456-789',
-      password: 'xxxxxxx',
+      id: 'meeting-id',
+      // password: '**********', // This will be hidden from API response docs
     },
   })
   @IsObject()

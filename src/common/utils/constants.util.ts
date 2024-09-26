@@ -61,6 +61,24 @@ export const ERROR_MESSAGES = {
   RECURRENCE_PATTERN_MISSING: 'Recurring Pattern is missing for this event',
   CANNOT_PASS_MAIN_EVENT_FALSE:
     'You can not pass isMainEvent false because event is non recurring',
+  EVENT_ALREADY_ARCHIVED: 'Event is already archived',
+  EVENT_END_TIME_DOES_NOT_MATCH:
+    'Event End time does not match with Recurrence End time',
+  EVENT_START_TIME_DOES_NOT_MATCH:
+    'Event Start time does not match with Recurrence Start time',
+  ONLY_ONE_DATE_ALLOWED:
+    'Only one of date, startDate, or endDate should be provided.',
+  BOTH_AFTER_AND_BEFORE_REQUIRED:
+    'Both "after" and "before" fields are required when date is provided.',
+  BOTH_AFTER_AND_BEFORE_REQUIRED_FOR_STARTDATE:
+    'Both "after" and "before" fields are required when startDate is provided.',
+  BOTH_AFTER_AND_BEFORE_REQUIRED_FOR_ENDDATE:
+    'Both "after" and "before" fields are required when endDate is provided.',
+  AFTER_IN_START_AND_BEFORE_IN_END:
+    'if StartDate and EndDate Provided then "after" fields is required in startDate and "before fields is required in endDate',
+  AFTER_SHOULD_BE_LESS_THAN_BEFORE:
+    '"after" should be less than or equal to "before" fields ',
+  TIMEZONE_NOT_PROVIDED: 'Timezone not provided',
   CREATION_LIMIT_UNAVAILABLE: 'Event creation limit unavailable',
   CREATION_COUNT_EXCEEDED: 'Event Creation Count exceeded',
   RECURRENCE_PERIOD_INSUFFICIENT: 'Event recurrence period insufficient',

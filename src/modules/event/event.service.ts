@@ -22,9 +22,7 @@ import {
 import { Events } from './entities/event.entity';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
-import { SearchFilterDto } from './dto/search-event.dto';
 import { AttendeesService } from '../attendees/attendees.service';
-import { EventAttendeesDTO } from '../attendees/dto/EventAttendance.dto';
 import { EventDetail } from './entities/eventDetail.entity';
 import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
@@ -42,10 +40,11 @@ import {
   RecurringEndDateValidationPipe,
 } from 'src/common/pipes/event-validation.pipe';
 import { compareArrays } from 'src/common/utils/functions.util';
-
+import * as moment from 'moment-timezone';
 @Injectable()
 export class EventService {
   private eventCreationLimit: number;
+  private timezone: string;
 
   constructor(
     @InjectRepository(Events)
@@ -60,6 +59,7 @@ export class EventService {
     this.eventCreationLimit = this.configService.get<number>(
       'EVENT_CREATION_LIMIT',
     );
+    this.timezone = this.configService.get<string>('TIMEZONE');
   }
 
   async createEvent(
@@ -67,58 +67,56 @@ export class EventService {
     response: Response,
   ): Promise<Response> {
     const apiId = API_ID.CREATE_EVENT;
-    try {
-      // this.validateCreateEventDto(createEventDto);
-      // true for private, false for public
-      let createdEvent: any = {};
-      if (createEventDto.isRestricted === true) {
-        // private event
-        createdEvent = await this.createOfflineOrOnlineEvent(createEventDto);
+    this.validateTimezone();
 
-        // if event is private then invitees are required
-        // add invitees to attendees table
+    // this.validateCreateEventDto(createEventDto);
+    // true for private, false for public
+    let createdEvent: any = {};
+    if (createEventDto.isRestricted === true) {
+      // private event
+      createdEvent = await this.createOfflineOrOnlineEvent(createEventDto);
 
-        // await this.attendeesService.createAttendeesForRecurringEvents(
-        //   createEventDto.attendees,
-        //   createdEvent.res.eventId,
-        //   createdEvent.eventRepetitionIds,
-        //   createEventDto.createdBy,
-        // );
+      // if event is private then invitees are required
+      // add invitees to attendees table
 
-        // TODO: new approach of adding attendees
-        // await this.attendeesService.createAttendeesForEvents(
-        //   createEventDto.attendees,
-        //   createdEvent.res.eventId,
-        //   createEventDto.createdBy,
-        // );
-      } else {
-        throw new NotImplementedException(ERROR_MESSAGES.PUBLIC_EVENTS);
-        // if event is public then registrationDate is required
-        if (createEventDto.eventType === 'online') {
-          // create online event
-          // this.createOnlineEvent(createEventDto);
-        } else if (createEventDto.eventType === 'offline') {
-          // create offline event
-          // this.createOfflineEvent(createEventDto);
-        }
-      }
+      // await this.attendeesService.createAttendeesForRecurringEvents(
+      //   createEventDto.attendees,
+      //   createdEvent.res.eventId,
+      //   createdEvent.eventRepetitionIds,
+      //   createEventDto.createdBy,
+      // );
 
-      return response
-        .status(HttpStatus.CREATED)
-        .json(APIResponse.success(apiId, createdEvent.res, 'Created'));
-    } catch (error) {
-      console.log(error, 'error create event');
-      throw error;
+      // TODO: new approach of adding attendees
+      // await this.attendeesService.createAttendeesForEvents(
+      //   createEventDto.attendees,
+      //   createdEvent.res.eventId,
+      //   createEventDto.createdBy,
+      // );
+    } else {
+      throw new NotImplementedException(ERROR_MESSAGES.PUBLIC_EVENTS);
+      // TODO: if event is public then registrationDate is required
+      // if (createEventDto.eventType === 'online') {
+      // create online event
+      // this.createOnlineEvent(createEventDto);
+      // } else if (createEventDto.eventType === 'offline') {
+      // create offline event
+      // this.createOfflineEvent(createEventDto);
+      // }
     }
+
+    return response
+      .status(HttpStatus.CREATED)
+      .json(APIResponse.success(apiId, createdEvent.res, 'Created'));
   }
 
   async getEvents(response, requestBody) {
     const apiId = API_ID.GET_EVENTS;
-    try {
-      const { filters } = requestBody;
-      const today = new Date();
+    this.validateTimezone();
 
-      let finalquery = `SELECT 
+    const { filters } = requestBody;
+    const today = new Date();
+
+    let finalquery = `SELECT 
       er."eventDetailId" AS "eventRepetition_eventDetailId", 
       er."createdBy" AS "eventRepetition_createdBy",
       er.*, 
@@ -132,52 +130,45 @@ export class EventService {
       LEFT JOIN "EventDetails" AS ed ON er."eventDetailId"=ed."eventDetailId" 
       LEFT JOIN "Events" AS e ON er."eventId"=e."eventId"`;
 
-      //User not pass any things then it show today and upcoming event
-      if (!filters || Object.keys(filters).length === 0) {
-        finalquery += ` WHERE (er."startDateTime" >= CURRENT_TIMESTAMP
+    //User not pass any things then it show today and upcoming event
+    if (!filters || Object.keys(filters).length === 0) {
+      finalquery += ` WHERE (er."startDateTime" >= CURRENT_TIMESTAMP
         OR er."endDateTime" > CURRENT_TIMESTAMP) AND ed.status='live'`;
-      }
-
-      // if user pass somthing in filter then make query
-      if (filters && Object.keys(filters).length > 0) {
-        finalquery = await this.createSearchQuery(filters, finalquery);
-      }
-
-      // Set default limit and offset if not provided
-      const limit = requestBody.limit ? requestBody.limit : 200;
-      const offset = requestBody.offset ? requestBody.offset : 0;
-
-      // Append LIMIT and OFFSET to the query
-      finalquery += ` LIMIT ${limit} OFFSET ${offset}`;
-
-      const result = await this.eventRepetitionRepository.query(finalquery);
-      const totalCount = result[0]?.total_count;
-
-      // Add isEnded key based on endDateTime
-      const finalResult = result.map((event) => {
-        delete event.total_count;
-
-        const endDateTime = new Date(event.endDateTime);
-        return {
-          ...event,
-          isEnded: endDateTime < today,
-        };
-      });
-      if (finalResult.length === 0) {
-        throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
-      }
-      return response
-        .status(HttpStatus.OK)
-        .json(
-          APIResponse.success(
-            apiId,
-            { totalCount, events: finalResult },
-            'OK`',
-          ),
-        );
-    } catch (error) {
-      throw error;
     }
+
+    // if user pass somthing in filter then make query
+    if (filters && Object.keys(filters).length > 0) {
+      finalquery = await this.createSearchQuery(filters, finalquery);
+    }
+
+    // Set default limit and offset if not provided
+    const limit = requestBody.limit ? requestBody.limit : 200;
+    const offset = requestBody.offset ? requestBody.offset : 0;
+
+    // Append LIMIT and OFFSET to the query
+    finalquery += ` LIMIT ${limit} OFFSET ${offset}`;
+
+    const result = await this.eventRepetitionRepository.query(finalquery);
+    const totalCount = result[0]?.total_count;
+
+    // Add isEnded key based on endDateTime
+    const finalResult = result.map((event) => {
+      delete event.total_count;
+
+      const endDateTime = new Date(event.endDateTime);
+      return {
+        ...event,
+        isEnded: endDateTime < today,
+      };
+    });
+    if (finalResult.length === 0) {
+      throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
+    }
+    return response
+      .status(HttpStatus.OK)
+      .json(
+        APIResponse.success(apiId, { totalCount, events: finalResult }, 'OK`'),
+      );
   }
 
   async createSearchQuery(filters, finalquery) {
@@ -185,9 +176,6 @@ export class EventService {
 
     // Handle specific date records
     if (filters?.date) {
-      // const startDate = filters?.date;
-      // const startDateTime = `${startDate} 00:00:00`;
-      // const endDateTime = `${startDate} 23:59:59`;
       const startDateTime = filters?.date.after; // min date
       const endDateTime = filters?.date.before; // max date ---> seraching on the basis of max date
       whereClauses.push(
@@ -197,9 +185,6 @@ export class EventService {
 
     // Handle startDate
     if (filters?.startDate && filters.endDate === undefined) {
-      const startDate = filters?.startDate;
-      // const startDateTime = `${startDate} 00:00:00`;
-      // const endDateTime = `${startDate} 23:59:59`;
       const startDateTime = filters.startDate.after;
       const endDateTime = filters.startDate.before;
 
@@ -209,9 +194,6 @@ export class EventService {
     }
 
     if (filters?.startDate && filters.endDate) {
-      const startDate = filters?.startDate;
-      // const startDateTime = `${startDate} 00:00:00`;
-      // const endDateTime = `${filters?.endDate} 23:59:59`;
       const startDateTime = filters.startDate.after; // 21 -> startDate
       const endDateTime = filters.endDate.before;
 
@@ -221,9 +203,6 @@ export class EventService {
     }
 
     if (filters.endDate && filters.startDate === undefined) {
-      // const endDate = filters?.endDate;
-      // const startDateTime = `${endDate} 00:00:00`;
-      // const endDateTime = `${endDate} 23:59:59`;
       const startDateTime = filters.endDate.after;
       const endDateTime = filters.endDate.before;
       whereClauses.push(
@@ -277,6 +256,8 @@ export class EventService {
     response: Response,
   ) {
     const apiId = API_ID.UPDATE_EVENT;
+    this.validateTimezone();
+
     // Event repetition record must not be of passed date
     const currentTimestamp = new Date();
     // To do optimize both cases in one queries
@@ -555,7 +536,7 @@ export class EventService {
       true,
     );
 
-    const extUpdt = await this.updateEventRepetitionPattern(
+    await this.updateEventRepetitionPattern(
       currentEventRepetition.eventId,
       currentEventRepetition.recurrencePattern,
     );
@@ -585,7 +566,7 @@ export class EventService {
     oldRecurrencePattern.endCondition.value =
       currentEventRepetition.startDatetime;
 
-    const extUpdt = await this.updateEventRepetitionPattern(
+    await this.updateEventRepetitionPattern(
       currentEventRepetition.eventId,
       oldRecurrencePattern,
     );
@@ -1325,60 +1306,55 @@ export class EventService {
 
   async createOfflineOrOnlineEvent(createEventDto: CreateEventDto) {
     // recurring & non-recurring
-    try {
-      if (createEventDto.eventType === EventTypes.offline) {
-        // create offline event
-        createEventDto.onlineProvider = null;
-        createEventDto.meetingDetails = null;
-        createEventDto.recordings = null;
-      } else if (createEventDto.eventType === EventTypes.online) {
-        createEventDto.meetingDetails.providerGenerated = false;
-      }
 
-      const createdEventDetailDB =
-        await this.createEventDetailDB(createEventDto);
+    if (createEventDto.eventType === EventTypes.offline) {
+      // create offline event
+      createEventDto.onlineProvider = null;
+      createEventDto.meetingDetails = null;
+      createEventDto.recordings = null;
+    } else if (createEventDto.eventType === EventTypes.online) {
+      createEventDto.meetingDetails.providerGenerated = false;
+    }
 
-      const createdEventDB = await this.createEventDB(
+    const createdEventDetailDB = await this.createEventDetailDB(createEventDto);
+
+    const createdEventDB = await this.createEventDB(
+      createEventDto,
+      createdEventDetailDB,
+    );
+
+    let erep: EventRepetition | InsertResult;
+
+    if (createEventDto.isRecurring) {
+      erep = await this.createRecurringEvents(
         createEventDto,
+        createdEventDB.eventId,
+        createdEventDetailDB.eventDetailId,
+      );
+      return {
+        res: this.generateEventResponse(
+          createdEventDB,
+          erep?.generatedMaps[0],
+          erep?.generatedMaps.length,
+        ),
+        eventRepetitionIds: erep.identifiers,
+      };
+    } else {
+      // createNonRecurringEvent
+      erep = await this.createEventRepetitionDB(
+        createEventDto,
+        createdEventDB,
         createdEventDetailDB,
       );
+      const { event, eventDetail, ...repetitionDtl } = erep;
 
-      let erep: EventRepetition | InsertResult;
-
-      if (createEventDto.isRecurring) {
-        erep = await this.createRecurringEvents(
-          createEventDto,
-          createdEventDB.eventId,
-          createdEventDetailDB.eventDetailId,
-        );
-        return {
-          res: this.generateEventResponse(
-            createdEventDB,
-            erep?.generatedMaps[0],
-            erep?.generatedMaps.length,
-          ),
-          eventRepetitionIds: erep.identifiers,
-        };
-      } else {
-        // this.createNonRecurringEvent(createEventDto);
-        erep = await this.createEventRepetitionDB(
-          createEventDto,
-          createdEventDB,
-          createdEventDetailDB,
-        );
-        const { event, eventDetail, ...repetitionDtl } = erep;
-
-        return {
-          res: this.generateEventResponse(event, repetitionDtl),
-          eventRepetitionIds: [{ eventRepetitionId: erep.eventRepetitionId }],
-        };
-      }
-
-      // generate and return response body
-    } catch (error) {
-      console.log(error, 'error');
-      throw error;
+      return {
+        res: this.generateEventResponse(event, repetitionDtl),
+        eventRepetitionIds: [{ eventRepetitionId: erep.eventRepetitionId }],
+      };
     }
+
+    // generate and return response body
   }
 
   async createRecurringEvents(
@@ -1387,16 +1363,17 @@ export class EventService {
     eventDetailId: string,
     isEdit: boolean = false,
   ) {
+    if (!(this.eventCreationLimit > 0)) {
+      await this.removePartiallyCreatedData(eventId, eventDetailId);
+      throw new BadRequestException(ERROR_MESSAGES.CREATION_LIMIT_UNAVAILABLE);
+    }
+
     const eventOccurences = this.generateEventOccurences(
       createEventDto,
       eventDetailId,
       eventId,
       isEdit,
     );
-    if (!(this.eventCreationLimit > 0)) {
-      await this.removePartiallyCreatedData(eventId, eventDetailId);
-      throw new BadRequestException(ERROR_MESSAGES.CREATION_LIMIT_UNAVAILABLE);
-    }
 
     if (eventOccurences.length > this.eventCreationLimit) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
@@ -1482,14 +1459,39 @@ export class EventService {
   ) {
     const config = createEventDto.recurrencePattern;
     const startDate = createEventDto.startDatetime;
-
+    const endDate = createEventDto.endDatetime;
     const occurrences: EventRepetition[] = [];
-    const startTime = createEventDto.startDatetime.split('T')[1];
-    const endTime = createEventDto.endDatetime.split('T')[1];
 
-    let currentDate = new Date(startDate.split('T')[0] + 'T' + startTime);
+    // if we convert to local time and then genererate occurences
+    let currentDateUTC = new Date(startDate);
 
+    let currentDate = new Date(
+      currentDateUTC.toLocaleString('en-US', { timeZone: this.timezone }),
+    ); // Convert to given timezone
+
+    const currentEnd = new Date(endDate);
+
+    let endDateTimeZoned = new Date(
+      currentEnd.toLocaleString('en-US', { timeZone: this.timezone }),
+    );
+
+    const endTime = endDateTimeZoned.toISOString().split('T')[1];
     let createFirst = true;
+
+    const getEndDate = (currentDate: Date): string => {
+      const endDate = currentDate.toISOString().split('T')[0] + 'T' + endTime;
+      return endDate;
+    };
+
+    const removeZChar = (date: string): string => {
+      return date.slice(0, -1);
+    };
+
+    const convertToUTC = (istTime: string): string => {
+      // Convert the IST time string to UTC using moment-timezone
+      const utcTime = moment.tz(istTime, this.timezone).utc().toISOString();
+      return utcTime;
+    };
 
     const addDays = (date: Date, days: number): Date => {
       const result = new Date(date);
@@ -1546,18 +1548,24 @@ export class EventService {
           eventId,
           isEdit,
         );
-        const endDtm = currentDate.toISOString().split('T')[0] + 'T' + endTime;
+        const endDtm = getEndDate(currentDate);
 
-        eventRec.startDateTime = new Date(currentDate);
-        eventRec.endDateTime = new Date(endDtm);
+        eventRec.startDateTime = new Date(
+          convertToUTC(removeZChar(currentDate.toISOString())),
+        );
+        eventRec.endDateTime = new Date(convertToUTC(removeZChar(endDtm)));
+
         occurrences.push(eventRec);
       }
 
       if (config.frequency === Frequency.daily) {
-        const endDtm = currentDate.toISOString().split('T')[0] + 'T' + endTime;
+        const endDtm = getEndDate(currentDate);
 
-        eventRec.startDateTime = new Date(currentDate);
-        eventRec.endDateTime = new Date(endDtm);
+        eventRec.startDateTime = new Date(
+          convertToUTC(removeZChar(currentDate.toISOString())),
+        );
+        eventRec.endDateTime = new Date(convertToUTC(removeZChar(endDtm)));
+
         occurrences.push(eventRec);
         currentDate = addDays(currentDate, config.interval);
       } else if (config.frequency === Frequency.weekly) {
@@ -1568,10 +1576,13 @@ export class EventService {
           config.daysOfWeek,
         );
         currentDate = addDays(currentDate, daysUntilNextOccurrence);
-        const endDtm = currentDate.toISOString().split('T')[0] + 'T' + endTime;
+        const endDtm = getEndDate(currentDate);
 
-        eventRec.startDateTime = new Date(currentDate);
-        eventRec.endDateTime = new Date(endDtm);
+        eventRec.startDateTime = new Date(
+          convertToUTC(removeZChar(currentDate.toISOString())),
+        );
+        eventRec.endDateTime = new Date(convertToUTC(removeZChar(endDtm)));
+
         occurrences.push(eventRec);
         if (
           currentDate.getDay() ===
@@ -1592,6 +1603,12 @@ export class EventService {
     }
 
     return occurrences;
+  }
+
+  private validateTimezone() {
+    if (!this.timezone?.trim()?.length) {
+      throw new BadRequestException(ERROR_MESSAGES.TIMEZONE_NOT_PROVIDED);
+    }
   }
 
   async deleteEvent(eventId: string): Promise<DeleteResult> {
