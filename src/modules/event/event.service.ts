@@ -67,9 +67,7 @@ export class EventService {
     response: Response,
   ): Promise<Response> {
     const apiId = API_ID.CREATE_EVENT;
-    if (!this.timezone?.trim()?.length) {
-      throw new BadRequestException(ERROR_MESSAGES.TIMEZONE_NOT_PROVIDED);
-    }
+    this.validateTimezone();
 
     // this.validateCreateEventDto(createEventDto);
     // true for private, false for public
@@ -113,9 +111,7 @@ export class EventService {
 
   async getEvents(response, requestBody) {
     const apiId = API_ID.GET_EVENTS;
-    if (!this.timezone?.trim()?.length) {
-      throw new BadRequestException(ERROR_MESSAGES.TIMEZONE_NOT_PROVIDED);
-    }
+    this.validateTimezone();
 
     const { filters } = requestBody;
     const today = new Date();
@@ -260,10 +256,7 @@ export class EventService {
     response: Response,
   ) {
     const apiId = API_ID.UPDATE_EVENT;
-
-    if (!this.timezone?.trim()?.length) {
-      throw new BadRequestException(ERROR_MESSAGES.TIMEZONE_NOT_PROVIDED);
-    }
+    this.validateTimezone();
 
     // Event repetition record must not be of passed date
     const currentTimestamp = new Date();
@@ -1610,6 +1603,12 @@ export class EventService {
     }
 
     return occurrences;
+  }
+
+  private validateTimezone() {
+    if (!this.timezone?.trim()?.length) {
+      throw new BadRequestException(ERROR_MESSAGES.TIMEZONE_NOT_PROVIDED);
+    }
   }
 
   async deleteEvent(eventId: string): Promise<DeleteResult> {

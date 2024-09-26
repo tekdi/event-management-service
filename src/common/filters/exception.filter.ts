@@ -14,7 +14,10 @@ import { ERROR_MESSAGES } from '../utils/constants.util';
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(private readonly apiId?: string) {}
 
-  catch(exception: any, host: ArgumentsHost) {
+  catch(
+    exception: Error | HttpException | QueryFailedError,
+    host: ArgumentsHost,
+  ) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const status =
