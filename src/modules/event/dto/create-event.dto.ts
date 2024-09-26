@@ -51,7 +51,10 @@ export class MeetingDetailsDto {
   @Validate(UrlWithProviderValidator)
   url: string;
 
-  @ApiProperty({ description: 'Meeting password', example: 'xxxxxx' })
+  @ApiProperty({
+    description: 'Meeting password',
+    writeOnly: true, // This will hide it from API response docs
+  })
   @IsString()
   @IsOptional()
   password: string;
@@ -282,7 +285,7 @@ export class CreateEventDto {
     example: {
       url: 'https://example.com/meeting',
       id: 'meeting-id',
-      password: '**********',
+      // password: '**********', // This will be hidden from API response docs
     },
   })
   @IsObject()
