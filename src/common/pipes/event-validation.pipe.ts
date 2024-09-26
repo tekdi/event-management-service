@@ -260,7 +260,7 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
   private validateOccurrencesCondition(endConditionValue: string) {
     const occurrences = Number(endConditionValue);
 
-    if (!occurrences || occurrences < 1) {
+    if (!Number.isInteger(occurrences) || occurrences < 1) {
       throw new BadRequestException(
         ERROR_MESSAGES.RECURRENCE_OCCURRENCES_INVALID,
       );
