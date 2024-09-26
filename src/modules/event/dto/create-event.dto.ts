@@ -282,7 +282,7 @@ export class CreateEventDto {
     example: {
       url: 'https://example.com/meeting',
       id: 'meeting-id',
-      password: 'hidden-password',
+      password: '**********',
     },
   })
   @IsObject()
