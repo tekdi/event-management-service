@@ -101,13 +101,13 @@ export class RegistrationDateValidationPipe implements PipeTransform {
     currentDate: Date,
     isRestricted: boolean,
   ) {
-    if (registrationStartDate < currentDate && !isRestricted) {
+    if (registrationStartDate && registrationStartDate < currentDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_START_DATE_INVALID,
       );
     }
 
-    if (registrationEndDate < currentDate && !isRestricted) {
+    if (registrationEndDate && registrationEndDate < currentDate && !isRestricted) {
       throw new BadRequestException(
         ERROR_MESSAGES.REGISTRATION_END_DATE_INVALID,
       );
