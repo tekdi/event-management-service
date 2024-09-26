@@ -242,9 +242,7 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
         endDate + 'T' + createEventDto.endDatetime.split('T')[1],
       ).getTime() // compare with current event end time
     ) {
-      throw new BadRequestException(
-        'Event End time does not match with Recurrence End time',
-      );
+      throw new BadRequestException(ERROR_MESSAGES.ENDTIME_DOES_NOT_MATCH);
     }
 
     if (
@@ -254,7 +252,7 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
       ).getTime()
     ) {
       throw new BadRequestException(
-        'Event Start time does not match with Recurrence Start time',
+        ERROR_MESSAGES.EVENT_START_TIME_DOES_NOT_MATCH,
       );
     }
   }
@@ -299,16 +297,14 @@ export class SearchDateValidationPipe implements PipeTransform {
 
   private checkDateConflicts(date: any, startDate: any, endDate: any) {
     if (date && (startDate || endDate)) {
-      throw new BadRequestException(
-        'Only one of date, startDate, or endDate should be provided.',
-      );
+      throw new BadRequestException(ERROR_MESSAGES.ONLY_ONE_DATE_ALLOWED);
     }
   }
 
   private checkDateFields(date: any, startDate: any, endDate: any) {
     if (date && (!date.after || !date.before)) {
       throw new BadRequestException(
-        'Both "after" and "before" fields are required when date is provided.',
+        ERROR_MESSAGES.BOTH_AFTER_AND_BEFORE_REQUIRED,
       );
     }
 
@@ -318,7 +314,7 @@ export class SearchDateValidationPipe implements PipeTransform {
       endDate === undefined
     ) {
       throw new BadRequestException(
-        'Both "after" and "before" fields are required when startDate is provided.',
+        ERROR_MESSAGES.BOTH_AFTER_AND_BEFORE_REQUIRED_FOR_STARTDATE,
       );
     }
 
@@ -328,13 +324,13 @@ export class SearchDateValidationPipe implements PipeTransform {
       startDate === undefined
     ) {
       throw new BadRequestException(
-        'Both "after" and "before" fields are required when endDate is provided.',
+        ERROR_MESSAGES.BOTH_AFTER_AND_BEFORE_REQUIRED_FOR_ENDDATE,
       );
     }
 
     if (startDate && endDate && (!startDate.after || !endDate.before)) {
       throw new BadRequestException(
-        'if StartDate and EndDate Provided then "after" fields is required in startDate and "before fields is required in endDate',
+        ERROR_MESSAGES.AFTER_IN_START_AND_BEFORE_IN_END,
       );
     }
   }
@@ -353,7 +349,7 @@ export class SearchDateValidationPipe implements PipeTransform {
         new Date(startDate.after) > new Date(endDate.before))
     ) {
       throw new BadRequestException(
-        '"after" should be less than and equal to  "before" fields ',
+        ERROR_MESSAGES.AFTER_SHOULD_BE_LESS_THAN_BEFORE,
       );
     }
   }
