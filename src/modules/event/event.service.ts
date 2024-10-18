@@ -43,8 +43,8 @@ import { compareArrays } from 'src/common/utils/functions.util';
 import * as moment from 'moment-timezone';
 @Injectable()
 export class EventService {
-  private eventCreationLimit: number;
-  private timezone: string;
+  private readonly eventCreationLimit: number;
+  private readonly timezone: string;
 
   constructor(
     @InjectRepository(Events)

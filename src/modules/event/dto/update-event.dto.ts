@@ -68,7 +68,7 @@ export class UpdateEventDto {
     example: {
       url: 'https://example.com/meeting',
       id: '123-456-789',
-      password: 'xxxxxxx',
+      // password: 'xxxxxxx', // This will be hidden from API response docs
     },
   })
   @IsObject()

@@ -6,7 +6,7 @@ import { ValueTransformer } from 'typeorm';
 export class TimeZoneTransformer implements ValueTransformer {
   // private timeZone: string;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {}
 
   // To DB: Convert the date to UTC before saving
   to(entityValue: Date): Date {
