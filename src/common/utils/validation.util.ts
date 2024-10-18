@@ -6,7 +6,7 @@ import {
 
 function validateMeetingUrl(url, provider) {
   const providerPatterns = {
-    zoom: /^https:\/\/[\w-]*\.?zoom.us\/(j|my)\/[-\w?=]+$/,
+    zoom: /^https?:\/\/[\w-]*\.?zoom\.(com|us)\/(j|my)\/[-\w?=]+(?:\?.*)?$/,
     googlemeet: /^(https:\/\/)?meet\.google\.com\/[a-zA-Z0-9-]+$/,
     // microsoftteams: /^(https:\/\/)?teams\.microsoft\.com\/[a-zA-Z0-9?&=]+$/,
     // Add other supported providers as needed
