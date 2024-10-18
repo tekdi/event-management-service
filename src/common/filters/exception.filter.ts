@@ -34,7 +34,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ERROR_MESSAGES.BAD_REQUEST,
         statusCode.toString(),
       );
-      return response.status(status).json(errorResponse);
+      return response.status(statusCode).json(errorResponse);
     } else if (exception instanceof QueryFailedError) {
       const statusCode = HttpStatus.UNPROCESSABLE_ENTITY;
       const errorResponse = APIResponse.error(
