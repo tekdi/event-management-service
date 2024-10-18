@@ -26,7 +26,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let errorMessage =
       exception?.message || ERROR_MESSAGES.INTERNAL_SERVER_ERROR;
 
-    if (exception instanceof QueryFailedError) {
+    if (exception instanceof HttpException) {
+      const statusCode = exception.getStatus();
+      const errorResponse = APIResponse.error(
+        this.apiId,
+        (exception.getResponse() as any)?.message,
+        ERROR_MESSAGES.BAD_REQUEST,
+        statusCode.toString(),
+      );
+      return response.status(statusCode).json(errorResponse);
+    } else if (exception instanceof QueryFailedError) {
       const statusCode = HttpStatus.UNPROCESSABLE_ENTITY;
       const errorResponse = APIResponse.error(
         this.apiId,
