@@ -41,6 +41,8 @@ import {
 } from 'src/common/pipes/event-validation.pipe';
 import { compareArrays } from 'src/common/utils/functions.util';
 import * as moment from 'moment-timezone';
+import { LoggerWinston } from 'src/common/logger/logger.util';
+
 @Injectable()
 export class EventService {
   private readonly eventCreationLimit: number;
@@ -104,6 +106,12 @@ export class EventService {
       // }
     }
 
+    LoggerWinston.log(
+      `Event created with ID: ${createdEvent.res.eventId}`,
+      apiId,
+      'user',
+    );
+
     return response
       .status(HttpStatus.CREATED)
       .json(APIResponse.success(apiId, createdEvent.res, 'Created'));
@@ -164,6 +172,7 @@ export class EventService {
     if (finalResult.length === 0) {
       throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
     }
+    LoggerWinston.log(`Successfully fetched events`, apiId, 'info');
     return response
       .status(HttpStatus.OK)
       .json(
@@ -310,6 +319,8 @@ export class EventService {
         eventRepetition,
       );
     }
+
+    LoggerWinston.log(`Successfully updated events`, apiId, 'user');
     return response
       .status(HttpStatus.OK)
       .json(APIResponse.success(apiId, result, 'OK'));

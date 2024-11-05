@@ -9,6 +9,7 @@ import { QueryFailedError } from 'typeorm';
 import { Response } from 'express';
 import APIResponse from '../utils/response';
 import { ERROR_MESSAGES } from '../utils/constants.util';
+import { LoggerWinston } from '../logger/logger.util';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -20,6 +21,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
   ) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+
     const status =
       exception instanceof HttpException ? exception.getStatus() : 500;
 
@@ -34,6 +37,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ERROR_MESSAGES.BAD_REQUEST,
         statusCode.toString(),
       );
+      LoggerWinston.error(
+        `Error occurred on API: ${request.url}`,
+        errorMessage,
+        request.method,
+      );
+
       return response.status(statusCode).json(errorResponse);
     } else if (exception instanceof QueryFailedError) {
       const statusCode = HttpStatus.UNPROCESSABLE_ENTITY;
@@ -43,10 +52,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
         statusCode.toString(),
       );
+      LoggerWinston.error(
+        `Database Query Failed on API: ${request.url}`,
+        (exception as QueryFailedError).message,
+        request.method,
+        // user
+      );
       return response.status(statusCode).json(errorResponse);
     }
     const detailedErrorMessage = `${errorMessage}`;
-    console.log('detailedErrorMessage', detailedErrorMessage);
     const errorResponse = APIResponse.error(
       this.apiId,
       detailedErrorMessage,
