@@ -1,3 +1,7 @@
+import { BadRequestException } from '@nestjs/common';
+import { isUUID } from 'class-validator';
+import { ERROR_MESSAGES } from './constants.util';
+
 export const compareArrays = (a: number[], b: number[]): boolean => {
   if (a.length !== b.length) {
     return false;
@@ -21,4 +25,14 @@ export const getNextDay = (currentDate: Date): Date => {
   nextDay.setDate(currentDate.getDate() + 1);
 
   return nextDay;
+};
+
+export const checkValidUserId = (userId: any): string => {
+  if (typeof userId !== 'string') {
+    throw new BadRequestException(ERROR_MESSAGES.PROVIDE_ONE_USERID_IN_QUERY);
+  }
+  if (!userId || !isUUID(userId)) {
+    throw new BadRequestException(ERROR_MESSAGES.USERID_INVALID);
+  }
+  return userId;
 };

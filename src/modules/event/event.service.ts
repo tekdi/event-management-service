@@ -24,7 +24,11 @@ import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
 import { AttendeesService } from '../attendees/attendees.service';
 import { EventDetail } from './entities/eventDetail.entity';
-import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
+import {
+  API_ID,
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+} from 'src/common/utils/constants.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
 import {
   DaysOfWeek,
@@ -107,9 +111,9 @@ export class EventService {
     }
 
     LoggerWinston.log(
-      `Event created with ID: ${createdEvent.res.eventId}`,
+      SUCCESS_MESSAGES.EVENT_CREATED_LOG(createdEvent.res?.eventId),
       apiId,
-      'user',
+      createEventDto.createdBy,
     );
 
     return response
@@ -117,7 +121,7 @@ export class EventService {
       .json(APIResponse.success(apiId, createdEvent.res, 'Created'));
   }
 
-  async getEvents(response, requestBody) {
+  async getEvents(response, requestBody, userId: string) {
     const apiId = API_ID.GET_EVENTS;
     this.validateTimezone();
 
@@ -172,7 +176,7 @@ export class EventService {
     if (finalResult.length === 0) {
       throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
     }
-    LoggerWinston.log(`Successfully fetched events`, apiId, 'info');
+    LoggerWinston.log(SUCCESS_MESSAGES.EVENTS_FETCHED_LOG, apiId, userId);
     return response
       .status(HttpStatus.OK)
       .json(
@@ -320,7 +324,11 @@ export class EventService {
       );
     }
 
-    LoggerWinston.log(`Successfully updated events`, apiId, 'user');
+    LoggerWinston.log(
+      SUCCESS_MESSAGES.EVENT_UPDATED_LOG,
+      apiId,
+      updateBody.updatedBy,
+    );
     return response
       .status(HttpStatus.OK)
       .json(APIResponse.success(apiId, result, 'OK'));

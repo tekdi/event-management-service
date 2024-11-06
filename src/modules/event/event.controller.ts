@@ -6,6 +6,7 @@ import {
   Param,
   UsePipes,
   Res,
+  Req,
   ValidationPipe,
   BadRequestException,
   UseFilters,
@@ -21,8 +22,9 @@ import {
   ApiOkResponse,
   ApiResponse,
   ApiTags,
+  ApiQuery,
 } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { SearchFilterDto } from './dto/search-event.dto';
 import {
   DateValidationPipe,
@@ -38,6 +40,7 @@ import {
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
 } from 'src/common/utils/constants.util';
+import { checkValidUserId } from 'src/common/utils/functions.util';
 
 @Controller('event/v1')
 @ApiTags('Create Event')
@@ -50,6 +53,7 @@ export class EventController {
   @UseFilters(new AllExceptionsFilter(API_ID.CREATE_EVENT))
   @Post('/create')
   @ApiBody({ type: CreateEventDto })
+  @ApiQuery({ name: 'userid', required: true })
   @UsePipes(
     new ValidationPipe({ transform: true }),
     new DateValidationPipe(),
@@ -67,13 +71,18 @@ export class EventController {
   async create(
     @Body() createEventDto: CreateEventDto,
     @Res() response: Response,
+    @Req() request: Request,
   ) {
+    const userId: string = checkValidUserId(request.query.userid);
+    createEventDto.createdBy = userId;
+    createEventDto.updatedBy = userId;
     return this.eventService.createEvent(createEventDto, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENTS))
   @Post('/list')
   @ApiBody({ type: SearchFilterDto })
+  @ApiQuery({ name: 'userid', required: true })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
   })
@@ -86,15 +95,18 @@ export class EventController {
     status: 200,
   })
   async findAll(
-    @Res() response: Response,
     @Body() requestBody: SearchFilterDto,
+    @Res() response: Response,
+    @Req() request: Request,
   ) {
-    return this.eventService.getEvents(response, requestBody);
+    const userId: string = checkValidUserId(request.query.userid);
+    return this.eventService.getEvents(response, requestBody, userId);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
   @Patch('/:id')
   @ApiBody({ type: UpdateEventDto })
+  @ApiQuery({ name: 'userid', required: true })
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_UPDATED })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
@@ -104,10 +116,13 @@ export class EventController {
     @Body(new ValidationPipe({ transform: true }))
     updateEventDto: UpdateEventDto,
     @Res() response: Response,
+    @Req() request: Request,
   ) {
     if (!updateEventDto || Object.keys(updateEventDto).length === 0) {
       throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
     }
+    const userId: string = checkValidUserId(request.query.userid);
+    updateEventDto.updatedBy = userId;
     return this.eventService.updateEvent(id, updateEventDto, response);
   }
 }

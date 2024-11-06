@@ -187,17 +187,6 @@ export class UpdateEventDto {
   @IsIn(['Zoom', 'GoogleMeet'])
   onlineProvider: string;
 
-  //   @IsString()
-  //   @IsOptional()
-  //   createdBy: string;
-
-  @ApiProperty({
-    type: String,
-    description: 'updatedBy',
-    example: 'eff008a8-2573-466d-b877-fddf6a4fc13e',
-  })
-  @IsString()
-  //   @IsOptional()
   updatedBy: string;
 
   @IsOptional()

@@ -6,7 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import APIResponse from '../utils/response';
 import { ERROR_MESSAGES } from '../utils/constants.util';
 import { LoggerWinston } from '../logger/logger.util';
@@ -38,9 +38,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         statusCode.toString(),
       );
       LoggerWinston.error(
-        `Error occurred on API: ${request.url}`,
+        ERROR_MESSAGES.API_REQ_FAILURE(request.url),
         errorMessage,
         request.method,
+        typeof request.query === 'string' ? request.query : '',
       );
 
       return response.status(statusCode).json(errorResponse);
@@ -53,10 +54,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
         statusCode.toString(),
       );
       LoggerWinston.error(
-        `Database Query Failed on API: ${request.url}`,
+        ERROR_MESSAGES.DB_QUERY_FAILURE(request.url),
         (exception as QueryFailedError).message,
         request.method,
-        // user
+        typeof request.query === 'string' ? request.query : '',
       );
       return response.status(statusCode).json(errorResponse);
     }
@@ -68,6 +69,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.name
         : ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
       status.toString(),
+    );
+    LoggerWinston.error(
+      ERROR_MESSAGES.API_FAILURE(request.url),
+      errorResponse.result,
+      request.method,
+      typeof request.query === 'string' ? request.query : '',
     );
     return response.status(status).json(errorResponse);
   }

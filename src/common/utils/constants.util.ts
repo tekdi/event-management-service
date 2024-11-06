@@ -87,6 +87,11 @@ export const ERROR_MESSAGES = {
   END_CONDITION_BY_OCCURENCES:
     'End condition by occurrences is not implemented yet',
   EVENT_TYPE_CHANGE_NOT_SUPPORTED: 'Event type change not supported',
+  USERID_INVALID: 'Invalid UserId',
+  PROVIDE_ONE_USERID_IN_QUERY: 'Please provide only one userid in query',
+  API_REQ_FAILURE: (url: string) => `Error occurred on API Request: ${url}`,
+  DB_QUERY_FAILURE: (url: string) => `Database Query Failed on API: ${url}`,
+  API_FAILURE: (url: string) => `API Failure: ${url}`,
 };
 
 export const SUCCESS_MESSAGES = {
@@ -102,6 +107,9 @@ export const SUCCESS_MESSAGES = {
     'Event attendee history item updated successfully',
   EVENT_ATTENDEE_HISTORY_ITEM_DELETED:
     'Event attendee history item deleted successfully',
+  EVENT_CREATED_LOG: (url: string) => `Event created with ID: ${url}`,
+  EVENTS_FETCHED_LOG: 'Successfully fetched events',
+  EVENT_UPDATED_LOG: 'Successfully updated events',
 };
 
 export const API_ID = {
