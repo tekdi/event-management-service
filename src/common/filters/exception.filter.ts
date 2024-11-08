@@ -6,9 +6,10 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import APIResponse from '../utils/response';
 import { ERROR_MESSAGES } from '../utils/constants.util';
+import { LoggerWinston } from '../logger/logger.util';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -20,6 +21,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
   ) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+
     const status =
       exception instanceof HttpException ? exception.getStatus() : 500;
 
@@ -34,6 +37,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ERROR_MESSAGES.BAD_REQUEST,
         statusCode.toString(),
       );
+      LoggerWinston.error(
+        ERROR_MESSAGES.API_REQ_FAILURE(request.url),
+        errorMessage,
+        request.method,
+        typeof request.query === 'string' ? request.query : '',
+      );
+
       return response.status(statusCode).json(errorResponse);
     } else if (exception instanceof QueryFailedError) {
       const statusCode = HttpStatus.UNPROCESSABLE_ENTITY;
@@ -43,10 +53,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
         statusCode.toString(),
       );
+      LoggerWinston.error(
+        ERROR_MESSAGES.DB_QUERY_FAILURE(request.url),
+        (exception as QueryFailedError).message,
+        request.method,
+        typeof request.query === 'string' ? request.query : '',
+      );
       return response.status(statusCode).json(errorResponse);
     }
     const detailedErrorMessage = `${errorMessage}`;
-    console.log('detailedErrorMessage', detailedErrorMessage);
     const errorResponse = APIResponse.error(
       this.apiId,
       detailedErrorMessage,
@@ -54,6 +69,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.name
         : ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
       status.toString(),
+    );
+    LoggerWinston.error(
+      ERROR_MESSAGES.API_FAILURE(request.url),
+      errorResponse.result,
+      request.method,
+      typeof request.query === 'string' ? request.query : '',
     );
     return response.status(status).json(errorResponse);
   }

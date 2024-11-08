@@ -24,7 +24,11 @@ import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
 import { AttendeesService } from '../attendees/attendees.service';
 import { EventDetail } from './entities/eventDetail.entity';
-import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
+import {
+  API_ID,
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+} from 'src/common/utils/constants.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
 import {
   DaysOfWeek,
@@ -41,6 +45,8 @@ import {
 } from 'src/common/pipes/event-validation.pipe';
 import { compareArrays } from 'src/common/utils/functions.util';
 import * as moment from 'moment-timezone';
+import { LoggerWinston } from 'src/common/logger/logger.util';
+
 @Injectable()
 export class EventService {
   private readonly eventCreationLimit: number;
@@ -104,12 +110,18 @@ export class EventService {
       // }
     }
 
+    LoggerWinston.log(
+      SUCCESS_MESSAGES.EVENT_CREATED_LOG(createdEvent.res?.eventId),
+      apiId,
+      createEventDto.createdBy,
+    );
+
     return response
       .status(HttpStatus.CREATED)
       .json(APIResponse.success(apiId, createdEvent.res, 'Created'));
   }
 
-  async getEvents(response, requestBody) {
+  async getEvents(response, requestBody, userId: string) {
     const apiId = API_ID.GET_EVENTS;
     this.validateTimezone();
 
@@ -164,6 +176,7 @@ export class EventService {
     if (finalResult.length === 0) {
       throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
     }
+    LoggerWinston.log(SUCCESS_MESSAGES.EVENTS_FETCHED_LOG, apiId, userId);
     return response
       .status(HttpStatus.OK)
       .json(
@@ -310,6 +323,12 @@ export class EventService {
         eventRepetition,
       );
     }
+
+    LoggerWinston.log(
+      SUCCESS_MESSAGES.EVENT_UPDATED_LOG,
+      apiId,
+      updateBody.updatedBy,
+    );
     return response
       .status(HttpStatus.OK)
       .json(APIResponse.success(apiId, result, 'OK'));
