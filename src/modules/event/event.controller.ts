@@ -53,7 +53,7 @@ export class EventController {
   @UseFilters(new AllExceptionsFilter(API_ID.CREATE_EVENT))
   @Post('/create')
   @ApiBody({ type: CreateEventDto })
-  @ApiQuery({ name: 'userid', required: true })
+  @ApiQuery({ name: 'userId', required: true })
   @UsePipes(
     new ValidationPipe({ transform: true }),
     new DateValidationPipe(),
@@ -73,7 +73,7 @@ export class EventController {
     @Res() response: Response,
     @Req() request: Request,
   ) {
-    const userId: string = checkValidUserId(request.query.userid);
+    const userId: string = checkValidUserId(request.query?.userId);
     createEventDto.createdBy = userId;
     createEventDto.updatedBy = userId;
     return this.eventService.createEvent(createEventDto, response);
@@ -82,7 +82,7 @@ export class EventController {
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENTS))
   @Post('/list')
   @ApiBody({ type: SearchFilterDto })
-  @ApiQuery({ name: 'userid', required: true })
+  @ApiQuery({ name: 'userId', required: true })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
   })
@@ -100,10 +100,10 @@ export class EventController {
     @Req() request: Request,
   ) {
     let userId: string;
-    if (!request.query?.userid) {
+    if (!request.query?.userId) {
       userId = null;
     } else {
-      userId = checkValidUserId(request.query?.userid);
+      userId = checkValidUserId(request.query?.userId);
     }
     return this.eventService.getEvents(response, requestBody, userId);
   }
@@ -111,7 +111,7 @@ export class EventController {
   @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
   @Patch('/:id')
   @ApiBody({ type: UpdateEventDto })
-  @ApiQuery({ name: 'userid', required: true })
+  @ApiQuery({ name: 'userId', required: true })
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_UPDATED })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
@@ -126,7 +126,7 @@ export class EventController {
     if (!updateEventDto || Object.keys(updateEventDto).length === 0) {
       throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
     }
-    const userId: string = checkValidUserId(request.query.userid);
+    const userId: string = checkValidUserId(request.query?.userId);
     updateEventDto.updatedBy = userId;
     return this.eventService.updateEvent(id, updateEventDto, response);
   }
