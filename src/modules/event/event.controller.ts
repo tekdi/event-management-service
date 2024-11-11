@@ -99,7 +99,12 @@ export class EventController {
     @Res() response: Response,
     @Req() request: Request,
   ) {
-    const userId: string = checkValidUserId(request.query.userid);
+    let userId: string;
+    if (!request.query?.userid) {
+      userId = null;
+    } else {
+      userId = checkValidUserId(request.query?.userid);
+    }
     return this.eventService.getEvents(response, requestBody, userId);
   }
 
