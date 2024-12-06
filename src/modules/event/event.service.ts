@@ -291,8 +291,9 @@ export class EventService {
 
     const event = await this.findEventById(eventRepetition.eventId);
 
-    // condition for prevent non recuring event
+    // condition for prevent wrong input for recurring event
     if (!event.isRecurring && !updateBody.isMainEvent) {
+      // Is main but still passing false for isMainEvent and isRecurring throw error
       throw new BadRequestException(
         ERROR_MESSAGES.CANNOT_PASS_MAIN_EVENT_FALSE,
       );
@@ -348,7 +349,7 @@ export class EventService {
     ) {
       // TODO: Implement end condition by occurrences
       throw new NotImplementedException(
-        ERROR_MESSAGES.END_CONDITION_BY_OCCURENCES,
+        ERROR_MESSAGES.END_CONDITION_BY_OCCURRENCES,
       );
     }
 
@@ -810,7 +811,8 @@ export class EventService {
 
     // Handle recurring events
     if (startDatetime && endDatetime && event.isRecurring) {
-      // check if rec is passed
+      // Modify all recurring events that are not passed away
+      // check if recurrence pattern is passed
       if (!updateBody.recurrencePattern) {
         throw new BadRequestException(
           ERROR_MESSAGES.RECURRENCE_PATTERN_MISSING,
@@ -843,7 +845,6 @@ export class EventService {
           updateBody.recurrencePattern.recurringStartDate == undefined ||
           !new Date(updateBody.recurrencePattern.recurringStartDate)
         ) {
-          // no start date is passed , make old date as start date
           throw new BadRequestException(
             'Please Provide Valid Recurring Start Date',
           );
@@ -876,7 +877,7 @@ export class EventService {
         eventAndEventDetails.newEventDetail = eventDetail;
       }
     } else if (startDatetime && endDatetime && !event.isRecurring) {
-      // Handle non-recurring events
+      // Modify self recurring Ignore rep pattern
       new DateValidationPipe().transform(updateBody);
       eventRepetition.startDateTime = new Date(updateBody.startDatetime);
       eventRepetition.endDateTime = new Date(updateBody.endDatetime);
@@ -1246,9 +1247,12 @@ export class EventService {
     } = createEventDto;
     const event = new Events();
 
-    if (recurrencePattern?.endCondition?.value) {
+    if (
+      recurrencePattern?.endCondition?.value &&
+      recurrencePattern.frequency === Frequency.weekly
+    ) {
       recurrencePattern.recurringStartDate = createEventDto.startDatetime;
-      recurrencePattern.daysOfWeek.sort((a, b) => a - b);
+      recurrencePattern.daysOfWeek?.sort((a, b) => a - b);
     }
     event.isRecurring = isRecurring;
     // event.recurrenceEndDate = recurrenceEndDate
@@ -1280,8 +1284,11 @@ export class EventService {
     eventRepetition.event = event;
     eventRepetition.eventDetail = eventDetail;
     eventRepetition.onlineDetails = createEventDto.meetingDetails;
-    if (createEventDto.eventType === EventTypes.online) {
-      eventRepetition.onlineDetails['occurenceId'] = '';
+    if (
+      createEventDto.eventType === EventTypes.online &&
+      createEventDto.isMeetingNew === false
+    ) {
+      eventRepetition.onlineDetails['occurrenceId'] = '';
     }
     eventRepetition.startDateTime = new Date(createEventDto.startDatetime);
     eventRepetition.endDateTime = new Date(createEventDto.endDatetime);
@@ -1293,7 +1300,7 @@ export class EventService {
     return this.eventRepetitionRepository.save(eventRepetition);
   }
 
-  createRepetitionOccurence(
+  createRepetitionOccurrence(
     createEventDto: CreateEventDto,
     eventDetailId: string,
     eventId: string,
@@ -1310,8 +1317,11 @@ export class EventService {
       eventRepetition.onlineDetails = createEventDto.meetingDetails;
       eventRepetition.erMetaData = createEventDto.erMetaData ?? {};
     }
-    if (createEventDto.eventType === EventTypes.online) {
-      eventRepetition.onlineDetails['occurenceId'] = '';
+    if (
+      createEventDto.eventType === EventTypes.online &&
+      createEventDto.isMeetingNew === false
+    ) {
+      eventRepetition.onlineDetails['occurrenceId'] = '';
     }
     eventRepetition.startDateTime = null;
     eventRepetition.endDateTime = null;
@@ -1332,7 +1342,13 @@ export class EventService {
       createEventDto.meetingDetails = null;
       createEventDto.recordings = null;
     } else if (createEventDto.eventType === EventTypes.online) {
-      createEventDto.meetingDetails.providerGenerated = false;
+      if (createEventDto.isMeetingNew === false) {
+        createEventDto.meetingDetails.providerGenerated = false;
+      } else {
+        throw new NotImplementedException(
+          'Auto Generated Meetings not implemented',
+        );
+      }
     }
 
     const createdEventDetailDB = await this.createEventDetailDB(createEventDto);
@@ -1387,31 +1403,31 @@ export class EventService {
       throw new BadRequestException(ERROR_MESSAGES.CREATION_LIMIT_UNAVAILABLE);
     }
 
-    const eventOccurences = this.generateEventOccurences(
+    const eventOccurrences = this.generateEventOccurrences(
       createEventDto,
       eventDetailId,
       eventId,
       isEdit,
     );
 
-    if (eventOccurences.length > this.eventCreationLimit) {
+    if (eventOccurrences.length > this.eventCreationLimit) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
       throw new BadRequestException(ERROR_MESSAGES.CREATION_COUNT_EXCEEDED);
-    } else if (eventOccurences.length <= 0) {
+    } else if (eventOccurrences.length <= 0) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
       throw new BadRequestException(
         ERROR_MESSAGES.RECURRENCE_PERIOD_INSUFFICIENT,
       );
     } else {
-      const insertedOccurences = await this.eventRepetitionRepository
+      const insertedOccurrences = await this.eventRepetitionRepository
         .createQueryBuilder()
         .insert()
         .into('EventRepetition')
-        .values(eventOccurences)
+        .values(eventOccurrences)
         .returning(['onlineDetails', 'erMetaData'])
         .execute();
 
-      return insertedOccurences;
+      return insertedOccurrences;
     }
   }
 
@@ -1470,7 +1486,7 @@ export class EventService {
     });
   }
 
-  generateEventOccurences(
+  generateEventOccurrences(
     createEventDto: CreateEventDto,
     eventDetailId: string,
     eventId: string,
@@ -1481,7 +1497,7 @@ export class EventService {
     const endDate = createEventDto.endDatetime;
     const occurrences: EventRepetition[] = [];
 
-    // if we convert to local time and then genererate occurences
+    // if we convert to local time and then genererate occurrences
     let currentDateUTC = new Date(startDate);
 
     let currentDate = new Date(
@@ -1546,7 +1562,7 @@ export class EventService {
     };
 
     while (!endConditionMet(config.endCondition, occurrences)) {
-      const eventRec = this.createRepetitionOccurence(
+      const eventRec = this.createRepetitionOccurrence(
         createEventDto,
         eventDetailId,
         eventId,
@@ -1561,7 +1577,7 @@ export class EventService {
         config.daysOfWeek.includes(currentDay) &&
         createFirst
       ) {
-        const eventRec = this.createRepetitionOccurence(
+        const eventRec = this.createRepetitionOccurrence(
           createEventDto,
           eventDetailId,
           eventId,
