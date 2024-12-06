@@ -23,6 +23,7 @@ import {
   ApiResponse,
   ApiTags,
   ApiQuery,
+  ApiOperation,
 } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { SearchFilterDto } from './dto/search-event.dto';
@@ -41,6 +42,9 @@ import {
   SUCCESS_MESSAGES,
 } from 'src/common/utils/constants.util';
 import { checkValidUserId } from 'src/common/utils/functions.util';
+import { createEventsExamplesForSwagger } from './dto/create-event-example';
+import { updateEventsExamplesForSwagger } from './dto/update-event-example';
+import { searchEventsExamplesForSwagger } from './dto/search-event-example';
 
 @Controller('event/v1')
 @ApiTags('Create Event')
@@ -52,8 +56,14 @@ export class EventController {
 
   @UseFilters(new AllExceptionsFilter(API_ID.CREATE_EVENT))
   @Post('/create')
-  @ApiBody({ type: CreateEventDto })
-  @ApiQuery({ name: 'userId', required: true })
+  @ApiOperation({ summary: 'Create Events' })
+  @ApiBody({ type: CreateEventDto, examples: createEventsExamplesForSwagger })
+  @ApiQuery({
+    name: 'userId',
+    required: true,
+    description: ERROR_MESSAGES.USERID_REQUIRED,
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @UsePipes(
     new ValidationPipe({ transform: true }),
     new DateValidationPipe(),
@@ -81,7 +91,8 @@ export class EventController {
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENTS))
   @Post('/list')
-  @ApiBody({ type: SearchFilterDto })
+  @ApiOperation({ summary: 'Search Events' })
+  @ApiBody({ type: SearchFilterDto, examples: searchEventsExamplesForSwagger })
   @ApiQuery({ name: 'userId', required: true })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
@@ -109,9 +120,15 @@ export class EventController {
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
-  @Patch('/:id')
-  @ApiBody({ type: UpdateEventDto })
-  @ApiQuery({ name: 'userId', required: true })
+  @Patch('/:id') // eventRepetitionId
+  @ApiOperation({ summary: 'Edit Events' })
+  @ApiBody({ type: UpdateEventDto, examples: updateEventsExamplesForSwagger })
+  @ApiQuery({
+    name: 'userId',
+    required: true,
+    description: ERROR_MESSAGES.USERID_REQUIRED,
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_UPDATED })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,

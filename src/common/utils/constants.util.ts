@@ -88,6 +88,7 @@ export const ERROR_MESSAGES = {
     'End condition by occurrences is not implemented yet',
   EVENT_TYPE_CHANGE_NOT_SUPPORTED: 'Event type change not supported',
   USERID_INVALID: 'Invalid UserId',
+  USERID_REQUIRED: 'UserId Required',
   PROVIDE_ONE_USERID_IN_QUERY: 'Please provide userId in query params',
   API_REQ_FAILURE: (url: string) => `Error occurred on API Request: ${url}`,
   DB_QUERY_FAILURE: (url: string) => `Database Query Failed on API: ${url}`,
