@@ -29,7 +29,7 @@ export type RepetitionDetail = {
         id: string;
         url: string;
         password: string;
-        occurenceId: string;
+        occurrenceId: string;
         providerGenerated: boolean;
       }
     | {}
@@ -45,7 +45,7 @@ export type MeetingDetails = {
   url: string;
   password: string;
   providerGenerated: boolean;
-  occurenceId: string;
+  occurrenceId: string;
 };
 
 export enum DaysOfWeek {

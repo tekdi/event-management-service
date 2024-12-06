@@ -29,7 +29,7 @@ const updateEventsExamples: Record<
       id: '123-456-0000',
       url: 'http://zoom.us/j/mymeeting?pwd=xyz',
       password: 'xxxxxxx',
-      occurenceId: '',
+      occurrenceId: '',
       providerGenerated: false,
     },
     erMetaData: {
@@ -59,7 +59,7 @@ const updateEventsExamples: Record<
       id: '123-456-0000',
       url: 'https://meet.google.com/hex-uqed-zpp',
       password: 'xxxxxxx',
-      occurenceId: '',
+      occurrenceId: '',
       providerGenerated: false,
     },
     erMetaData: {
@@ -78,7 +78,7 @@ const updateEventsExamples: Record<
       id: '123-456-0000',
       url: 'https://meet.google.com/hex-uqed-zpp',
       password: 'xxxxxxx',
-      occurenceId: '',
+      occurrenceId: '',
       providerGenerated: false,
     },
     erMetaData: {

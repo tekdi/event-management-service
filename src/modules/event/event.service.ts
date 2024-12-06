@@ -349,7 +349,7 @@ export class EventService {
     ) {
       // TODO: Implement end condition by occurrences
       throw new NotImplementedException(
-        ERROR_MESSAGES.END_CONDITION_BY_OCCURENCES,
+        ERROR_MESSAGES.END_CONDITION_BY_OCCURRENCES,
       );
     }
 
@@ -1288,7 +1288,7 @@ export class EventService {
       createEventDto.eventType === EventTypes.online &&
       createEventDto.isMeetingNew === false
     ) {
-      eventRepetition.onlineDetails['occurenceId'] = '';
+      eventRepetition.onlineDetails['occurrenceId'] = '';
     }
     eventRepetition.startDateTime = new Date(createEventDto.startDatetime);
     eventRepetition.endDateTime = new Date(createEventDto.endDatetime);
@@ -1300,7 +1300,7 @@ export class EventService {
     return this.eventRepetitionRepository.save(eventRepetition);
   }
 
-  createRepetitionOccurence(
+  createRepetitionOccurrence(
     createEventDto: CreateEventDto,
     eventDetailId: string,
     eventId: string,
@@ -1321,7 +1321,7 @@ export class EventService {
       createEventDto.eventType === EventTypes.online &&
       createEventDto.isMeetingNew === false
     ) {
-      eventRepetition.onlineDetails['occurenceId'] = '';
+      eventRepetition.onlineDetails['occurrenceId'] = '';
     }
     eventRepetition.startDateTime = null;
     eventRepetition.endDateTime = null;
@@ -1403,31 +1403,31 @@ export class EventService {
       throw new BadRequestException(ERROR_MESSAGES.CREATION_LIMIT_UNAVAILABLE);
     }
 
-    const eventOccurences = this.generateEventOccurences(
+    const eventOccurrences = this.generateEventOccurrences(
       createEventDto,
       eventDetailId,
       eventId,
       isEdit,
     );
 
-    if (eventOccurences.length > this.eventCreationLimit) {
+    if (eventOccurrences.length > this.eventCreationLimit) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
       throw new BadRequestException(ERROR_MESSAGES.CREATION_COUNT_EXCEEDED);
-    } else if (eventOccurences.length <= 0) {
+    } else if (eventOccurrences.length <= 0) {
       await this.removePartiallyCreatedData(eventId, eventDetailId);
       throw new BadRequestException(
         ERROR_MESSAGES.RECURRENCE_PERIOD_INSUFFICIENT,
       );
     } else {
-      const insertedOccurences = await this.eventRepetitionRepository
+      const insertedOccurrences = await this.eventRepetitionRepository
         .createQueryBuilder()
         .insert()
         .into('EventRepetition')
-        .values(eventOccurences)
+        .values(eventOccurrences)
         .returning(['onlineDetails', 'erMetaData'])
         .execute();
 
-      return insertedOccurences;
+      return insertedOccurrences;
     }
   }
 
@@ -1486,7 +1486,7 @@ export class EventService {
     });
   }
 
-  generateEventOccurences(
+  generateEventOccurrences(
     createEventDto: CreateEventDto,
     eventDetailId: string,
     eventId: string,
@@ -1497,7 +1497,7 @@ export class EventService {
     const endDate = createEventDto.endDatetime;
     const occurrences: EventRepetition[] = [];
 
-    // if we convert to local time and then genererate occurences
+    // if we convert to local time and then genererate occurrences
     let currentDateUTC = new Date(startDate);
 
     let currentDate = new Date(
@@ -1562,7 +1562,7 @@ export class EventService {
     };
 
     while (!endConditionMet(config.endCondition, occurrences)) {
-      const eventRec = this.createRepetitionOccurence(
+      const eventRec = this.createRepetitionOccurrence(
         createEventDto,
         eventDetailId,
         eventId,
@@ -1577,7 +1577,7 @@ export class EventService {
         config.daysOfWeek.includes(currentDay) &&
         createFirst
       ) {
-        const eventRec = this.createRepetitionOccurence(
+        const eventRec = this.createRepetitionOccurrence(
           createEventDto,
           eventDetailId,
           eventId,

@@ -61,8 +61,8 @@ const createEventsExamples: Record<
     metaData: { cohortId: '3218bb35-a87d-4adf-b305-b205286fe320' },
     erMetaData: {},
   },
-  RecurringOnlineDailyByOccurences: {
-    title: 'Sample OnlineDailyByOccurences Event',
+  RecurringOnlineDailyByOccurrences: {
+    title: 'Sample OnlineDailyByOccurrences Event',
     shortDescription: 'This is a sample event',
     description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     eventType: 'online',
@@ -189,8 +189,8 @@ const createEventsExamples: Record<
     metaData: {},
     erMetaData: {},
   },
-  RecurringOnlineWeeklyByOccurences: {
-    title: 'Sample OnlineWeeklyByOccurences Event',
+  RecurringOnlineWeeklyByOccurrences: {
+    title: 'Sample OnlineWeeklyByOccurrences Event',
     shortDescription: 'This is a sample event',
     description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
     eventType: 'online',
@@ -252,7 +252,7 @@ const createEventsExamples: Record<
     metaData: {},
     erMetaData: {},
   },
-  RecurringOfflineWeeklyByOccurence: {
+  RecurringOfflineWeeklyByOccurrence: {
     title: 'Sample Event',
     shortDescription: 'This is a sample event',
     description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',

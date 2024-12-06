@@ -84,7 +84,7 @@ export const ERROR_MESSAGES = {
   RECURRENCE_PERIOD_INSUFFICIENT: 'Event recurrence period insufficient',
   PUBLIC_EVENTS: 'Public events not implemented!',
   DAILY_FREQUENCY: 'Daily frequency is not implemented yet',
-  END_CONDITION_BY_OCCURENCES:
+  END_CONDITION_BY_OCCURRENCES:
     'End condition by occurrences is not implemented yet',
   EVENT_TYPE_CHANGE_NOT_SUPPORTED: 'Event type change not supported',
   USERID_INVALID: 'Invalid UserId',
