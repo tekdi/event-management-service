@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { EventModule } from './modules/event/event.module';
 import { DatabaseModule } from './common/database-modules';
 import { AttendeesModule } from './modules/attendees/attendees.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { AttendeesModule } from './modules/attendees/attendees.module';
     EventModule,
     DatabaseModule,
     AttendeesModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
