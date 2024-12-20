@@ -1,53 +1,37 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpStatus,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Query,
-  Res,
-  Req,
-  UsePipes,
-  ValidationPipe,
-} from '@nestjs/common';
+import { Body, Controller, Post, Res, Req, UseFilters } from '@nestjs/common';
 import { Response, Request } from 'express';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
-import APIResponse from 'src/common/utils/response';
+import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
+import { MarkZoomAttendanceDto } from './dto/MarkZoomAttendance.dto';
+import { checkValidUserId } from 'src/common/utils/functions.util';
+import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 
 @Controller('attendance/v1')
 @ApiTags('Event-Attendance')
 export class EventAttendance {
   constructor(private readonly attendanceService: AttendanceService) {}
 
-  @Post('/:zoommeetid')
+  @UseFilters(new AllExceptionsFilter('mark.event.attendance'))
+  @Post('/markeventattendance')
+  @ApiBody({ type: MarkZoomAttendanceDto })
+  @ApiQuery({
+    name: 'userId',
+    required: true,
+    description: ERROR_MESSAGES.USERID_REQUIRED,
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
   async markEventAttendance(
-    @Param('zoommeetid') zoomMeetingId: string,
+    @Body() markZoomAttendanceDto: MarkZoomAttendanceDto,
     @Res() response: Response,
     @Req() request: Request,
   ): Promise<Response> {
     const apiId = 'mark.event.attendance';
-    try {
-      return this.attendanceService.markAttendanceForZoomMeetingParticipants(
-        zoomMeetingId,
-        response,
-      );
-    } catch (e) {
-      return response
-        .status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .send(
-          APIResponse.error(
-            apiId,
-            'Something went wrong',
-            JSON.stringify(e),
-            'INTERNAL_SERVER_ERROR',
-          ),
-        );
-    }
+    const userId: string = checkValidUserId(request.query?.userId);
+    return this.attendanceService.markAttendanceForZoomMeetingParticipants(
+      markZoomAttendanceDto,
+      userId,
+      response,
+    );
   }
 }
