@@ -227,7 +227,7 @@ export class AttendanceService implements OnModuleInit {
       },
     };
 
-    let manualPageSize = 1;
+    let manualPageSize = 100;
     const finalUrl =
       `${this.zoomPastMeetings}/${meetId}/participants?page_size=${manualPageSize}` +
       url;
