@@ -5,14 +5,14 @@ import { AttendanceService } from './attendance.service';
 import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
 import { MarkZoomAttendanceDto } from './dto/MarkZoomAttendance.dto';
 import { checkValidUserId } from 'src/common/utils/functions.util';
-import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
+import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
 
 @Controller('attendance/v1')
 @ApiTags('Event-Attendance')
 export class EventAttendance {
   constructor(private readonly attendanceService: AttendanceService) {}
 
-  @UseFilters(new AllExceptionsFilter('mark.event.attendance'))
+  @UseFilters(new AllExceptionsFilter(API_ID.MARK_ZOOM_ATTENDANCE))
   @Post('/markeventattendance')
   @ApiBody({ type: MarkZoomAttendanceDto })
   @ApiQuery({
@@ -26,7 +26,6 @@ export class EventAttendance {
     @Res() response: Response,
     @Req() request: Request,
   ): Promise<Response> {
-    const apiId = 'mark.event.attendance';
     const userId: string = checkValidUserId(request.query?.userId);
     return this.attendanceService.markAttendanceForZoomMeetingParticipants(
       markZoomAttendanceDto,

@@ -11,6 +11,7 @@ import { AxiosResponse } from 'axios';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
 import { MarkZoomAttendanceDto } from './dto/MarkZoomAttendance.dto';
+import { API_ID } from 'src/common/utils/constants.util';
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {
@@ -56,7 +57,7 @@ export class AttendanceService implements OnModuleInit {
     userId: string,
     response: Response,
   ) {
-    const apiId = 'mark.event.attendance';
+    const apiId = API_ID.MARK_ZOOM_ATTENDANCE;
 
     const participantEmails = await this.getZoomMeetingParticipantsEmail(
       markZoomAttendanceDto.zoomMeetingId,

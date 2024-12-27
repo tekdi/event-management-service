@@ -129,4 +129,5 @@ export const API_ID = {
   CREATE_EVENT_ATTENDEE_HISTORY_ITEM: 'api.event.attendee.history.item.create',
   UPDATE_EVENT_ATTENDEE_HISTORY_ITEM: 'api.event.attendee.history.item.update',
   DELETE_EVENT_ATTENDEE_HISTORY_ITEM: 'api.event.attendee.history.item.delete',
+  MARK_ZOOM_ATTENDANCE: 'mark.zoom.event.attendance',
 };
