@@ -53,11 +53,4 @@ export class MarkZoomAttendanceDto {
   @IsUUID()
   @IsNotEmpty()
   tenantId: string;
-
-  @ApiProperty({
-    type: String,
-    description: 'User service token',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  userServiceToken: string;
 }

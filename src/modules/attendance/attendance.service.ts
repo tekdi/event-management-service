@@ -64,10 +64,7 @@ export class AttendanceService implements OnModuleInit {
 
     // get userids from email list in user service
 
-    const userList = await this.getUserIdList(
-      markZoomAttendanceDto.userServiceToken,
-      participantEmails,
-    );
+    const userList = await this.getUserIdList(participantEmails);
 
     // mark attendance for each user
     const res = await this.markUsersAttendance(
@@ -81,7 +78,7 @@ export class AttendanceService implements OnModuleInit {
       .json(APIResponse.success(apiId, res, 'Created'));
   }
 
-  async getUserIdList(token: string, emailList: string[]): Promise<string[]> {
+  async getUserIdList(emailList: string[]): Promise<string[]> {
     try {
       const userListResponse = await this.httpService.axiosRef.post(
         `${this.userServiceUrl}/user/v1/list`,
@@ -96,7 +93,6 @@ export class AttendanceService implements OnModuleInit {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + token,
           },
         },
       );
@@ -126,10 +122,6 @@ export class AttendanceService implements OnModuleInit {
       const userAttendance = userIds.map((userId) => ({
         userId,
         attendance: 'present',
-        remark: 'string',
-        metaData: 'string',
-        syncTime: 'string',
-        session: 'string',
       }));
 
       const attendanceMarkResponse = await this.httpService.axiosRef.post(
