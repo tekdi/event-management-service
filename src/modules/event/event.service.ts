@@ -270,6 +270,9 @@ export class EventService {
   ) {
     const apiId = API_ID.UPDATE_EVENT;
     this.validateTimezone();
+    if (!(this.eventCreationLimit > 0)) {
+      throw new BadRequestException(ERROR_MESSAGES.CREATION_LIMIT_UNAVAILABLE);
+    }
 
     // Event repetition record must not be of passed date
     const currentTimestamp = new Date();
