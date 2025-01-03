@@ -63,13 +63,22 @@ export class AttendanceService implements OnModuleInit {
       markZoomAttendanceDto.zoomMeetingId,
     );
 
-    // get userids from email list in user service
+    // get userIds from email list in user service
 
-    const userList = await this.getUserIdList(participantEmails);
+    const userList = await this.getUserIdList(participantEmails.emailIds);
+
+    const userDetailList = [];
+    const userMap = new Map(userList.map((user) => [user.email, user]));
+    participantEmails.inMeetingUserDetails.forEach((element) => {
+      const ele = userMap.get(element.user_email);
+      if (ele) {
+        userDetailList.push({ ...ele, ...element });
+      }
+    });
 
     // mark attendance for each user
     const res = await this.markUsersAttendance(
-      userList,
+      userDetailList,
       markZoomAttendanceDto,
       userId,
     );
@@ -79,7 +88,22 @@ export class AttendanceService implements OnModuleInit {
       .json(APIResponse.success(apiId, res, 'Created'));
   }
 
-  async getUserIdList(emailList: string[]): Promise<string[]> {
+  async getUserIdList(emailList: string[]): Promise<
+    {
+      userId: string;
+      username: string;
+      email: string;
+      name: string;
+      role: string;
+      mobile: string;
+      createdBy: string;
+      updatedBy: string;
+      createdAt: string;
+      updatedAt: string;
+      status: string;
+      total_count: string;
+    }[]
+  > {
     try {
       const userListResponse = await this.httpService.axiosRef.post(
         `${this.userServiceUrl}/user/v1/list`,
@@ -101,10 +125,10 @@ export class AttendanceService implements OnModuleInit {
       const userDetails = userListResponse.data.result.getUserDetails;
 
       if (!userDetails.length) {
-        throw new BadRequestException('No users found');
+        throw new BadRequestException('No users found in user service');
       }
 
-      return userDetails.map(({ userId }) => userId);
+      return userDetails;
     } catch (e) {
       if (e.status === 404) {
         throw new BadRequestException('Service not found');
@@ -114,19 +138,26 @@ export class AttendanceService implements OnModuleInit {
   }
 
   async markUsersAttendance(
-    userIds: string[],
+    userDetails: any[],
     markZoomAttendanceDto: MarkZoomAttendanceDto,
     loggedInUserId: string,
   ): Promise<any> {
     // mark attendance for each user
     try {
-      const userAttendance = userIds.map((userId) => ({
-        userId,
-        attendance: 'present',
-      }));
+      const userAttendance = userDetails.map(
+        ({ userId, duration, join_time, leave_time }) => ({
+          userId,
+          attendance: 'present',
+          metaData: {
+            duration,
+            joinTime: join_time,
+            leaveTime: leave_time,
+          },
+        }),
+      );
 
       const attendanceMarkResponse = await this.httpService.axiosRef.post(
-        `${this.attendanceServiceUrl}/api/v1/attendance/bulkAttendance`,
+        `${this.attendanceServiceUrl}/api/v1/attendance/bulkAttendance?userId=${loggedInUserId}`,
         {
           attendanceDate: markZoomAttendanceDto.attendanceDate,
           contextId: markZoomAttendanceDto.eventId,
@@ -160,7 +191,7 @@ export class AttendanceService implements OnModuleInit {
 
   async getZoomMeetingParticipantsEmail(
     zoomMeetingId: string,
-  ): Promise<string[]> {
+  ): Promise<{ emailIds: string[]; inMeetingUserDetails: any[] }> {
     try {
       const token = await this.getZoomToken();
 
@@ -170,17 +201,17 @@ export class AttendanceService implements OnModuleInit {
         zoomMeetingId,
       );
 
-      const emailIds = userList
-        .filter(({ user_email, status }) => {
-          if (status === 'in_meeting') return user_email;
-        })
-        .map(({ user_email }) => user_email);
+      const inMeetingUserDetails = userList.filter(({ user_email, status }) => {
+        if (status === 'in_meeting') return user_email;
+      });
+
+      const emailIds = inMeetingUserDetails.map(({ user_email }) => user_email);
 
       if (!emailIds.length) {
         throw new BadRequestException('No participants found for meeting');
       }
 
-      return emailIds;
+      return { emailIds, inMeetingUserDetails };
     } catch (e) {
       if (e.status === 404) {
         throw new BadRequestException('Meeting not found');
@@ -220,7 +251,22 @@ export class AttendanceService implements OnModuleInit {
     userArray: any[],
     meetId: string,
     url = '',
-  ) {
+  ): Promise<
+    {
+      id: string;
+      user_id: string;
+      name: string;
+      user_email: string;
+      join_time: string;
+      leave_time: string;
+      duration: number;
+      registrant_id: string;
+      failover: boolean;
+      status: string;
+      groupId: string;
+      internal_user: boolean;
+    }[]
+  > {
     const headers = {
       headers: {
         'Content-Type': 'application/json',
