@@ -92,3 +92,20 @@ export type ZoomParticipant = {
   groupId: string;
   internal_user: boolean;
 };
+
+export interface AttendanceRecord {
+  userId: string;
+  attendance: 'present' | 'absent';
+  metaData: {
+    duration: number;
+    joinTime: string;
+    leaveTime: string;
+  };
+}
+
+export interface InMeetingUserDetails {
+  user_email: string;
+  duration: number;
+  join_time: string;
+  leave_time: string;
+}

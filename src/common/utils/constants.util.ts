@@ -95,6 +95,7 @@ export const ERROR_MESSAGES = {
   SERVICE_NOT_FOUND: 'Service not found',
   NO_PARTICIPANTS_FOUND: 'No participants found for the meeting',
   MEETING_NOT_FOUND: 'Meeting not found',
+  NO_USERS_FOUND: 'No users found in system',
   API_REQ_FAILURE: (url: string) => `Error occurred on API Request: ${url}`,
   DB_QUERY_FAILURE: (url: string) => `Database Query Failed on API: ${url}`,
   API_FAILURE: (url: string) => `API Failure: ${url}`,
@@ -116,7 +117,7 @@ export const SUCCESS_MESSAGES = {
   EVENT_CREATED_LOG: (url: string) => `Event created with ID: ${url}`,
   EVENTS_FETCHED_LOG: 'Successfully fetched events',
   EVENT_UPDATED_LOG: 'Successfully updated events',
-  ATTENDANCE_MARKED_FOR_ZOOM_MEETING: 'Attendance marked for zoom meeting',
+  ATTENDANCE_MARKED_FOR_MEETING: 'Attendance marked for meeting',
 };
 
 export const API_ID = {

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { IOnlineMeetingLocator } from '../onlineMeeting.locator';
 import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { AxiosResponse } from 'axios';
@@ -33,7 +37,7 @@ export class ZoomService implements IOnlineMeetingLocator {
       !this.authUrl.trim().length ||
       !this.zoomPastMeetings.trim().length
     ) {
-      throw new BadRequestException(
+      throw new InternalServerErrorException(
         ERROR_MESSAGES.ENVIRONMENT_VARIABLES_MISSING,
       );
     }
@@ -58,7 +62,7 @@ export class ZoomService implements IOnlineMeetingLocator {
 
       return tokenResponse.data.access_token;
     } catch (e) {
-      if (e.status === 404) {
+      if (e.response && e.response.status === 404) {
         throw new BadRequestException(ERROR_MESSAGES.SERVICE_NOT_FOUND);
       }
       throw e;
@@ -67,7 +71,7 @@ export class ZoomService implements IOnlineMeetingLocator {
 
   async getMeetingParticipantList(
     token: string,
-    userArray: any[],
+    userArray: ZoomParticipant[],
     meetingId: string,
     url: string = '',
   ): Promise<ZoomParticipant[]> {
@@ -83,24 +87,24 @@ export class ZoomService implements IOnlineMeetingLocator {
       `${this.zoomPastMeetings}/${meetingId}/participants?page_size=${manualPageSize}` +
       url;
 
-    return await this.httpService.axiosRef
-      .get(finalUrl, headers)
-      .then((response) => {
-        const retrievedUsersArray = userArray.concat(
-          response.data.participants,
-        );
-        if (response.data.next_page_token) {
-          let nextPath = `&next_page_token=${response.data.next_page_token}`;
+    try {
+      const response = await this.httpService.axiosRef.get(finalUrl, headers);
 
-          return this.getMeetingParticipantList(
-            token,
-            retrievedUsersArray,
-            meetingId,
-            nextPath,
-          );
-        } else {
-          return retrievedUsersArray;
-        }
-      });
+      const retrievedUsersArray = userArray.concat(response.data.participants);
+      if (response.data.next_page_token) {
+        let nextPath = `&next_page_token=${response.data.next_page_token}`;
+
+        return await this.getMeetingParticipantList(
+          token,
+          retrievedUsersArray,
+          meetingId,
+          nextPath,
+        );
+      } else {
+        return retrievedUsersArray;
+      }
+    } catch (e) {
+      throw e;
+    }
   }
 }

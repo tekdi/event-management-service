@@ -18,11 +18,13 @@ export class OnlineMeetingAdapter {
   }
 
   getAdapter(): IOnlineMeetingLocator {
-    const source = this.configService.get('ONLINE_MEETING_ADAPTER'); // Default to 'postgres' if undefined
+    const source = this.configService.get('ONLINE_MEETING_ADAPTER');
     const adapter = this.adapterMap[source];
 
     if (!adapter) {
-      throw new Error(`Invalid adapter source: ${source}`);
+      throw new Error(
+        `Invalid online meeting adapter: '${source}'. Supported adapters: ${Object.keys(this.adapterMap).join(', ')}`,
+      );
     }
 
     return adapter;

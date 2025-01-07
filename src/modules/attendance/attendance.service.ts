@@ -16,6 +16,7 @@ import {
   SUCCESS_MESSAGES,
 } from 'src/common/utils/constants.util';
 import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
+import { AttendanceRecord, InMeetingUserDetails } from 'src/common/utils/types';
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {
@@ -39,7 +40,7 @@ export class AttendanceService implements OnModuleInit {
       !this.attendanceServiceUrl.trim().length
     ) {
       throw new InternalServerErrorException(
-        ERROR_MESSAGES.ENVIRONMENT_VARIABLES_MISSING,
+        `${ERROR_MESSAGES.ENVIRONMENT_VARIABLES_MISSING}: USER_SERVICE, ATTENDANCE_SERVICE`,
       );
     }
   }
@@ -61,12 +62,14 @@ export class AttendanceService implements OnModuleInit {
 
     const userDetailList = [];
     const userMap = new Map(userList.map((user) => [user.email, user]));
-    participantEmails.inMeetingUserDetails.forEach((element) => {
-      const ele = userMap.get(element.user_email);
-      if (ele) {
-        userDetailList.push({ ...ele, ...element });
-      }
-    });
+    participantEmails.inMeetingUserDetails.forEach(
+      (element: InMeetingUserDetails) => {
+        const ele = userMap.get(element.user_email);
+        if (ele) {
+          userDetailList.push({ ...ele, ...element });
+        }
+      },
+    );
 
     // mark attendance for each user
     const res = await this.markUsersAttendance(
@@ -81,7 +84,7 @@ export class AttendanceService implements OnModuleInit {
         APIResponse.success(
           apiId,
           res,
-          SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_ZOOM_MEETING,
+          SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
         ),
       );
   }
@@ -123,7 +126,7 @@ export class AttendanceService implements OnModuleInit {
       const userDetails = userListResponse.data.result.getUserDetails;
 
       if (!userDetails.length) {
-        throw new BadRequestException();
+        throw new BadRequestException(ERROR_MESSAGES.NO_USERS_FOUND);
       }
 
       return userDetails;
@@ -142,7 +145,7 @@ export class AttendanceService implements OnModuleInit {
   ): Promise<any> {
     // mark attendance for each user
     try {
-      const userAttendance = userDetails.map(
+      const userAttendance: AttendanceRecord[] = userDetails.map(
         ({ userId, duration, join_time, leave_time }) => ({
           userId,
           attendance: 'present',
