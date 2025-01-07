@@ -15,7 +15,7 @@ export class ZoomService implements IOnlineMeetingLocator {
   private readonly zoomPastMeetings: string;
 
   constructor(
-    private httpService: HttpService,
+    private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
     this.accountId = this.configService.get('ZOOM_ACCOUNT_ID');

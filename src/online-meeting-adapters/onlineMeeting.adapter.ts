@@ -5,14 +5,15 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class OnlineMeetingAdapter {
-  private adapterMap: Record<string, IOnlineMeetingLocator>;
+  private readonly adapterMap: Record<string, IOnlineMeetingLocator>;
 
   constructor(
-    private zoomProvider: ZoomService,
+    private readonly zoomProvider: ZoomService,
     private readonly configService: ConfigService,
   ) {
     this.adapterMap = {
       zoom: this.zoomProvider,
+      // Add more adapters here
     };
   }
 
