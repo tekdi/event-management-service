@@ -87,24 +87,20 @@ export class ZoomService implements IOnlineMeetingLocator {
       `${this.zoomPastMeetings}/${meetingId}/participants?page_size=${manualPageSize}` +
       url;
 
-    try {
-      const response = await this.httpService.axiosRef.get(finalUrl, headers);
+    const response = await this.httpService.axiosRef.get(finalUrl, headers);
 
-      const retrievedUsersArray = userArray.concat(response.data.participants);
-      if (response.data.next_page_token) {
-        let nextPath = `&next_page_token=${response.data.next_page_token}`;
+    const retrievedUsersArray = userArray.concat(response.data.participants);
+    if (response.data.next_page_token) {
+      let nextPath = `&next_page_token=${response.data.next_page_token}`;
 
-        return await this.getMeetingParticipantList(
-          token,
-          retrievedUsersArray,
-          meetingId,
-          nextPath,
-        );
-      } else {
-        return retrievedUsersArray;
-      }
-    } catch (e) {
-      throw e;
+      return await this.getMeetingParticipantList(
+        token,
+        retrievedUsersArray,
+        meetingId,
+        nextPath,
+      );
+    } else {
+      return retrievedUsersArray;
     }
   }
 }
