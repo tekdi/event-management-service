@@ -77,3 +77,18 @@ export type RecurrencePattern = {
     value: string;
   };
 };
+
+export type ZoomParticipant = {
+  id: string;
+  user_id: string;
+  name: string;
+  user_email: string;
+  join_time: string;
+  leave_time: string;
+  duration: number;
+  registrant_id: string;
+  failover: boolean;
+  status: string;
+  groupId: string;
+  internal_user: boolean;
+};

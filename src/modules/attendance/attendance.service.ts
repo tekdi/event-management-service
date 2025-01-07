@@ -7,11 +7,15 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AxiosResponse } from 'axios';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
 import { MarkZoomAttendanceDto } from './dto/MarkZoomAttendance.dto';
-import { API_ID } from 'src/common/utils/constants.util';
+import {
+  API_ID,
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+} from 'src/common/utils/constants.util';
+import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {
@@ -19,36 +23,24 @@ export class AttendanceService implements OnModuleInit {
 
   private readonly userServiceUrl: string;
   private readonly attendanceServiceUrl: string;
-  private readonly accountId: string;
-  private readonly username: string;
-  private readonly password: string;
-  private readonly authUrl: string;
-  private readonly zoomPastMeetings: string;
 
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly onlineMeetingAdapter: OnlineMeetingAdapter,
   ) {
     this.userServiceUrl = this.configService.get('USER_SERVICE');
     this.attendanceServiceUrl = this.configService.get('ATTENDANCE_SERVICE');
-    this.accountId = this.configService.get('ZOOM_ACCOUNT_ID');
-    this.username = this.configService.get('ZOOM_USERNAME');
-    this.password = this.configService.get('ZOOM_PASSWORD');
-    this.authUrl = this.configService.get('ZOOM_AUTH_URL');
-    this.zoomPastMeetings = this.configService.get('ZOOM_PAST_MEETINGS');
   }
 
   onModuleInit() {
     if (
       !this.userServiceUrl.trim().length ||
-      !this.attendanceServiceUrl.trim().length ||
-      !this.accountId.trim().length ||
-      !this.username.trim().length ||
-      !this.password.trim().length ||
-      !this.authUrl.trim().length ||
-      !this.zoomPastMeetings.trim().length
+      !this.attendanceServiceUrl.trim().length
     ) {
-      throw new InternalServerErrorException('Environment variables missing!');
+      throw new InternalServerErrorException(
+        ERROR_MESSAGES.ENVIRONMENT_VARIABLES_MISSING,
+      );
     }
   }
 
@@ -57,7 +49,7 @@ export class AttendanceService implements OnModuleInit {
     userId: string,
     response: Response,
   ) {
-    const apiId = API_ID.MARK_ZOOM_ATTENDANCE;
+    const apiId = API_ID.MARK_EVENT_ATTENDANCE;
 
     const participantEmails = await this.getZoomMeetingParticipantsEmail(
       markZoomAttendanceDto.zoomMeetingId,
@@ -85,7 +77,13 @@ export class AttendanceService implements OnModuleInit {
 
     return response
       .status(HttpStatus.CREATED)
-      .json(APIResponse.success(apiId, res, 'Created'));
+      .json(
+        APIResponse.success(
+          apiId,
+          res,
+          SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_ZOOM_MEETING,
+        ),
+      );
   }
 
   async getUserIdList(emailList: string[]): Promise<
@@ -125,13 +123,13 @@ export class AttendanceService implements OnModuleInit {
       const userDetails = userListResponse.data.result.getUserDetails;
 
       if (!userDetails.length) {
-        throw new BadRequestException('No users found in user service');
+        throw new BadRequestException();
       }
 
       return userDetails;
     } catch (e) {
       if (e.status === 404) {
-        throw new BadRequestException('Service not found');
+        throw new BadRequestException(ERROR_MESSAGES.SERVICE_NOT_FOUND);
       }
       throw e;
     }
@@ -193,13 +191,11 @@ export class AttendanceService implements OnModuleInit {
     zoomMeetingId: string,
   ): Promise<{ emailIds: string[]; inMeetingUserDetails: any[] }> {
     try {
-      const token = await this.getZoomToken();
+      const token = await this.onlineMeetingAdapter.getAdapter().getToken();
 
-      const userList = await this.getZoomParticipantList(
-        token,
-        [],
-        zoomMeetingId,
-      );
+      const userList = await this.onlineMeetingAdapter
+        .getAdapter()
+        .getMeetingParticipantList(token, [], zoomMeetingId, '');
 
       const inMeetingUserDetails = userList.filter(({ user_email, status }) => {
         if (status === 'in_meeting') return user_email;
@@ -208,95 +204,15 @@ export class AttendanceService implements OnModuleInit {
       const emailIds = inMeetingUserDetails.map(({ user_email }) => user_email);
 
       if (!emailIds.length) {
-        throw new BadRequestException('No participants found for meeting');
+        throw new BadRequestException(ERROR_MESSAGES.NO_PARTICIPANTS_FOUND);
       }
 
       return { emailIds, inMeetingUserDetails };
     } catch (e) {
       if (e.status === 404) {
-        throw new BadRequestException('Meeting not found');
+        throw new BadRequestException(ERROR_MESSAGES.MEETING_NOT_FOUND);
       }
       throw e;
     }
-  }
-
-  async getZoomToken() {
-    try {
-      const auth =
-        'Basic ' +
-        Buffer.from(this.username + ':' + this.password).toString('base64');
-
-      const tokenResponse: AxiosResponse = await this.httpService.axiosRef.post(
-        `${this.authUrl}?grant_type=account_credentials&account_id=${this.accountId}`,
-        {},
-        {
-          headers: {
-            Accept: 'application/json',
-            Authorization: auth,
-          },
-        },
-      );
-
-      return tokenResponse.data.access_token;
-    } catch (e) {
-      if (e.status === 404) {
-        throw new BadRequestException('Service not found');
-      }
-      throw e;
-    }
-  }
-
-  async getZoomParticipantList(
-    token: string,
-    userArray: any[],
-    meetId: string,
-    url = '',
-  ): Promise<
-    {
-      id: string;
-      user_id: string;
-      name: string;
-      user_email: string;
-      join_time: string;
-      leave_time: string;
-      duration: number;
-      registrant_id: string;
-      failover: boolean;
-      status: string;
-      groupId: string;
-      internal_user: boolean;
-    }[]
-  > {
-    const headers = {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + token,
-      },
-    };
-
-    let manualPageSize = 100;
-    const finalUrl =
-      `${this.zoomPastMeetings}/${meetId}/participants?page_size=${manualPageSize}` +
-      url;
-
-    return await this.httpService.axiosRef
-      .get(finalUrl, headers)
-      .then((response) => {
-        const retrievedUsersArray = userArray.concat(
-          response.data.participants,
-        );
-        if (response.data.next_page_token) {
-          let nextPath = `&next_page_token=${response.data.next_page_token}`;
-
-          return this.getZoomParticipantList(
-            token,
-            retrievedUsersArray,
-            meetId,
-            nextPath,
-          );
-        } else {
-          return retrievedUsersArray;
-        }
-      });
   }
 }

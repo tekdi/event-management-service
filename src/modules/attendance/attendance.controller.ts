@@ -12,7 +12,7 @@ import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
 export class EventAttendance {
   constructor(private readonly attendanceService: AttendanceService) {}
 
-  @UseFilters(new AllExceptionsFilter(API_ID.MARK_ZOOM_ATTENDANCE))
+  @UseFilters(new AllExceptionsFilter(API_ID.MARK_EVENT_ATTENDANCE))
   @Post('/markeventattendance')
   @ApiBody({ type: MarkZoomAttendanceDto })
   @ApiQuery({
