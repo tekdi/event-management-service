@@ -508,11 +508,9 @@ export class EventService {
       EventDetail,
       oldEventDetail,
     );
-    // this.eventDetailRepository.save(oldEventDetail);
     oldEvent.eventDetailId = newEventDetail.eventDetailId;
     oldEvent.recurrencePattern = newRecurrencePattern;
     const newEvent = await this.typeormService.save(Events, oldEvent);
-    //  await this.eventRepository.save(oldEvent);
 
     return { newEvent, newEventDetail };
   }
@@ -1021,7 +1019,6 @@ export class EventService {
           EventDetail,
           existingEventDetails,
         );
-        // await this.eventDetailRepository.save(existingEventDetails);
 
         // update eventDetail id in all places which are greater than and equal to current repetition startDate in repetition table
         if (recurrenceRecords.length > 0) {
@@ -1079,9 +1076,7 @@ export class EventService {
             EventDetail,
             repetitionEventDetailExistingResult,
           );
-          // await this.eventDetailRepository.save(
-          //   repetitionEventDetailExistingResult,
-          // );
+
           newEventDetailsId = result.eventDetailId;
           updateResult['eventDetails'] = result;
         }
@@ -1142,7 +1137,7 @@ export class EventService {
           EventDetail,
           existingEventDetails,
         );
-        // await this.eventDetailRepository.save(existingEventDetails);
+
         eventRepetition.eventDetailId = result.eventDetailId;
         eventRepetition.updatedAt = new Date();
         await this.typeormService.save(EventRepetition, eventRepetition);
