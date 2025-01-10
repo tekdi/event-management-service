@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   DeepPartial,
   DeleteResult,
@@ -30,9 +30,6 @@ export class TypeormService {
   // Find one record by conditions
   async findOne<T>(entity: EntityTarget<T>, conditions: object): Promise<T> {
     const record = await this.getRepository(entity).findOne(conditions);
-    if (!record) {
-      throw new NotFoundException(`${entity} not found`);
-    }
     return record;
   }
 
