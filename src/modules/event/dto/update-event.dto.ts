@@ -20,7 +20,7 @@ export interface UpdateResult {
   onlineDetails?: any;
   erMetaData?: any;
   eventDetails?: any;
-  repetationDetail?: any;
+  repetitionDetail?: any;
   recurrenceUpdate?: any;
   updatedRecurringEvent?: any;
   updatedEventDetails?: any;
