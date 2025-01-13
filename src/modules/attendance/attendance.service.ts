@@ -20,6 +20,7 @@ import { AttendanceRecord, UserDetails } from 'src/common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
 import { Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { LoggerWinston } from 'src/common/logger/logger.util';
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {
@@ -94,6 +95,12 @@ export class AttendanceService implements OnModuleInit {
       userId,
     );
 
+    LoggerWinston.log(
+      SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
+      apiId,
+      userId,
+    );
+
     return response
       .status(HttpStatus.CREATED)
       .json(
@@ -106,6 +113,7 @@ export class AttendanceService implements OnModuleInit {
   }
 
   async getUserIdList(emailList: string[]): Promise<UserDetails[]> {
+    // get userIds for emails provided from user service
     try {
       const userListResponse = await this.httpService.axiosRef.post(
         `${this.userServiceUrl}/user/v1/list`,
@@ -144,7 +152,7 @@ export class AttendanceService implements OnModuleInit {
     markMeetingAttendanceDto: MarkMeetingAttendanceDto,
     loggedInUserId: string,
   ): Promise<any> {
-    // mark attendance for each user
+    // mark attendance for each user in attendance service
     try {
       const attendanceMarkResponse = await this.httpService.axiosRef.post(
         `${this.attendanceServiceUrl}/api/v1/attendance/bulkAttendance?userId=${loggedInUserId}`,
