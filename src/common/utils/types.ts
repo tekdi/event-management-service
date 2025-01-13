@@ -93,15 +93,6 @@ export type ZoomParticipant = {
   internal_user: boolean;
 };
 
-export type GMeetParticipant = {
-  name: string;
-  participant: string;
-  startTime: string;
-  endTime: string;
-  duration: string;
-  metadata: any;
-};
-
 export type UserDetails = {
   userId: string;
   username: string;

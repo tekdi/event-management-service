@@ -14,7 +14,7 @@ export interface IOnlineMeetingLocator {
   ) => Promise<any>;
   getParticipantAttendance: (
     userList: UserDetails[],
-    meetingParticipantDetails: InZoomMeetingUserDetails[],
+    meetingParticipantDetails: any[],
   ) => AttendanceRecord[];
   getMeetingParticipantsEmail: (meetingId: string) => Promise<any>;
 }
