@@ -93,6 +93,30 @@ export type ZoomParticipant = {
   internal_user: boolean;
 };
 
+export type GMeetParticipant = {
+  name: string;
+  participant: string;
+  startTime: string;
+  endTime: string;
+  duration: string;
+  metadata: any;
+};
+
+export type UserDetails = {
+  userId: string;
+  username: string;
+  email: string;
+  name: string;
+  role: string;
+  mobile: string;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  status: string;
+  total_count: string;
+};
+
 export interface AttendanceRecord {
   userId: string;
   attendance: 'present' | 'absent';
@@ -103,7 +127,7 @@ export interface AttendanceRecord {
   };
 }
 
-export interface InMeetingUserDetails {
+export interface InZoomMeetingUserDetails {
   user_email: string;
   duration: number;
   join_time: string;

@@ -96,6 +96,7 @@ export const ERROR_MESSAGES = {
   NO_PARTICIPANTS_FOUND: 'No participants found for the meeting',
   MEETING_NOT_FOUND: 'Meeting not found',
   NO_USERS_FOUND: 'No users found in system',
+  EVENT_DOES_NOT_EXIST: 'Event does not exist',
   API_REQ_FAILURE: (url: string) => `Error occurred on API Request: ${url}`,
   DB_QUERY_FAILURE: (url: string) => `Database Query Failed on API: ${url}`,
   API_FAILURE: (url: string) => `API Failure: ${url}`,
