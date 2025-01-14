@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { getTimezoneDateString } from 'src/common/utils/pipe.util';
+import { getTimezoneDateString } from '../../../common/utils/pipe.util';
 import { ValueTransformer } from 'typeorm';
 
 export class TimeZoneTransformer implements ValueTransformer {

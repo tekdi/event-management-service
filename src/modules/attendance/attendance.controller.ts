@@ -2,10 +2,10 @@ import { Body, Controller, Post, Res, Req, UseFilters } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ApiBody, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AttendanceService } from './attendance.service';
-import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
+import { AllExceptionsFilter } from '../../common/filters/exception.filter';
 import { MarkZoomAttendanceDto } from './dto/MarkZoomAttendance.dto';
-import { checkValidUserId } from 'src/common/utils/functions.util';
-import { API_ID, ERROR_MESSAGES } from 'src/common/utils/constants.util';
+import { checkValidUserId } from '../../common/utils/functions.util';
+import { API_ID, ERROR_MESSAGES } from '../../common/utils/constants.util';
 
 @Controller('attendance/v1')
 @ApiTags('Event-Attendance')

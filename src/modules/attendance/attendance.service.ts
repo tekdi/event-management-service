@@ -9,9 +9,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AxiosResponse } from 'axios';
 import { Response } from 'express';
-import APIResponse from 'src/common/utils/response';
+import APIResponse from '../../common/utils/response';
 import { MarkZoomAttendanceDto } from './dto/MarkZoomAttendance.dto';
-import { API_ID } from 'src/common/utils/constants.util';
+import { API_ID } from '../../common/utils/constants.util';
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {

@@ -1,4 +1,4 @@
-import { Events } from 'src/modules/event/entities/event.entity';
+import { Events } from '../../../modules/event/entities/event.entity';
 import {
   Entity,
   Column,

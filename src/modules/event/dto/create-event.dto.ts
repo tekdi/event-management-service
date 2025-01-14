@@ -27,10 +27,10 @@ import {
   EventTypes,
   Frequency,
   MeetingDetails,
-} from 'src/common/utils/types';
-import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
-import { EndsWithZConstraint } from 'src/common/pipes/event-validation.pipe';
-import { UrlWithProviderValidator } from 'src/common/utils/validation.util';
+} from '../../../common/utils/types';
+import { ERROR_MESSAGES } from '../../../common/utils/constants.util';
+import { EndsWithZConstraint } from '../../../common/pipes/event-validation.pipe';
+import { UrlWithProviderValidator } from '../../../common/utils/validation.util';
 
 export class MeetingDetailsDto {
   // Pass the provider from the parent DTO

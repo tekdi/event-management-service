@@ -13,7 +13,7 @@ import {
   ValidateNested,
   IsIn,
 } from 'class-validator';
-import { MeetingDetails } from 'src/common/utils/types';
+import { MeetingDetails } from '../../../common/utils/types';
 import { Transform, Type } from 'class-transformer';
 import { RecurrencePatternDto, MeetingDetailsDto } from './create-event.dto';
 export interface UpdateResult {

@@ -18,15 +18,15 @@ import {
   InsertResult,
 } from 'typeorm';
 import { Events } from './entities/event.entity';
-import { TypeormService } from 'src/common/services/typeorm.service';
+import { TypeormService } from '../../common/services/typeorm.service';
 import { Response } from 'express';
-import APIResponse from 'src/common/utils/response';
+import APIResponse from '../../common/utils/response';
 import { EventDetail } from './entities/eventDetail.entity';
 import {
   API_ID,
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
-} from 'src/common/utils/constants.util';
+} from '../../common/utils/constants.util';
 import { EventRepetition } from './entities/eventRepetition.entity';
 import {
   DaysOfWeek,
@@ -35,15 +35,15 @@ import {
   Frequency,
   RecurrencePattern,
   RepetitionDetail,
-} from 'src/common/utils/types';
+} from '../../common/utils/types';
 import { ConfigService } from '@nestjs/config';
 import {
   DateValidationPipe,
   RecurringEndDateValidationPipe,
-} from 'src/common/pipes/event-validation.pipe';
-import { compareArrays } from 'src/common/utils/functions.util';
+} from '../../common/pipes/event-validation.pipe';
+import { compareArrays } from '../../common/utils/functions.util';
 import * as moment from 'moment-timezone';
-import { LoggerWinston } from 'src/common/logger/logger.util';
+import { LoggerWinston } from '../../common/logger/logger.util';
 
 @Injectable()
 export class EventService {
