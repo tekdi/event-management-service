@@ -77,3 +77,50 @@ export type RecurrencePattern = {
     value: string;
   };
 };
+
+export type ZoomParticipant = {
+  id: string;
+  user_id: string;
+  name: string;
+  user_email: string;
+  join_time: string;
+  leave_time: string;
+  duration: number;
+  registrant_id: string;
+  failover: boolean;
+  status: string;
+  groupId: string;
+  internal_user: boolean;
+};
+
+export type UserDetails = {
+  userId: string;
+  username: string;
+  email: string;
+  name: string;
+  role: string;
+  mobile: string;
+  createdBy: string;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  status: string;
+  total_count: string;
+};
+
+export interface AttendanceRecord {
+  userId: string;
+  attendance: 'present' | 'absent';
+  metaData: {
+    duration: number;
+    joinTime: string;
+    leaveTime: string;
+  };
+}
+
+export interface InZoomMeetingUserDetails {
+  user_email: string;
+  duration: number;
+  join_time: string;
+  leave_time: string;
+}
