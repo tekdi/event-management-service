@@ -1,4 +1,4 @@
-import { AttendanceRecord, UserDetails } from 'src/common/utils/types';
+import { AttendanceRecord, UserDetails } from '../common/utils/types';
 
 export interface IOnlineMeetingLocator {
   getToken: () => Promise<string>;

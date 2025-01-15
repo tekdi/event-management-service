@@ -15,12 +15,12 @@ import {
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
 } from '../../common/utils/constants.util';
-import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
-import { AttendanceRecord, UserDetails } from 'src/common/utils/types';
+import { OnlineMeetingAdapter } from '../../online-meeting-adapters/onlineMeeting.adapter';
+import { AttendanceRecord, UserDetails } from '../../common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
 import { Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { LoggerWinston } from 'src/common/logger/logger.util';
+import { LoggerWinston } from '../../common/logger/logger.util';
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {

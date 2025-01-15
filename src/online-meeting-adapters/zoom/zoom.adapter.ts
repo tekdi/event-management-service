@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { IOnlineMeetingLocator } from '../onlineMeeting.locator';
-import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
+import { ERROR_MESSAGES } from '../../common/utils/constants.util';
 import { AxiosResponse } from 'axios';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
@@ -13,7 +13,7 @@ import {
   InZoomMeetingUserDetails,
   UserDetails,
   ZoomParticipant,
-} from 'src/common/utils/types';
+} from '../../common/utils/types';
 
 @Injectable()
 export class ZoomService implements IOnlineMeetingLocator {

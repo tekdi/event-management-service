@@ -3,8 +3,8 @@ import { EventAttendance } from './attendance.controller';
 import { AttendanceService } from './attendance.service';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
-import { ZoomService } from 'src/online-meeting-adapters/zoom/zoom.adapter';
+import { OnlineMeetingAdapter } from '../../online-meeting-adapters/onlineMeeting.adapter';
+import { ZoomService } from '../../online-meeting-adapters/zoom/zoom.adapter';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
 
