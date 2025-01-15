@@ -90,6 +90,13 @@ export const ERROR_MESSAGES = {
   USERID_INVALID: 'Invalid UserId',
   USERID_REQUIRED: 'UserId Required',
   PROVIDE_ONE_USERID_IN_QUERY: 'Please provide userId in query params',
+  ENVIRONMENT_VARIABLES_MISSING: 'Environment variables missing!',
+  USERS_NOT_FOUND_IN_SERVICE: 'Users not found in user service',
+  SERVICE_NOT_FOUND: 'Service not found',
+  NO_PARTICIPANTS_FOUND: 'No participants found for the meeting',
+  MEETING_NOT_FOUND: 'Meeting not found',
+  NO_USERS_FOUND: 'No users found in system',
+  EVENT_DOES_NOT_EXIST: 'Event does not exist',
   API_REQ_FAILURE: (url: string) => `Error occurred on API Request: ${url}`,
   DB_QUERY_FAILURE: (url: string) => `Database Query Failed on API: ${url}`,
   API_FAILURE: (url: string) => `API Failure: ${url}`,
@@ -111,6 +118,7 @@ export const SUCCESS_MESSAGES = {
   EVENT_CREATED_LOG: (url: string) => `Event created with ID: ${url}`,
   EVENTS_FETCHED_LOG: 'Successfully fetched events',
   EVENT_UPDATED_LOG: 'Successfully updated events',
+  ATTENDANCE_MARKED_FOR_MEETING: 'Attendance marked for meeting',
 };
 
 export const API_ID = {
@@ -129,5 +137,5 @@ export const API_ID = {
   CREATE_EVENT_ATTENDEE_HISTORY_ITEM: 'api.event.attendee.history.item.create',
   UPDATE_EVENT_ATTENDEE_HISTORY_ITEM: 'api.event.attendee.history.item.update',
   DELETE_EVENT_ATTENDEE_HISTORY_ITEM: 'api.event.attendee.history.item.delete',
-  MARK_ZOOM_ATTENDANCE: 'mark.zoom.event.attendance',
+  MARK_EVENT_ATTENDANCE: 'api.event.mark.attendance',
 };
