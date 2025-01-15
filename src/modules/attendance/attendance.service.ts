@@ -7,6 +7,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Not } from 'typeorm';
 import { Response } from 'express';
 import APIResponse from '../../common/utils/response';
 import { MarkMeetingAttendanceDto } from './dto/MarkAttendance.dto';
@@ -18,9 +19,8 @@ import {
 import { OnlineMeetingAdapter } from '../../online-meeting-adapters/onlineMeeting.adapter';
 import { AttendanceRecord, UserDetails } from '../../common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
-import { Not, Repository } from 'typeorm';
-import { InjectRepository } from '@nestjs/typeorm';
 import { LoggerWinston } from '../../common/logger/logger.util';
+import { TypeormService } from 'src/common/services/typeorm.service';
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {
@@ -30,8 +30,7 @@ export class AttendanceService implements OnModuleInit {
   private readonly attendanceServiceUrl: string;
 
   constructor(
-    @InjectRepository(EventRepetition)
-    private readonly eventRepetitionRepository: Repository<EventRepetition>,
+    private readonly typeormService: TypeormService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly onlineMeetingAdapter: OnlineMeetingAdapter,
@@ -59,7 +58,7 @@ export class AttendanceService implements OnModuleInit {
     const apiId = API_ID.MARK_EVENT_ATTENDANCE;
 
     // check event exists
-    const eventRepetition = await this.eventRepetitionRepository.findOne({
+    const eventRepetition = await this.typeormService.findOne(EventRepetition, {
       where: {
         eventRepetitionId: markMeetingAttendanceDto.eventRepetitionId,
         eventDetail: {

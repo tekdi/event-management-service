@@ -7,6 +7,7 @@ import { OnlineMeetingAdapter } from '../../online-meeting-adapters/onlineMeetin
 import { ZoomService } from '../../online-meeting-adapters/zoom/zoom.adapter';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
+import { TypeormService } from 'src/common/services/typeorm.service';
 
 @Module({
   imports: [HttpModule, TypeOrmModule.forFeature([EventRepetition])],
@@ -16,6 +17,7 @@ import { EventRepetition } from '../event/entities/eventRepetition.entity';
     ConfigService,
     OnlineMeetingAdapter,
     ZoomService,
+    TypeormService,
   ],
 })
 export class AttendanceModule {}
