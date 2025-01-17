@@ -5,20 +5,12 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Events } from './entities/event.entity';
 import { EventDetail } from './entities/eventDetail.entity';
-import { AttendeesService } from '../attendees/attendees.service';
-import { EventAttendees } from '../attendees/entity/attendees.entity';
 import { EventRepetition } from './entities/eventRepetition.entity';
+import { TypeormService } from '../../common/services/typeorm.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Events,
-      EventAttendees,
-      EventDetail,
-      EventRepetition,
-    ]),
-  ],
+  imports: [TypeOrmModule.forFeature([Events, EventDetail, EventRepetition])],
   controllers: [EventController],
-  providers: [EventService, ConfigService, AttendeesService],
+  providers: [EventService, ConfigService, TypeormService],
 })
 export class EventModule {}

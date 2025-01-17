@@ -4,7 +4,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { EventModule } from './modules/event/event.module';
 import { DatabaseModule } from './common/database-modules';
-import { AttendeesModule } from './modules/attendees/attendees.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 
 @Module({
@@ -12,7 +11,6 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
     ConfigModule.forRoot({ isGlobal: true }),
     EventModule,
     DatabaseModule,
-    AttendeesModule,
     AttendanceModule,
   ],
   controllers: [AppController],

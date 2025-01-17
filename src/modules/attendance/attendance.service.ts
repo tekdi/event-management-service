@@ -7,11 +7,20 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AxiosResponse } from 'axios';
+import { Not } from 'typeorm';
 import { Response } from 'express';
-import APIResponse from 'src/common/utils/response';
-import { MarkZoomAttendanceDto } from './dto/MarkZoomAttendance.dto';
-import { API_ID } from 'src/common/utils/constants.util';
+import APIResponse from '../../common/utils/response';
+import { MarkMeetingAttendanceDto } from './dto/MarkAttendance.dto';
+import {
+  API_ID,
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+} from '../../common/utils/constants.util';
+import { OnlineMeetingAdapter } from '../../online-meeting-adapters/onlineMeeting.adapter';
+import { AttendanceRecord, UserDetails } from '../../common/utils/types';
+import { EventRepetition } from '../event/entities/eventRepetition.entity';
+import { LoggerWinston } from '../../common/logger/logger.util';
+import { TypeormService } from 'src/common/services/typeorm.service';
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {
@@ -19,67 +28,91 @@ export class AttendanceService implements OnModuleInit {
 
   private readonly userServiceUrl: string;
   private readonly attendanceServiceUrl: string;
-  private readonly accountId: string;
-  private readonly username: string;
-  private readonly password: string;
-  private readonly authUrl: string;
-  private readonly zoomPastMeetings: string;
 
   constructor(
+    private readonly typeormService: TypeormService,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly onlineMeetingAdapter: OnlineMeetingAdapter,
   ) {
     this.userServiceUrl = this.configService.get('USER_SERVICE');
     this.attendanceServiceUrl = this.configService.get('ATTENDANCE_SERVICE');
-    this.accountId = this.configService.get('ZOOM_ACCOUNT_ID');
-    this.username = this.configService.get('ZOOM_USERNAME');
-    this.password = this.configService.get('ZOOM_PASSWORD');
-    this.authUrl = this.configService.get('ZOOM_AUTH_URL');
-    this.zoomPastMeetings = this.configService.get('ZOOM_PAST_MEETINGS');
   }
 
   onModuleInit() {
     if (
       !this.userServiceUrl.trim().length ||
-      !this.attendanceServiceUrl.trim().length ||
-      !this.accountId.trim().length ||
-      !this.username.trim().length ||
-      !this.password.trim().length ||
-      !this.authUrl.trim().length ||
-      !this.zoomPastMeetings.trim().length
+      !this.attendanceServiceUrl.trim().length
     ) {
-      throw new InternalServerErrorException('Environment variables missing!');
+      throw new InternalServerErrorException(
+        `${ERROR_MESSAGES.ENVIRONMENT_VARIABLES_MISSING}: USER_SERVICE, ATTENDANCE_SERVICE`,
+      );
     }
   }
 
-  async markAttendanceForZoomMeetingParticipants(
-    markZoomAttendanceDto: MarkZoomAttendanceDto,
+  async markAttendanceForMeetingParticipants(
+    markMeetingAttendanceDto: MarkMeetingAttendanceDto,
     userId: string,
     response: Response,
   ) {
-    const apiId = API_ID.MARK_ZOOM_ATTENDANCE;
+    const apiId = API_ID.MARK_EVENT_ATTENDANCE;
 
-    const participantEmails = await this.getZoomMeetingParticipantsEmail(
-      markZoomAttendanceDto.zoomMeetingId,
+    // check event exists
+    const eventRepetition = await this.typeormService.findOne(EventRepetition, {
+      where: {
+        eventRepetitionId: markMeetingAttendanceDto.eventRepetitionId,
+        eventDetail: {
+          status: Not('archived'),
+        },
+      },
+    });
+
+    if (!eventRepetition) {
+      throw new BadRequestException(ERROR_MESSAGES.EVENT_DOES_NOT_EXIST);
+    }
+
+    const participantEmails = await this.onlineMeetingAdapter
+      .getAdapter()
+      .getMeetingParticipantsEmail(markMeetingAttendanceDto.meetingId);
+
+    // get userIds from email list in user service
+    const userList: UserDetails[] = await this.getUserIdList(
+      participantEmails.emailIds,
     );
 
-    // get userids from email list in user service
-
-    const userList = await this.getUserIdList(participantEmails);
+    const userDetailList = this.onlineMeetingAdapter
+      .getAdapter()
+      .getParticipantAttendance(
+        userList,
+        participantEmails.inMeetingUserDetails,
+      );
 
     // mark attendance for each user
     const res = await this.markUsersAttendance(
-      userList,
-      markZoomAttendanceDto,
+      userDetailList,
+      markMeetingAttendanceDto,
+      userId,
+    );
+
+    LoggerWinston.log(
+      SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
+      apiId,
       userId,
     );
 
     return response
       .status(HttpStatus.CREATED)
-      .json(APIResponse.success(apiId, res, 'Created'));
+      .json(
+        APIResponse.success(
+          apiId,
+          res,
+          SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
+        ),
+      );
   }
 
-  async getUserIdList(emailList: string[]): Promise<string[]> {
+  async getUserIdList(emailList: string[]): Promise<UserDetails[]> {
+    // get userIds for emails provided from user service
     try {
       const userListResponse = await this.httpService.axiosRef.post(
         `${this.userServiceUrl}/user/v1/list`,
@@ -101,43 +134,38 @@ export class AttendanceService implements OnModuleInit {
       const userDetails = userListResponse.data.result.getUserDetails;
 
       if (!userDetails.length) {
-        throw new BadRequestException('No users found');
+        throw new BadRequestException(ERROR_MESSAGES.NO_USERS_FOUND);
       }
 
-      return userDetails.map(({ userId }) => userId);
+      return userDetails;
     } catch (e) {
       if (e.status === 404) {
-        throw new BadRequestException('Service not found');
+        throw new BadRequestException(ERROR_MESSAGES.SERVICE_NOT_FOUND);
       }
       throw e;
     }
   }
 
   async markUsersAttendance(
-    userIds: string[],
-    markZoomAttendanceDto: MarkZoomAttendanceDto,
+    userAttendance: AttendanceRecord[],
+    markMeetingAttendanceDto: MarkMeetingAttendanceDto,
     loggedInUserId: string,
   ): Promise<any> {
-    // mark attendance for each user
+    // mark attendance for each user in attendance service
     try {
-      const userAttendance = userIds.map((userId) => ({
-        userId,
-        attendance: 'present',
-      }));
-
       const attendanceMarkResponse = await this.httpService.axiosRef.post(
-        `${this.attendanceServiceUrl}/api/v1/attendance/bulkAttendance`,
+        `${this.attendanceServiceUrl}/api/v1/attendance/bulkAttendance?userId=${loggedInUserId}`,
         {
-          attendanceDate: markZoomAttendanceDto.attendanceDate,
-          contextId: markZoomAttendanceDto.eventId,
-          scope: markZoomAttendanceDto.scope,
+          attendanceDate: markMeetingAttendanceDto.attendanceDate,
+          contextId: markMeetingAttendanceDto.eventRepetitionId,
+          scope: markMeetingAttendanceDto.scope,
           context: 'event',
           userAttendance,
         },
         {
           headers: {
             Accept: 'application/json',
-            tenantid: markZoomAttendanceDto.tenantId,
+            tenantid: markMeetingAttendanceDto.tenantId,
             userId: loggedInUserId,
           },
         },
@@ -156,101 +184,5 @@ export class AttendanceService implements OnModuleInit {
       }
       throw e;
     }
-  }
-
-  async getZoomMeetingParticipantsEmail(
-    zoomMeetingId: string,
-  ): Promise<string[]> {
-    try {
-      const token = await this.getZoomToken();
-
-      const userList = await this.getZoomParticipantList(
-        token,
-        [],
-        zoomMeetingId,
-      );
-
-      const emailIds = userList
-        .filter(({ user_email, status }) => {
-          if (status === 'in_meeting') return user_email;
-        })
-        .map(({ user_email }) => user_email);
-
-      if (!emailIds.length) {
-        throw new BadRequestException('No participants found for meeting');
-      }
-
-      return emailIds;
-    } catch (e) {
-      if (e.status === 404) {
-        throw new BadRequestException('Meeting not found');
-      }
-      throw e;
-    }
-  }
-
-  async getZoomToken() {
-    try {
-      const auth =
-        'Basic ' +
-        Buffer.from(this.username + ':' + this.password).toString('base64');
-
-      const tokenResponse: AxiosResponse = await this.httpService.axiosRef.post(
-        `${this.authUrl}?grant_type=account_credentials&account_id=${this.accountId}`,
-        {},
-        {
-          headers: {
-            Accept: 'application/json',
-            Authorization: auth,
-          },
-        },
-      );
-
-      return tokenResponse.data.access_token;
-    } catch (e) {
-      if (e.status === 404) {
-        throw new BadRequestException('Service not found');
-      }
-      throw e;
-    }
-  }
-
-  async getZoomParticipantList(
-    token: string,
-    userArray: any[],
-    meetId: string,
-    url = '',
-  ) {
-    const headers = {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + token,
-      },
-    };
-
-    let manualPageSize = 100;
-    const finalUrl =
-      `${this.zoomPastMeetings}/${meetId}/participants?page_size=${manualPageSize}` +
-      url;
-
-    return await this.httpService.axiosRef
-      .get(finalUrl, headers)
-      .then((response) => {
-        const retrievedUsersArray = userArray.concat(
-          response.data.participants,
-        );
-        if (response.data.next_page_token) {
-          let nextPath = `&next_page_token=${response.data.next_page_token}`;
-
-          return this.getZoomParticipantList(
-            token,
-            retrievedUsersArray,
-            meetId,
-            nextPath,
-          );
-        } else {
-          return retrievedUsersArray;
-        }
-      });
   }
 }

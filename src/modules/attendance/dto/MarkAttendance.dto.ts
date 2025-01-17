@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsUUID, Matches } from 'class-validator';
 
-export class MarkZoomAttendanceDto {
+export class MarkMeetingAttendanceDto {
   @ApiProperty({
     type: String,
     description: 'Meeting ID',
@@ -9,7 +9,7 @@ export class MarkZoomAttendanceDto {
   })
   @IsString()
   @IsNotEmpty()
-  zoomMeetingId: string;
+  meetingId: string;
 
   @ApiProperty({
     type: String,
@@ -18,7 +18,7 @@ export class MarkZoomAttendanceDto {
   })
   @IsUUID()
   @IsNotEmpty()
-  eventId: string;
+  eventRepetitionId: string;
 
   @ApiProperty({
     type: String,

@@ -6,13 +6,13 @@ import {
 } from '@nestjs/common';
 import { EventAttendeesDTO } from './dto/EventAttendance.dto';
 import { Response } from 'express';
-import APIResponse from 'src/common/utils/response';
+import APIResponse from '../../common/utils/response';
 import { EventAttendees } from './entity/attendees.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SearchAttendeesDto } from './dto/searchAttendees.dto';
 import { UpdateAttendeesDto } from './dto/updateAttendees.dto';
-import { AttendeesStatus } from 'src/common/utils/types';
+import { AttendeesStatus } from '../../common/utils/types';
 
 @Injectable()
 export class AttendeesService {

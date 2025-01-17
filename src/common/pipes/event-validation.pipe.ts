@@ -4,7 +4,7 @@ import {
   BadRequestException,
   ArgumentMetadata,
 } from '@nestjs/common';
-import { CreateEventDto } from 'src/modules/event/dto/create-event.dto';
+import { CreateEventDto } from '../../modules/event/dto/create-event.dto';
 import { ERROR_MESSAGES } from '../utils/constants.util';
 import {
   ValidationArguments,
@@ -12,7 +12,7 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import { EndConditionType } from '../utils/types';
-import { UpdateEventDto } from 'src/modules/event/dto/update-event.dto';
+import { UpdateEventDto } from '../../modules/event/dto/update-event.dto';
 
 @Injectable()
 export class DateValidationPipe implements PipeTransform {

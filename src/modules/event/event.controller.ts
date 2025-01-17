@@ -33,15 +33,15 @@ import {
   AttendeesValidationPipe,
   RecurringEndDateValidationPipe,
   SearchDateValidationPipe,
-} from 'src/common/pipes/event-validation.pipe';
+} from '../../common/pipes/event-validation.pipe';
 import { ConfigService } from '@nestjs/config';
-import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
+import { AllExceptionsFilter } from '../../common/filters/exception.filter';
 import {
   API_ID,
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
-} from 'src/common/utils/constants.util';
-import { checkValidUserId } from 'src/common/utils/functions.util';
+} from '../../common/utils/constants.util';
+import { checkValidUserId } from '../../common/utils/functions.util';
 import { createEventsExamplesForSwagger } from './dto/create-event-example';
 import { updateEventsExamplesForSwagger } from './dto/update-event-example';
 import { searchEventsExamplesForSwagger } from './dto/search-event-example';
