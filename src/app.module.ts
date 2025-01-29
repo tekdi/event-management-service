@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -6,6 +6,7 @@ import { EventModule } from './modules/event/event.module';
 import { DatabaseModule } from './common/database-modules';
 import { AttendeesModule } from './modules/attendees/attendees.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
+import { PermissionMiddleware } from './middleware/permission.middleware';
 
 @Module({
   imports: [
@@ -18,4 +19,8 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(PermissionMiddleware).forRoutes('*'); // Apply middleware to the all routes
+  }
+}
