@@ -128,10 +128,11 @@ export class ZoomService implements IOnlineMeetingLocator {
         if (status === 'in_meeting') return user_email;
       });
 
-      if (markAttendanceBy === 'email') {
-        identifiers = inMeetingUserDetails.map(({ user_email }) => user_email);
-      } else if (markAttendanceBy === 'username') {
-        identifiers = inMeetingUserDetails.map(({ name }) => name);
+      if (markAttendanceBy === 'email' || markAttendanceBy === 'username') {
+        const key = markAttendanceBy === 'email' ? 'user_email' : 'name';
+        identifiers = inMeetingUserDetails
+          .filter((user) => user[key])
+          .map((user) => user[key]);
       } else {
         throw new BadRequestException(
           ERROR_MESSAGES.INVALID_MARK_ATTENDANCE_BY,
@@ -160,9 +161,13 @@ export class ZoomService implements IOnlineMeetingLocator {
     let userMap: Map<string, UserDetails> = new Map();
 
     if (markAttendanceBy === 'email') {
-      userMap = new Map(userList.map((user) => [user.email, user]));
+      userMap = new Map(
+        userList.map((user) => [user.email.toLowerCase(), user]),
+      );
     } else if (markAttendanceBy === 'username') {
-      userMap = new Map(userList.map((user) => [user.username, user]));
+      userMap = new Map(
+        userList.map((user) => [user.username.toLowerCase(), user]),
+      );
     } else {
       throw new BadRequestException(ERROR_MESSAGES.INVALID_MARK_ATTENDANCE_BY);
     }
