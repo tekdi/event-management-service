@@ -5,6 +5,7 @@ import { RolePermission } from './entities/rolePermissionMapping';
 import { RolePermissionCreateDto } from './dto/role-permission-create-dto';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
+import { LoggerWinston } from 'src/common/logger/logger.util';
 
 @Injectable()
 export class RolePermissionService {
@@ -14,6 +15,20 @@ export class RolePermissionService {
   ) {}
 
   //getPermission for middleware
+  public async getPermissionForMiddleware(
+    roleTitle: string,
+    apiPath: string,
+  ): Promise<any> {
+    try {
+      let result = await this.rolePermissionRepository.find({
+        where: { roleTitle: roleTitle, apiPath: apiPath },
+      });
+      LoggerWinston.log('Permission from DB: ' + result);
+      return result;
+    } catch (error) {
+      return error;
+    }
+  }
   public async getPermission(
     roleTitle: string,
     apiPath: string,
@@ -24,14 +39,14 @@ export class RolePermissionService {
       let result = await this.rolePermissionRepository.find({
         where: { roleTitle: roleTitle, apiPath: apiPath },
       });
-      console.log('result: ', result);
+      LoggerWinston.log('result: ' + result);
       return APIResponse.success(apiId, result, HttpStatus.OK + '');
     } catch (error) {
       return APIResponse.error(
         apiId,
         'Failed to fetch permission data.',
         error.message,
-        '500',
+        'INTERNAL_SERVER_ERROR',
       );
     }
   }
@@ -54,7 +69,7 @@ export class RolePermissionService {
         apiId,
         'Failed to add permission data.',
         error.message,
-        HttpStatus.INTERNAL_SERVER_ERROR + '',
+        'INTERNAL_SERVER_ERROR',
       );
     }
   }
@@ -80,7 +95,7 @@ export class RolePermissionService {
         apiId,
         'Failed to update permission data.',
         error.message,
-        HttpStatus.INTERNAL_SERVER_ERROR + '',
+        'INTERNAL_SERVER_ERROR',
       );
     }
   }
@@ -99,7 +114,7 @@ export class RolePermissionService {
         apiId,
         'Failed to delete permission data.',
         error.message,
-        HttpStatus.INTERNAL_SERVER_ERROR + '',
+        'INTERNAL_SERVER_ERROR',
       );
     }
   }
