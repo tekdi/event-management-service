@@ -109,11 +109,13 @@ export class ZoomService implements IOnlineMeetingLocator {
     }
   }
 
-  async getMeetingParticipantsEmail(
+  async getMeetingParticipantsIdentifiers(
     meetingId: string,
-  ): Promise<{ emailIds: string[]; inMeetingUserDetails: any[] }> {
+    markAttendanceBy: string,
+  ): Promise<{ identifiers: string[]; inMeetingUserDetails: any[] }> {
     try {
       const token = await this.getToken();
+      let identifiers: string[] = [];
 
       const userList = await this.getMeetingParticipantList(
         token,
@@ -126,13 +128,22 @@ export class ZoomService implements IOnlineMeetingLocator {
         if (status === 'in_meeting') return user_email;
       });
 
-      const emailIds = inMeetingUserDetails.map(({ user_email }) => user_email);
+      if (markAttendanceBy === 'email' || markAttendanceBy === 'username') {
+        const key = markAttendanceBy === 'email' ? 'user_email' : 'name';
+        identifiers = inMeetingUserDetails
+          .filter((user) => user[key])
+          .map((user) => user[key]);
+      } else {
+        throw new BadRequestException(
+          ERROR_MESSAGES.INVALID_MARK_ATTENDANCE_BY,
+        );
+      }
 
-      if (!emailIds.length) {
+      if (!identifiers.length) {
         throw new BadRequestException(ERROR_MESSAGES.NO_PARTICIPANTS_FOUND);
       }
 
-      return { emailIds, inMeetingUserDetails };
+      return { identifiers, inMeetingUserDetails };
     } catch (e) {
       if (e.status === 404) {
         throw new BadRequestException(ERROR_MESSAGES.MEETING_NOT_FOUND);
@@ -144,12 +155,29 @@ export class ZoomService implements IOnlineMeetingLocator {
   getParticipantAttendance(
     userList: UserDetails[],
     meetingParticipantDetails: InZoomMeetingUserDetails[],
+    markAttendanceBy: string,
   ): AttendanceRecord[] {
     const userDetailList = [];
-    const userMap = new Map(userList.map((user) => [user.email, user]));
+    let userMap: Map<string, UserDetails> = new Map();
+
+    if (markAttendanceBy === 'email') {
+      userMap = new Map(
+        userList.map((user) => [user.email.toLowerCase(), user]),
+      );
+    } else if (markAttendanceBy === 'username') {
+      userMap = new Map(
+        userList.map((user) => [user.username.toLowerCase(), user]),
+      );
+    } else {
+      throw new BadRequestException(ERROR_MESSAGES.INVALID_MARK_ATTENDANCE_BY);
+    }
+
+    const key = markAttendanceBy === 'email' ? 'user_email' : 'name';
     meetingParticipantDetails.forEach(
       (participantDetail: InZoomMeetingUserDetails) => {
-        const userDetailExists = userMap.get(participantDetail.user_email);
+        const userDetailExists = userMap.get(
+          participantDetail[key].toLowerCase(),
+        );
         if (userDetailExists) {
           userDetailList.push({ ...userDetailExists, ...participantDetail });
         }

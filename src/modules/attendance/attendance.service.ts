@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
-import { MarkMeetingAttendanceDto } from './dto/MarkAttendance.dto';
+import { MarkMeetingAttendanceDto } from './dto/markAttendance.dto';
 import {
   API_ID,
   ERROR_MESSAGES,
@@ -72,21 +72,30 @@ export class AttendanceService implements OnModuleInit {
       throw new BadRequestException(ERROR_MESSAGES.EVENT_DOES_NOT_EXIST);
     }
 
-    const participantEmails = await this.onlineMeetingAdapter
+    const participantIdentifiers = await this.onlineMeetingAdapter
       .getAdapter()
-      .getMeetingParticipantsEmail(markMeetingAttendanceDto.meetingId);
+      .getMeetingParticipantsIdentifiers(
+        markMeetingAttendanceDto.meetingId,
+        markMeetingAttendanceDto.markAttendanceBy,
+      );
 
     // get userIds from email list in user service
     const userList: UserDetails[] = await this.getUserIdList(
-      participantEmails.emailIds,
+      participantIdentifiers.identifiers,
+      markMeetingAttendanceDto.markAttendanceBy,
     );
 
     const userDetailList = this.onlineMeetingAdapter
       .getAdapter()
       .getParticipantAttendance(
         userList,
-        participantEmails.inMeetingUserDetails,
+        participantIdentifiers.inMeetingUserDetails,
+        markMeetingAttendanceDto.markAttendanceBy,
       );
+
+    if (!userDetailList.length) {
+      throw new BadRequestException(ERROR_MESSAGES.NO_USERS_FOUND);
+    }
 
     // mark attendance for each user
     const res = await this.markUsersAttendance(
@@ -112,17 +121,25 @@ export class AttendanceService implements OnModuleInit {
       );
   }
 
-  async getUserIdList(emailList: string[]): Promise<UserDetails[]> {
-    // get userIds for emails provided from user service
+  async getUserIdList(
+    identifiers: string[],
+    markAttendanceBy: string,
+  ): Promise<UserDetails[]> {
+    // get userIds for emails or usernames provided from user service
     try {
+      const filters = {};
+
+      if (markAttendanceBy === 'email') {
+        filters['email'] = identifiers;
+      } else if (markAttendanceBy === 'username') {
+        filters['username'] = identifiers;
+      }
       const userListResponse = await this.httpService.axiosRef.post(
         `${this.userServiceUrl}/user/v1/list`,
         {
-          limit: emailList.length,
+          limit: identifiers.length,
           offset: 0,
-          filters: {
-            email: emailList,
-          },
+          filters,
         },
         {
           headers: {
