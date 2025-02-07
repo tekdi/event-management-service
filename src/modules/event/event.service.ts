@@ -1106,7 +1106,6 @@ export class EventService {
       await this.eventRepetitionRepository.save(eventRepetition);
       updateResult.repetitionDetail = eventRepetition;
     }
-    // const eventDetailId = eventRepetition.eventDetailId;
     const existingEventDetails = await this.getEventDetails(
       eventRepetition.eventDetailId,
     );
