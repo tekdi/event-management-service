@@ -28,6 +28,7 @@ export class AttendanceService implements OnModuleInit {
 
   private readonly userServiceUrl: string;
   private readonly attendanceServiceUrl: string;
+  private readonly onlineMeetingProvider: string;
 
   constructor(
     @InjectRepository(EventRepetition)
@@ -38,12 +39,16 @@ export class AttendanceService implements OnModuleInit {
   ) {
     this.userServiceUrl = this.configService.get('USER_SERVICE');
     this.attendanceServiceUrl = this.configService.get('ATTENDANCE_SERVICE');
+    this.onlineMeetingProvider = this.configService.get(
+      'ONLINE_MEETING_ADAPTER',
+    );
   }
 
   onModuleInit() {
     if (
       !this.userServiceUrl.trim().length ||
-      !this.attendanceServiceUrl.trim().length
+      !this.attendanceServiceUrl.trim().length ||
+      !this.onlineMeetingProvider.trim().length
     ) {
       throw new InternalServerErrorException(
         `${ERROR_MESSAGES.ENVIRONMENT_VARIABLES_MISSING}: USER_SERVICE, ATTENDANCE_SERVICE`,
@@ -64,14 +69,27 @@ export class AttendanceService implements OnModuleInit {
         eventRepetitionId: markMeetingAttendanceDto.eventRepetitionId,
         eventDetail: {
           status: Not('archived'),
+          eventType: 'online',
+        },
+      },
+      relations: ['eventDetail'], // Ensure eventDetail is included
+      select: {
+        eventRepetitionId: true,
+        eventDetail: {
+          onlineProvider: true,
         },
       },
     });
 
-    if (!eventRepetition) {
+    if (
+      !eventRepetition ||
+      eventRepetition.eventDetail.onlineProvider.toLowerCase() !==
+        this.onlineMeetingProvider.toLowerCase()
+    ) {
       throw new BadRequestException(ERROR_MESSAGES.EVENT_DOES_NOT_EXIST);
     }
 
+    // get meeting participants
     const participantIdentifiers = await this.onlineMeetingAdapter
       .getAdapter()
       .getMeetingParticipantsIdentifiers(
@@ -79,12 +97,13 @@ export class AttendanceService implements OnModuleInit {
         markMeetingAttendanceDto.markAttendanceBy,
       );
 
-    // get userIds from email list in user service
+    // get userIds from email or username list in user service
     const userList: UserDetails[] = await this.getUserIdList(
       participantIdentifiers.identifiers,
       markMeetingAttendanceDto.markAttendanceBy,
     );
 
+    // combine data from user service and meeting attendance
     const userDetailList = this.onlineMeetingAdapter
       .getAdapter()
       .getParticipantAttendance(
@@ -160,7 +179,7 @@ export class AttendanceService implements OnModuleInit {
       if (e.status === 404) {
         throw new BadRequestException(ERROR_MESSAGES.SERVICE_NOT_FOUND);
       }
-      throw e;
+      throw new InternalServerErrorException(ERROR_MESSAGES.USER_SERVICE_ERROR);
     }
   }
 
@@ -200,7 +219,9 @@ export class AttendanceService implements OnModuleInit {
           `Bad request ${e?.response?.data?.message}`,
         );
       }
-      throw e;
+      throw new InternalServerErrorException(
+        ERROR_MESSAGES.ATTENDANCE_SERVICE_ERROR,
+      );
     }
   }
 }

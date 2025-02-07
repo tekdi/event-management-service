@@ -99,6 +99,8 @@ export const ERROR_MESSAGES = {
   EVENT_DOES_NOT_EXIST: 'Event does not exist',
   INVALID_MARK_ATTENDANCE_BY:
     'Attendance can be marked on basis of email or name',
+  USER_SERVICE_ERROR: 'Something went wrong in getting users',
+  ATTENDANCE_SERVICE_ERROR: 'Something went wrong while marking attendance',
   API_REQ_FAILURE: (url: string) => `Error occurred on API Request: ${url}`,
   DB_QUERY_FAILURE: (url: string) => `Database Query Failed on API: ${url}`,
   API_FAILURE: (url: string) => `API Failure: ${url}`,
