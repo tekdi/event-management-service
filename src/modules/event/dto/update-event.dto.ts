@@ -20,7 +20,7 @@ export interface UpdateResult {
   onlineDetails?: any;
   erMetaData?: any;
   eventDetails?: any;
-  repetationDetail?: any;
+  repetitionDetail?: any;
   recurrenceUpdate?: any;
   updatedRecurringEvent?: any;
   updatedEventDetails?: any;
@@ -72,24 +72,22 @@ export class UpdateEventDto {
     },
   })
   @IsObject()
-  // @ValidateIf((o => o.onlineProvider != undefined))
-  @ValidateIf(
-    (o) => o.onlineProvider != undefined || o.onlineDetails != undefined,
-  )
-  @ValidateNested({ each: true })
+  @ValidateIf((o) => o.onlineProvider != undefined) // Only validate if onlineProvider is set
+  @ValidateNested()
   @Type(() => MeetingDetailsDto)
   @Transform(({ value, obj }) => {
+    if (!value) return undefined; // Ensure undefined is preserved
     value.onlineProvider = obj.onlineProvider; // Pass the provider to the nested DTO
     return value;
   })
-  onlineDetails: MeetingDetails;
+  onlineDetails?: MeetingDetailsDto; // Make it explicitly optional
 
   @ApiProperty({
     description: 'ErMetaData Details',
     example: {
       topic: 'Java',
       mentorId: '1244546647',
-      subTopic: 'Type of fetaures',
+      subTopic: 'Type of features',
     },
   })
   @IsObject()
