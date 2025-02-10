@@ -46,6 +46,7 @@ export type MeetingDetails = {
   password: string;
   providerGenerated: boolean;
   occurrenceId: string;
+  attendanceMarked: boolean;
 };
 
 export enum DaysOfWeek {
@@ -112,6 +113,7 @@ export interface AttendanceRecord {
   userId: string;
   attendance: 'present' | 'absent';
   metaData: {
+    autoMarked: boolean;
     duration: number;
     joinTime: string;
     leaveTime: string;

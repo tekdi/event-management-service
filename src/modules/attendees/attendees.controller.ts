@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBasicAuth,
   ApiBody,
   ApiCreatedResponse,
   ApiOkResponse,
@@ -21,9 +22,11 @@ import { AttendeesService } from './attendees.service';
 import { Response } from 'express';
 import { SearchAttendeesDto } from './dto/searchAttendees.dto';
 import { UpdateAttendeesDto } from './dto/updateAttendees.dto';
+import { GetUserId } from 'src/common/decorators/userId.decorator';
 
 @Controller('attendees/v1')
 @ApiTags('Event-Attendees')
+@ApiBasicAuth('access-token')
 export class AttendeesController {
   constructor(private readonly attendeesService: AttendeesService) {}
 
@@ -37,8 +40,8 @@ export class AttendeesController {
   async create(
     @Body() eventAttendeesDTO: EventAttendeesDTO,
     @Res() response: Response,
+    @GetUserId() userId: string,
   ) {
-    const userId = '0050d1cb-64d0-4902-9ef0-a868aa7aa713'; // come from JWT token
     eventAttendeesDTO.enrolledBy = userId;
     return this.attendeesService.createAttendees(
       eventAttendeesDTO,
