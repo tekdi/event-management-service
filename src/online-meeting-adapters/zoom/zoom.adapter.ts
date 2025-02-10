@@ -124,8 +124,8 @@ export class ZoomService implements IOnlineMeetingLocator {
         '',
       );
 
-      const inMeetingUserDetails = userList.filter(({ user_email, status }) => {
-        if (status === 'in_meeting') return user_email;
+      const inMeetingUserDetails = userList.filter((user) => {
+        if (user.status === 'in_meeting') return user;
       });
 
       if (markAttendanceBy === 'email' || markAttendanceBy === 'username') {
@@ -190,6 +190,7 @@ export class ZoomService implements IOnlineMeetingLocator {
         attendance: 'present',
         metaData: {
           duration,
+          autoMarked: true,
           joinTime: join_time,
           leaveTime: leave_time,
         },
