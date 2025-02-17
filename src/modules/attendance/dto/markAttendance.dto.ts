@@ -1,7 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsUUID, Matches } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString, IsUUID, Matches } from 'class-validator';
 
 export class MarkMeetingAttendanceDto {
+  @ApiProperty({
+    type: String,
+    description: 'Mark attendance by email or username',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsEnum(['email', 'username'], {
+    message: 'Attendance can marked on basis of email or name',
+  })
+  @IsNotEmpty()
+  markAttendanceBy: string;
+
   @ApiProperty({
     type: String,
     description: 'Meeting ID',

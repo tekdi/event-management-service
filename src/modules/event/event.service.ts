@@ -168,6 +168,7 @@ export class EventService {
       delete event.total_count;
 
       const endDateTime = new Date(event.endDateTime);
+      // isEnded to be shown when time of event is passed
       return {
         ...event,
         isEnded: endDateTime < today,
@@ -250,6 +251,12 @@ export class EventService {
     // Handle cohortId filter
     if (filters?.cohortId) {
       whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`);
+    }
+
+    if (filters.hasOwnProperty('attendanceMarked')) {
+      whereClauses.push(
+        `er."onlineDetails"->>'attendanceMarked'='${filters?.attendanceMarked}'`,
+      );
     }
 
     if (filters?.createdBy) {
@@ -886,7 +893,7 @@ export class EventService {
       eventRepetition.endDateTime = new Date(updateBody.endDatetime);
       eventRepetition.updatedAt = new Date();
       await this.eventRepetitionRepository.save(eventRepetition);
-      updateResult.repetationDetail = eventRepetition;
+      updateResult.repetitionDetail = eventRepetition;
     }
 
     // get current first event as we regenerate new events and make other changes first event might change
@@ -1097,10 +1104,11 @@ export class EventService {
       eventRepetition.endDateTime = updateBody.endDatetime;
       eventRepetition.updatedAt = new Date();
       await this.eventRepetitionRepository.save(eventRepetition);
-      updateResult.repetationDetail = eventRepetition;
+      updateResult.repetitionDetail = eventRepetition;
     }
-    const eventDetailId = eventRepetition.eventDetailId;
-    const existingEventDetails = await this.getEventDetails(eventDetailId);
+    const existingEventDetails = await this.getEventDetails(
+      eventRepetition.eventDetailId,
+    );
 
     existingEventDetails.updatedAt = new Date();
 
@@ -1120,6 +1128,7 @@ export class EventService {
       }
 
       if (event.eventDetailId === existingEventDetails.eventDetailId) {
+        // as we are updating event from set of events we will make its details separate
         Object.assign(existingEventDetails, updateBody, {
           eventRepetitionId: eventRepetition.eventRepetitionId,
         });
@@ -1127,18 +1136,19 @@ export class EventService {
 
         const result =
           await this.eventDetailRepository.save(existingEventDetails);
+        // result contains separated event details which are new and then assign it to the repetition event
         eventRepetition.eventDetailId = result.eventDetailId;
         eventRepetition.updatedAt = new Date();
         await this.eventRepetitionRepository.save(eventRepetition);
         updateResult.eventDetails = result;
       } else {
-        // check in event repetation table where existingEventDetails.eventDetailId aginst how many record exist
-        const numberOfEntryInEventReperationTable =
+        // check in event repetition table where existingEventDetails.eventDetailId against how many record exist
+        const numberOfEntryInEventRepetitionTable =
           await this.getEventRepetitionOccurrences(
             existingEventDetails.eventDetailId,
           );
 
-        if (numberOfEntryInEventReperationTable.length === 1) {
+        if (numberOfEntryInEventRepetitionTable.length === 1) {
           Object.assign(existingEventDetails, updateBody, {
             eventRepetitionId: eventRepetition.eventRepetitionId,
           });
@@ -1287,11 +1297,13 @@ export class EventService {
     eventRepetition.event = event;
     eventRepetition.eventDetail = eventDetail;
     eventRepetition.onlineDetails = createEventDto.meetingDetails;
+
     if (
       createEventDto.eventType === EventTypes.online &&
       createEventDto.isMeetingNew === false
     ) {
       eventRepetition.onlineDetails['occurrenceId'] = '';
+      eventRepetition.onlineDetails['attendanceMarked'] = false;
     }
     eventRepetition.startDateTime = new Date(createEventDto.startDatetime);
     eventRepetition.endDateTime = new Date(createEventDto.endDatetime);
@@ -1325,6 +1337,7 @@ export class EventService {
       createEventDto.isMeetingNew === false
     ) {
       eventRepetition.onlineDetails['occurrenceId'] = '';
+      eventRepetition.onlineDetails['attendanceMarked'] = false;
     }
     eventRepetition.startDateTime = null;
     eventRepetition.endDateTime = null;

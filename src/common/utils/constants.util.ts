@@ -97,6 +97,13 @@ export const ERROR_MESSAGES = {
   MEETING_NOT_FOUND: 'Meeting not found',
   NO_USERS_FOUND: 'No users found in system',
   EVENT_DOES_NOT_EXIST: 'Event does not exist',
+  INVALID_MARK_ATTENDANCE_BY:
+    'Attendance can be marked on basis of email or name',
+  USER_SERVICE_ERROR: 'Something went wrong in getting users',
+  ATTENDANCE_SERVICE_ERROR: 'Something went wrong while marking attendance',
+  TOKEN_MISSING_USERID: 'Token missing user identifier (sub)',
+  AUTH_TOKEN_INVALID: 'Auth token invalid',
+  AUTH_TOKEN_MISSING: 'Invalid or missing token',
   API_REQ_FAILURE: (url: string) => `Error occurred on API Request: ${url}`,
   DB_QUERY_FAILURE: (url: string) => `Database Query Failed on API: ${url}`,
   API_FAILURE: (url: string) => `API Failure: ${url}`,
