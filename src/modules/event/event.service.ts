@@ -281,11 +281,29 @@ export class EventService {
       throw new BadRequestException(ERROR_MESSAGES.CREATION_LIMIT_UNAVAILABLE);
     }
 
-    // Event repetition record must not be of passed date
-    const currentTimestamp = new Date();
+    const where = {};
+    if (updateBody.onlineDetails.attendanceMarked) {
+      const allowedKeys = ['isMainEvent', 'onlineDetails', 'updatedBy'];
+      const invalidKeys = Object.keys(updateBody).filter(
+        (key) => !allowedKeys.includes(key),
+      );
+
+      if (invalidKeys.length > 0) {
+        throw new BadRequestException(
+          `Invalid keys provided: ${invalidKeys.join(', ')}`,
+        );
+      }
+      where['eventRepetitionId'] = eventRepetitionId;
+    } else {
+      // Event repetition record must not be of passed date
+      const currentTimestamp = new Date();
+      where['eventRepetitionId'] = eventRepetitionId;
+      where['startDateTime'] = MoreThan(currentTimestamp);
+    }
+
     // To do optimize both cases in one queries
     const eventRepetition = await this.eventRepetitionRepository.findOne({
-      where: { eventRepetitionId, startDateTime: MoreThan(currentTimestamp) },
+      where,
     });
 
     if (!eventRepetition) {

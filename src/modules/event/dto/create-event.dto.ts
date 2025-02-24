@@ -65,6 +65,8 @@ export class MeetingDetailsDto {
     default: false,
   })
   providerGenerated: boolean;
+
+  attendanceMarked: boolean;
 }
 
 export class EndCondition {
