@@ -282,7 +282,7 @@ export class EventService {
     }
 
     const where = {};
-    if (updateBody.onlineDetails.attendanceMarked) {
+    if (updateBody?.onlineDetails?.attendanceMarked) {
       const allowedKeys = ['isMainEvent', 'onlineDetails', 'updatedBy'];
       const invalidKeys = Object.keys(updateBody).filter(
         (key) => !allowedKeys.includes(key),
