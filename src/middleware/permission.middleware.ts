@@ -1,7 +1,6 @@
-import { Injectable, NestMiddleware } from '@nestjs/common';
+import { ForbiddenException, Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { RolePermissionService } from '../modules/permissionRbac/rolePermissionMapping/role-permission-mapping.service';
-import APIResponse from 'src/common/utils/response';
 import { LoggerWinston } from 'src/common/logger/logger.util';
 
 @Injectable()
@@ -23,11 +22,8 @@ export class PermissionMiddleware implements NestMiddleware {
     );
     if (isPermissionValid) return next();
     else {
-      return APIResponse.error(
-        '',
+      throw new ForbiddenException(
         'You do not have permission to access this resource',
-        'You do not have permission to access this resource',
-        'FORBIDDEN',
       );
     }
   }
