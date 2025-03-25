@@ -59,13 +59,6 @@ export class EventController {
   @Post('/create')
   @ApiOperation({ summary: 'Create Events' })
   @ApiBody({ type: CreateEventDto, examples: createEventsExamplesForSwagger })
-  @UsePipes(
-    new ValidationPipe({ transform: true }),
-    new DateValidationPipe(),
-    new RegistrationDateValidationPipe(),
-    new RecurringEndDateValidationPipe(),
-    new AttendeesValidationPipe(),
-  )
   @ApiCreatedResponse({
     description: SUCCESS_MESSAGES.EVENT_CREATED,
   })
@@ -74,7 +67,14 @@ export class EventController {
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
   })
   async create(
-    @Body() createEventDto: CreateEventDto,
+    @Body(
+      new ValidationPipe({ transform: true }),
+      new DateValidationPipe(),
+      new RegistrationDateValidationPipe(),
+      new RecurringEndDateValidationPipe(),
+      new AttendeesValidationPipe(),
+    )
+    createEventDto: CreateEventDto,
     @Res() response: Response,
     @Req() request: Request,
     @GetUserId() userId: string,

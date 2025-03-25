@@ -1531,7 +1531,7 @@ export class EventService {
     const endDate = createEventDto.endDatetime;
     const occurrences: EventRepetition[] = [];
 
-    // if we convert to local time and then genererate occurrences
+    // if we convert to local time and then generate occurrences
     let currentDateUTC = new Date(startDate);
 
     let currentDate = new Date(
