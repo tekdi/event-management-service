@@ -7,6 +7,7 @@ import {
   UseFilters,
   UsePipes,
   ValidationPipe,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ApiBasicAuth, ApiBody, ApiTags } from '@nestjs/swagger';
@@ -29,12 +30,18 @@ export class EventAttendance {
   async markEventAttendance(
     @Body() markZoomAttendanceDto: MarkMeetingAttendanceDto,
     @Res() response: Response,
+    @Req() request: Request,
     @GetUserId() userId: string,
   ): Promise<Response> {
+    if (!request?.headers?.authorization) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+    const token = request.headers.authorization;
     return this.attendanceService.markAttendanceForMeetingParticipants(
       markZoomAttendanceDto,
       userId,
       response,
+      token,
     );
   }
 }

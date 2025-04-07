@@ -60,6 +60,7 @@ export class AttendanceService implements OnModuleInit {
     markMeetingAttendanceDto: MarkMeetingAttendanceDto,
     userId: string,
     response: Response,
+    authToken: string,
   ) {
     const apiId = API_ID.MARK_EVENT_ATTENDANCE;
 
@@ -101,6 +102,7 @@ export class AttendanceService implements OnModuleInit {
     const userList: UserDetails[] = await this.getUserIdList(
       participantIdentifiers.identifiers,
       markMeetingAttendanceDto.markAttendanceBy,
+      authToken,
     );
 
     // combine data from user service and meeting attendance
@@ -121,6 +123,7 @@ export class AttendanceService implements OnModuleInit {
       userDetailList,
       markMeetingAttendanceDto,
       userId,
+      authToken,
     );
 
     LoggerWinston.log(
@@ -143,6 +146,7 @@ export class AttendanceService implements OnModuleInit {
   async getUserIdList(
     identifiers: string[],
     markAttendanceBy: string,
+    authToken: string,
   ): Promise<UserDetails[]> {
     // get userIds for emails or usernames provided from user service
     try {
@@ -164,6 +168,7 @@ export class AttendanceService implements OnModuleInit {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
+            Authorization: authToken,
           },
         },
       );
@@ -187,6 +192,7 @@ export class AttendanceService implements OnModuleInit {
     userAttendance: AttendanceRecord[],
     markMeetingAttendanceDto: MarkMeetingAttendanceDto,
     loggedInUserId: string,
+    authToken: string,
   ): Promise<any> {
     // mark attendance for each user in attendance service
     try {
@@ -204,6 +210,7 @@ export class AttendanceService implements OnModuleInit {
             Accept: 'application/json',
             tenantid: markMeetingAttendanceDto.tenantId,
             userId: loggedInUserId,
+            Authorization: authToken,
           },
         },
       );
