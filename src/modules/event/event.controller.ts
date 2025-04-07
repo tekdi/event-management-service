@@ -22,8 +22,8 @@ import {
   ApiOkResponse,
   ApiResponse,
   ApiTags,
-  ApiQuery,
   ApiOperation,
+  ApiBasicAuth,
 } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { SearchFilterDto } from './dto/search-event.dto';
@@ -41,13 +41,14 @@ import {
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
 } from 'src/common/utils/constants.util';
-import { checkValidUserId } from 'src/common/utils/functions.util';
 import { createEventsExamplesForSwagger } from './dto/create-event-example';
 import { updateEventsExamplesForSwagger } from './dto/update-event-example';
 import { searchEventsExamplesForSwagger } from './dto/search-event-example';
+import { GetUserId } from 'src/common/decorators/userId.decorator';
 
 @Controller('event/v1')
 @ApiTags('Create Event')
+@ApiBasicAuth('access-token')
 export class EventController {
   constructor(
     private readonly eventService: EventService,
@@ -58,19 +59,6 @@ export class EventController {
   @Post('/create')
   @ApiOperation({ summary: 'Create Events' })
   @ApiBody({ type: CreateEventDto, examples: createEventsExamplesForSwagger })
-  @ApiQuery({
-    name: 'userId',
-    required: true,
-    description: ERROR_MESSAGES.USERID_REQUIRED,
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @UsePipes(
-    new ValidationPipe({ transform: true }),
-    new DateValidationPipe(),
-    new RegistrationDateValidationPipe(),
-    new RecurringEndDateValidationPipe(),
-    new AttendeesValidationPipe(),
-  )
   @ApiCreatedResponse({
     description: SUCCESS_MESSAGES.EVENT_CREATED,
   })
@@ -79,11 +67,18 @@ export class EventController {
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
   })
   async create(
-    @Body() createEventDto: CreateEventDto,
+    @Body(
+      new ValidationPipe({ transform: true }),
+      new DateValidationPipe(),
+      new RegistrationDateValidationPipe(),
+      new RecurringEndDateValidationPipe(),
+      new AttendeesValidationPipe(),
+    )
+    createEventDto: CreateEventDto,
     @Res() response: Response,
     @Req() request: Request,
+    @GetUserId() userId: string,
   ) {
-    const userId: string = checkValidUserId(request.query?.userId);
     createEventDto.createdBy = userId;
     createEventDto.updatedBy = userId;
     return this.eventService.createEvent(createEventDto, response);
@@ -93,7 +88,6 @@ export class EventController {
   @Post('/list')
   @ApiOperation({ summary: 'Search Events' })
   @ApiBody({ type: SearchFilterDto, examples: searchEventsExamplesForSwagger })
-  @ApiQuery({ name: 'userId', required: true })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
   })
@@ -108,14 +102,8 @@ export class EventController {
   async findAll(
     @Body() requestBody: SearchFilterDto,
     @Res() response: Response,
-    @Req() request: Request,
+    @GetUserId() userId: string,
   ) {
-    let userId: string;
-    if (!request.query?.userId) {
-      userId = null;
-    } else {
-      userId = checkValidUserId(request.query?.userId);
-    }
     return this.eventService.getEvents(response, requestBody, userId);
   }
 
@@ -123,12 +111,6 @@ export class EventController {
   @Patch('/:id') // eventRepetitionId
   @ApiOperation({ summary: 'Edit Events' })
   @ApiBody({ type: UpdateEventDto, examples: updateEventsExamplesForSwagger })
-  @ApiQuery({
-    name: 'userId',
-    required: true,
-    description: ERROR_MESSAGES.USERID_REQUIRED,
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_UPDATED })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
@@ -139,11 +121,11 @@ export class EventController {
     updateEventDto: UpdateEventDto,
     @Res() response: Response,
     @Req() request: Request,
+    @GetUserId() userId: string,
   ) {
     if (!updateEventDto || Object.keys(updateEventDto).length === 0) {
       throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
     }
-    const userId: string = checkValidUserId(request.query?.userId);
     updateEventDto.updatedBy = userId;
     return this.eventService.updateEvent(id, updateEventDto, response);
   }

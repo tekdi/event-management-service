@@ -10,6 +10,10 @@ async function bootstrap() {
     .setTitle('Event Management')
     .setDescription('CRUD API')
     .setVersion('1.0')
+    .addApiKey(
+      { type: 'apiKey', name: 'Authorization', in: 'header' },
+      'access-token',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, options);
