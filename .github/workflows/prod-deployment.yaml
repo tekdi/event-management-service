@@ -84,4 +84,5 @@ jobs:
         kubectl apply -f manifest/event-service-updated.yaml
         kubectl apply -f manifest/configmap.yaml
         sleep 10
+        aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME_PROD }} --region ${{ secrets.AWS_REGION_NAME }}
         kubectl get pods | grep eventmanagement
