@@ -46,7 +46,7 @@ import {
 import { compareArrays } from 'src/common/utils/functions.util';
 import * as moment from 'moment-timezone';
 import { LoggerWinston } from 'src/common/logger/logger.util';
-
+import { KafkaService } from 'src/kafka/kafka.service';
 @Injectable()
 export class EventService {
   private readonly eventCreationLimit: number;
@@ -61,6 +61,7 @@ export class EventService {
     private readonly eventRepetitionRepository: Repository<EventRepetition>,
     private readonly attendeesService: AttendeesService,
     private readonly configService: ConfigService,
+    private readonly kafkaService: KafkaService,
   ) {
     this.eventCreationLimit = this.configService.get<number>(
       'EVENT_CREATION_LIMIT',
@@ -115,6 +116,7 @@ export class EventService {
       apiId,
       createEventDto.createdBy,
     );
+    this.publishEvent('created', createdEvent.res.eventId);
 
     return response
       .status(HttpStatus.CREATED)
@@ -358,6 +360,9 @@ export class EventService {
       apiId,
       updateBody.updatedBy,
     );
+
+    this.publishEvent('updated', event.eventId);
+
     return response
       .status(HttpStatus.OK)
       .json(APIResponse.success(apiId, result, 'OK'));
@@ -1681,7 +1686,9 @@ export class EventService {
   }
 
   async deleteEvent(eventId: string): Promise<DeleteResult> {
-    return this.eventRepository.delete({ eventId });
+    const result = await this.eventRepository.delete({ eventId });
+    this.publishEvent('deleted', eventId);
+    return result;
   }
 
   async deleteEventDetail(eventDetailIds: string[]): Promise<DeleteResult> {
@@ -1702,4 +1709,72 @@ export class EventService {
     const responses = await Promise.allSettled(promises);
     return responses;
   }
+
+  private async publishEvent(
+    eventType: 'created' | 'updated' | 'deleted',
+    eventId: string,
+  ): Promise<void> {
+    try {
+      let eventAllDetails: any = {};
+      
+      if (eventType === 'deleted') {
+        eventAllDetails = {
+          eventId,
+          deletedAt: new Date().toISOString()
+        };
+      } else {
+        try {
+          const eventData = await this.eventRepository.findOne({
+            where: { eventId }
+          });
+  
+          const eventDetailsData = await this.eventDetailRepository.findOne({
+            where: { "eventDetailId": eventData.eventDetailId }
+          });
+  
+          const eventRepetitionData = await this.eventRepetitionRepository.find({
+            where: { "eventDetailId": eventData.eventDetailId }
+          });
+
+          eventAllDetails = {
+            "eventData": eventData,
+            "eventDetailsData": eventDetailsData,
+            "eventRepetitionData": eventRepetitionData
+          };
+        } catch (error) {
+          eventAllDetails = { eventId };
+        }
+      }
+            
+      await this.kafkaService.publishTrackingEvent(eventType, eventAllDetails, eventId);
+    } catch (error) {
+      // Handle/log error silently
+    }
+  }
+
+
+  // private async publishEvent(
+  //   eventType: 'created' | 'updated' | 'deleted',
+  //   eventId: string,
+  // ): Promise<void> {
+  //   const apiId = `api.events.${eventType}`; // Or some other relevant API ID
+  //   try {
+  //     await this.kafkaService.publishTrackingEvent(
+  //       eventType,
+  //       eventData,
+  //       eventId,
+  //     );
+  //     LoggerWinston.log(
+  //       `Event ${eventType} event published for event ${eventId}`,
+  //       apiId,
+  //     );
+  //   } catch (error) {
+  //     LoggerWinston.error(
+  //       `Failed to publish event ${eventType} event to Kafka for event ${eventId}`,
+  //       error.stack,
+  //       apiId,
+  //     );
+  //     // Do not rethrow error to not affect main flow
+  //   }
+  // }
 }

@@ -13,12 +13,15 @@ import { Repository } from 'typeorm';
 import { SearchAttendeesDto } from './dto/searchAttendees.dto';
 import { UpdateAttendeesDto } from './dto/updateAttendees.dto';
 import { AttendeesStatus } from 'src/common/utils/types';
+import { KafkaService } from 'src/kafka/kafka.service';
+import { LoggerWinston } from 'src/common/logger/logger.util';
 
 @Injectable()
 export class AttendeesService {
   constructor(
     @InjectRepository(EventAttendees)
     private readonly eventAttendeesRepository: Repository<EventAttendees>,
+    private readonly kafkaService: KafkaService,
   ) {}
 
   async createAttendees(
@@ -34,6 +37,16 @@ export class AttendeesService {
           eventAttendeesDTO,
           userIds,
         );
+        this.publishAttendeeEvent('created', result[0]?.eventAttendeesId, result[0]);
+        return response
+          .status(HttpStatus.CREATED)
+          .send(
+            APIResponse.success(
+              apiId,
+              { attendeesId: result[0]?.eventAttendeesId },
+              'Created',
+            ),
+          );
       } else {
         // const attendees = await this.eventAttendeesRepo.find({
         //   where: { userId, eventId: eventAttendeesDTO.eventId },
@@ -49,6 +62,7 @@ export class AttendeesService {
           eventAttendeesDTO,
           userIdArray,
         );
+        this.publishAttendeeEvent('created', result[0]?.eventAttendeesId, result[0]);
         return response
           .status(HttpStatus.CREATED)
           .send(
@@ -196,6 +210,7 @@ export class AttendeesService {
     try {
       if (eventId && !userId) {
         const deleteAttendees = await this.deleteEventAttendees(eventId);
+        this.publishAttendeeEvent('deleted', eventId, { eventId });
         return response.status(HttpStatus.OK).send(
           APIResponse.success(
             apiId,
@@ -317,6 +332,7 @@ export class AttendeesService {
       if (!updated_result) {
         throw new BadRequestException('Attendees updation failed');
       }
+      this.publishAttendeeEvent('updated', updated_result.eventAttendeesId, updated_result);
       return response
         .status(HttpStatus.OK)
         .send(APIResponse.success(apiId, updateAttendeesDto, 'updated'));
@@ -406,6 +422,31 @@ export class AttendeesService {
       await this.eventAttendeesRepository.insert(attendeesRecords);
     } catch (e) {
       throw e;
+    }
+  }
+
+  private async publishAttendeeEvent(
+    eventType: 'created' | 'updated' | 'deleted',
+    attendeeId: string,
+    attendeeData: any,
+  ): Promise<void> {
+    const apiId = `api.attendees.${eventType}`;
+    try {
+      await this.kafkaService.publishTrackingEvent(
+        eventType,
+        attendeeData,
+        attendeeId,
+      );
+      LoggerWinston.log(
+        `Attendee ${eventType} event published for attendee ${attendeeId}`,
+        apiId,
+      );
+    } catch (error) {
+      LoggerWinston.error(
+        `Failed to publish attendee ${eventType} event to Kafka for attendee ${attendeeId}`,
+        error.stack,
+        apiId,
+      );
     }
   }
 }
