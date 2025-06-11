@@ -1751,30 +1751,4 @@ export class EventService {
       // Handle/log error silently
     }
   }
-
-
-  // private async publishEvent(
-  //   eventType: 'created' | 'updated' | 'deleted',
-  //   eventId: string,
-  // ): Promise<void> {
-  //   const apiId = `api.events.${eventType}`; // Or some other relevant API ID
-  //   try {
-  //     await this.kafkaService.publishTrackingEvent(
-  //       eventType,
-  //       eventData,
-  //       eventId,
-  //     );
-  //     LoggerWinston.log(
-  //       `Event ${eventType} event published for event ${eventId}`,
-  //       apiId,
-  //     );
-  //   } catch (error) {
-  //     LoggerWinston.error(
-  //       `Failed to publish event ${eventType} event to Kafka for event ${eventId}`,
-  //       error.stack,
-  //       apiId,
-  //     );
-  //     // Do not rethrow error to not affect main flow
-  //   }
-  // }
 }
