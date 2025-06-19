@@ -11,7 +11,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 
   constructor(private configService: ConfigService) {
     // Retrieve Kafka config from the configuration
-    this.isKafkaEnabled = this.configService.get<boolean>('kafkaEnabled', true); // Default to true if not specified
+    this.isKafkaEnabled = this.configService.get<boolean>('kafkaEnabled', false); // Default to true if not specified
     const brokers = this.configService.get<string>('KAFKA_BROKERS', 'localhost:9092').split(',');
     const clientId = this.configService.get<string>('KAFKA_CLIENT_ID', 'tracking-service');
 
