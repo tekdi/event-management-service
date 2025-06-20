@@ -76,13 +76,7 @@ jobs:
           envsubst < manifest/event-service.yaml > manifest/event-service-updated.yaml
           cat manifest/event-service-updated.yaml
           rm -rf manifest/event-service.yaml
-          kubectl delete deployment eventmanagement
-          kubectl delete svc eventmanagement
-          kubectl delete cm event-service-config
           kubectl apply -f manifest/event-service-updated.yaml
           kubectl apply -f manifest/configmap.yaml
           sleep 10
-          kubectl get pods
-          kubectl get services
-          kubectl get deployment 
-          kubectl apply -f manifest/
+          kubectl get pods | grep eventmanagement
