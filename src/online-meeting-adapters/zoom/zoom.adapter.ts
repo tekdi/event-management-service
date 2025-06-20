@@ -35,6 +35,13 @@ export class ZoomService implements IOnlineMeetingLocator {
   }
 
   onModuleInit() {
+    console.log('ZoomService environment config:', {
+      accountId: this.accountId,
+      username: this.username,
+      password: this.password ? '**** (hidden)' : 'Not set',
+      authUrl: this.authUrl,
+      zoomPastMeetings: this.zoomPastMeetings,
+    });
     if (
       !this.accountId.trim().length ||
       !this.username.trim().length ||

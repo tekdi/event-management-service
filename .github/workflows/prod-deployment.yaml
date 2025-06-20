@@ -3,7 +3,7 @@ name: PROD-EVENT-TAG-BASE-DEPLOYMENT
 on:
   push:
     tags:
-      - 'v*' 
+      - 'v*'
 
 env:
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
@@ -14,6 +14,7 @@ jobs:
   EVENT-TAG-BASE-DEPLOYMENT-PROD:
     name: Deployment
     runs-on: ubuntu-latest
+
     steps:
     - name: Check out code
       uses: actions/checkout@v2
@@ -31,12 +32,24 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-        
+        aws-region: ${{ secrets.AWS_REGION_NAME }}
+
+    - name: Install required tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gettext
+
     - name: Setup Node Env
       uses: actions/setup-node@v3
       with:
         node-version: 21.1.0
+
+    - name: Debug Environment Variables
+      run: |
+        echo "ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}"
+        echo "IMAGE_TAG=${{ env.TAG }}"
+        echo "AWS_REGION=${{ secrets.AWS_REGION_NAME }}"
+        echo "EKS_CLUSTER_NAME=${{ secrets.EKS_CLUSTER_NAME_PROD }}"
 
     - name: Copy .env file
       env:
@@ -45,24 +58,22 @@ jobs:
 
     - name: Show PWD and list content and Latest 3 commits 
       run: |
-           echo "Fetching all branches to ensure complete history"
-           git fetch --all
-           echo "Checking out the current branch"
-           git checkout ${{ github.ref_name }}
-           echo "Git Branch cloned"
-           git branch
-           echo "Current 3 merge commits are:"
-           git log --merges -n 3
-           pwd
-           ls -ltra
+        echo "Fetching all branches to ensure complete history"
+        git fetch --all
+        echo "Checking out the current branch"
+        git checkout ${{ github.ref_name }}
+        echo "Git Branch cloned"
+        git branch
+        echo "Current 3 merge commits are:"
+        git log --merges -n 3
+        pwd
+        ls -ltra
 
     - name: Login to Amazon ECR
-      id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
     - name: Build, tag, and push image to Amazon ECR
       env:
-        ECR_REGISTRY: ${{ secrets.ECR_REPOSITORY }}
         IMAGE_TAG: ${{ env.TAG }}
       run: |
         docker build -t ${{ secrets.ECR_REPOSITORY }}:${{ env.TAG }} .
@@ -71,18 +82,17 @@ jobs:
     - name: Update kube config
       run: aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME_PROD }} --region ${{ secrets.AWS_REGION_NAME }}
 
+    - name: Deploy ConfigMap
+      run: kubectl apply -f manifest/configmap.yaml --validate=true --v=8
+
     - name: Deploy to EKS
       env:
-        ECR_REGISTRY: ${{ secrets.ECR_REPOSITORY }}
+        ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
         IMAGE_TAG: ${{ env.TAG }}
       run: |
         export ECR_REPOSITORY=${{ secrets.ECR_REPOSITORY }}
         export IMAGE_TAG=${{ env.TAG }}
         envsubst < manifest/event-service.yaml > manifest/event-service-updated.yaml
         cat manifest/event-service-updated.yaml
-        rm -rf manifest/event-service.yaml
-        kubectl apply -f manifest/event-service-updated.yaml
-        kubectl apply -f manifest/configmap.yaml
-        sleep 10
-        aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME_PROD }} --region ${{ secrets.AWS_REGION_NAME }}
-        kubectl get pods | grep eventmanagement
+        kubectl apply -f manifest/event-service-updated.yaml --validate=true --v=8
+        kubectl get pods --v=8 | grep eventmanagement
