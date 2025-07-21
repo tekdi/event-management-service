@@ -94,5 +94,6 @@ jobs:
         export IMAGE_TAG=${{ env.TAG }}
         envsubst < manifest/event-service.yaml > manifest/event-service-updated.yaml
         cat manifest/event-service-updated.yaml
-        kubectl apply -f manifest/event-service-updated.yaml --validate=true --v=8
-        kubectl get pods --v=8 | grep eventmanagement
+        kubectl apply -f manifest/event-service-updated.yaml
+        kubectl apply -f manifest/configmap.yaml
+        kubectl get pods | grep eventmanagement
