@@ -188,7 +188,7 @@ export class EventService {
   }
 
   async createSearchQuery(filters, finalquery) {
-    let whereClauses = [];
+    const whereClauses = [];
 
     // Handle specific date records
     if (filters?.date) {
@@ -825,9 +825,9 @@ export class EventService {
     eventRepetition['startDatetime'] = startDatetime;
     eventRepetition['endDatetime'] = endDatetime;
 
-    let updateResult: UpdateResult = {};
+    const updateResult: UpdateResult = {};
     let updatedEvents;
-    let eventAndEventDetails: {
+    const eventAndEventDetails: {
       newEvent: Events;
       newEventDetail: EventDetail;
     } = { newEvent: event, newEventDetail: eventDetail };
@@ -988,7 +988,7 @@ export class EventService {
     eventDetail: EventDetail,
     eventRepetition,
   ) {
-    let updateResult = {};
+    const updateResult = {};
 
     // Get event which eventDetailId is diffrent from main eventDetailId from eventRepetation table[use for delete]
     const upcomingrecurrenceRecords = await this.getUpcomingRecurrenceRecords(
@@ -1120,7 +1120,7 @@ export class EventService {
   }
 
   async handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition) {
-    let updateResult: UpdateResult = {};
+    const updateResult: UpdateResult = {};
     if (updateBody?.startDatetime && updateBody?.endDatetime) {
       new DateValidationPipe().transform(updateBody);
       eventRepetition.startDateTime = updateBody.startDatetime;
@@ -1537,7 +1537,7 @@ export class EventService {
     const occurrences: EventRepetition[] = [];
 
     // if we convert to local time and then generate occurrences
-    let currentDateUTC = new Date(startDate);
+    const currentDateUTC = new Date(startDate);
 
     let currentDate = new Date(
       currentDateUTC.toLocaleString('en-US', { timeZone: this.timezone }),
@@ -1545,7 +1545,7 @@ export class EventService {
 
     const currentEnd = new Date(endDate);
 
-    let endDateTimeZoned = new Date(
+    const endDateTimeZoned = new Date(
       currentEnd.toLocaleString('en-US', { timeZone: this.timezone }),
     );
 
@@ -1716,37 +1716,43 @@ export class EventService {
   ): Promise<void> {
     try {
       let eventAllDetails: any = {};
-      
+
       if (eventType === 'deleted') {
         eventAllDetails = {
           eventId,
-          deletedAt: new Date().toISOString()
+          deletedAt: new Date().toISOString(),
         };
       } else {
         try {
           const eventData = await this.eventRepository.findOne({
-            where: { eventId }
-          });
-  
-          const eventDetailsData = await this.eventDetailRepository.findOne({
-            where: { "eventDetailId": eventData.eventDetailId }
-          });
-  
-          const eventRepetitionData = await this.eventRepetitionRepository.find({
-            where: { "eventDetailId": eventData.eventDetailId }
+            where: { eventId },
           });
 
+          const eventDetailsData = await this.eventDetailRepository.findOne({
+            where: { eventDetailId: eventData.eventDetailId },
+          });
+
+          const eventRepetitionData = await this.eventRepetitionRepository.find(
+            {
+              where: { eventDetailId: eventData.eventDetailId },
+            },
+          );
+
           eventAllDetails = {
-            "eventData": eventData,
-            "eventDetailsData": eventDetailsData,
-            "eventRepetitionData": eventRepetitionData
+            eventData: eventData,
+            eventDetailsData: eventDetailsData,
+            eventRepetitionData: eventRepetitionData,
           };
         } catch (error) {
           eventAllDetails = { eventId };
         }
       }
-            
-      await this.kafkaService.publishTrackingEvent(eventType, eventAllDetails, eventId);
+
+      await this.kafkaService.publishTrackingEvent(
+        eventType,
+        eventAllDetails,
+        eventId,
+      );
     } catch (error) {
       // Handle/log error silently
     }

@@ -26,7 +26,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const status =
       exception instanceof HttpException ? exception.getStatus() : 500;
 
-    let errorMessage =
+    const errorMessage =
       exception?.message || ERROR_MESSAGES.INTERNAL_SERVER_ERROR;
 
     if (exception instanceof HttpException) {

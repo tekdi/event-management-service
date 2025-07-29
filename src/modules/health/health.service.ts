@@ -16,7 +16,7 @@ export class HealthService {
 
   async getHealthStatus(): Promise<HealthResponseDto> {
     const checks: HealthCheckDto[] = [];
-    
+
     // Check PostgreSQL health
     const postgresqlHealth = await this.checkPostgreSQLHealth();
     checks.push({
@@ -32,7 +32,9 @@ export class HealthService {
     });
 
     // Determine overall status
-    const overallStatus = checks.every(check => check.healthy) ? 'healthy' : 'unhealthy';
+    const overallStatus = checks.every((check) => check.healthy)
+      ? 'healthy'
+      : 'unhealthy';
 
     return {
       time: new Date().toISOString(),

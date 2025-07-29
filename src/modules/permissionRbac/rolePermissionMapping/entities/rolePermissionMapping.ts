@@ -4,11 +4,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   PrimaryGeneratedColumn,
-} from "typeorm";
+} from 'typeorm';
 
-@Entity({ name: "RolePermission" })
+@Entity({ name: 'RolePermission' })
 export class RolePermission {
-  @PrimaryGeneratedColumn("uuid")
+  @PrimaryGeneratedColumn('uuid')
   rolePermissionId: string;
 
   @Column()
@@ -23,21 +23,21 @@ export class RolePermission {
   @Column()
   apiPath: string;
 
-  @Column({ type: "uuid" })
+  @Column({ type: 'uuid' })
   createdBy: string;
 
-  @Column({ type: "uuid" })
+  @Column({ type: 'uuid' })
   updatedBy: string;
   @CreateDateColumn({
-    type: "timestamptz",
-    default: () => "now()",
+    type: 'timestamptz',
+    default: () => 'now()',
     nullable: false,
   })
   createdAt: Date;
 
   @UpdateDateColumn({
-    type: "timestamptz",
-    default: () => "now()",
+    type: 'timestamptz',
+    default: () => 'now()',
     nullable: false,
   })
   updatedAt: Date;
