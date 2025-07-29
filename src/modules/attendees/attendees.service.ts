@@ -37,7 +37,11 @@ export class AttendeesService {
           eventAttendeesDTO,
           userIds,
         );
-        this.publishAttendeeEvent('created', result[0]?.eventAttendeesId, result[0]);
+        this.publishAttendeeEvent(
+          'created',
+          result[0]?.eventAttendeesId,
+          result[0],
+        );
         return response
           .status(HttpStatus.CREATED)
           .send(
@@ -62,7 +66,11 @@ export class AttendeesService {
           eventAttendeesDTO,
           userIdArray,
         );
-        this.publishAttendeeEvent('created', result[0]?.eventAttendeesId, result[0]);
+        this.publishAttendeeEvent(
+          'created',
+          result[0]?.eventAttendeesId,
+          result[0],
+        );
         return response
           .status(HttpStatus.CREATED)
           .send(
@@ -332,7 +340,11 @@ export class AttendeesService {
       if (!updated_result) {
         throw new BadRequestException('Attendees updation failed');
       }
-      this.publishAttendeeEvent('updated', updated_result.eventAttendeesId, updated_result);
+      this.publishAttendeeEvent(
+        'updated',
+        updated_result.eventAttendeesId,
+        updated_result,
+      );
       return response
         .status(HttpStatus.OK)
         .send(APIResponse.success(apiId, updateAttendeesDto, 'updated'));

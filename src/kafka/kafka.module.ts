@@ -7,4 +7,4 @@ import { KafkaService } from './kafka.service';
   providers: [KafkaService],
   exports: [KafkaService],
 })
-export class KafkaModule {} 
+export class KafkaModule {}

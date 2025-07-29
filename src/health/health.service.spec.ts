@@ -5,8 +5,6 @@ import { DataSource } from 'typeorm';
 
 describe('HealthService', () => {
   let service: HealthService;
-  let kafkaService: KafkaService;
-  let dataSource: DataSource;
 
   const mockKafkaService = {
     checkHealth: jest.fn(),
@@ -33,8 +31,6 @@ describe('HealthService', () => {
     }).compile();
 
     service = module.get<HealthService>(HealthService);
-    kafkaService = module.get<KafkaService>(KafkaService);
-    dataSource = module.get<DataSource>(DataSource);
   });
 
   it('should be defined', () => {
@@ -62,10 +58,14 @@ describe('HealthService', () => {
     expect(result.result).toHaveProperty('checks');
     expect(result.result).toHaveProperty('healthy');
     expect(result.result.checks).toHaveLength(2);
-    
-    const postgresCheck = result.result.checks.find(check => check.name === 'postgresql');
-    const kafkaCheck = result.result.checks.find(check => check.name === 'kafka');
-    
+
+    const postgresCheck = result.result.checks.find(
+      (check) => check.name === 'postgresql',
+    );
+    const kafkaCheck = result.result.checks.find(
+      (check) => check.name === 'kafka',
+    );
+
     expect(postgresCheck).toEqual({ name: 'postgresql', healthy: true });
     expect(kafkaCheck).toEqual({ name: 'kafka', healthy: true });
     expect(result.result.healthy).toBe(true);
@@ -78,9 +78,13 @@ describe('HealthService', () => {
 
     const result = await service.checkHealth();
 
-    const postgresCheck = result.result.checks.find(check => check.name === 'postgresql');
-    const kafkaCheck = result.result.checks.find(check => check.name === 'kafka');
-    
+    const postgresCheck = result.result.checks.find(
+      (check) => check.name === 'postgresql',
+    );
+    const kafkaCheck = result.result.checks.find(
+      (check) => check.name === 'kafka',
+    );
+
     expect(postgresCheck).toEqual({ name: 'postgresql', healthy: false });
     expect(kafkaCheck).toEqual({ name: 'kafka', healthy: true });
     expect(result.result.healthy).toBe(false);
@@ -93,9 +97,13 @@ describe('HealthService', () => {
 
     const result = await service.checkHealth();
 
-    const postgresCheck = result.result.checks.find(check => check.name === 'postgresql');
-    const kafkaCheck = result.result.checks.find(check => check.name === 'kafka');
-    
+    const postgresCheck = result.result.checks.find(
+      (check) => check.name === 'postgresql',
+    );
+    const kafkaCheck = result.result.checks.find(
+      (check) => check.name === 'kafka',
+    );
+
     expect(postgresCheck).toEqual({ name: 'postgresql', healthy: true });
     expect(kafkaCheck).toEqual({ name: 'kafka', healthy: false });
     expect(result.result.healthy).toBe(false);

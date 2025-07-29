@@ -94,7 +94,7 @@ export class ZoomService implements IOnlineMeetingLocator {
       },
     };
 
-    let manualPageSize = 100;
+    const manualPageSize = 100;
     const finalUrl =
       `${this.zoomPastMeetings}/${zoomMeetingId}/participants?page_size=${manualPageSize}` +
       url;
@@ -103,7 +103,7 @@ export class ZoomService implements IOnlineMeetingLocator {
 
     const retrievedUsersArray = userArray.concat(response.data.participants);
     if (response.data.next_page_token) {
-      let nextPath = `&next_page_token=${response.data.next_page_token}`;
+      const nextPath = `&next_page_token=${response.data.next_page_token}`;
 
       return await this.getMeetingParticipantList(
         token,

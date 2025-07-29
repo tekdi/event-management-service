@@ -32,14 +32,15 @@ export class HealthService {
   private readonly logger = new Logger(HealthService.name);
 
   constructor(
-    @Optional() @InjectDataSource()
+    @Optional()
+    @InjectDataSource()
     private dataSource: DataSource,
     private kafkaService: KafkaService,
   ) {}
 
   async checkHealth(): Promise<HealthResponse> {
     const checks: HealthCheckResult[] = [];
-    
+
     // Check PostgreSQL health
     const postgresqlHealthy = await this.checkPostgreSQL();
     checks.push({ name: 'postgresql', healthy: postgresqlHealthy });
@@ -49,7 +50,7 @@ export class HealthService {
     checks.push({ name: 'kafka', healthy: kafkaHealthy });
 
     // Overall health is true if all checks pass
-    const overallHealthy = checks.every(check => check.healthy);
+    const overallHealthy = checks.every((check) => check.healthy);
 
     const response: HealthResponse = {
       id: 'api.content.health',
@@ -69,7 +70,9 @@ export class HealthService {
       },
     };
 
-    this.logger.log(`Health check completed. Overall healthy: ${overallHealthy}`);
+    this.logger.log(
+      `Health check completed. Overall healthy: ${overallHealthy}`,
+    );
     return response;
   }
 
@@ -80,12 +83,12 @@ export class HealthService {
         this.logger.error('PostgreSQL DataSource is not available');
         return false;
       }
-      
+
       if (!this.dataSource.isInitialized) {
         this.logger.error('PostgreSQL connection is not initialized');
         return false;
       }
-      
+
       await this.dataSource.query('SELECT 1');
       this.logger.debug('PostgreSQL health check passed');
       return true;
