@@ -200,4 +200,26 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     await this.publishMessage(topic, payload, eventId);
     this.logger.log(`Tracking ${fullEventType} event published for tracking ${eventId}`);
   }
+
+  /**
+   * Check Kafka connectivity for health checks
+   * @returns Promise<boolean> - true if Kafka is healthy, false otherwise
+   */
+  async checkHealth(): Promise<boolean> {
+    if (!this.isKafkaEnabled) {
+      this.logger.debug('Kafka is disabled, reporting as healthy');
+      return true; // Consider disabled Kafka as healthy
+    }
+
+    try {
+      // Use admin client to get metadata as a lightweight health check
+      await this.admin.connect();
+      await this.admin.fetchTopicMetadata();
+      await this.admin.disconnect();
+      return true;
+    } catch (error) {
+      this.logger.error(`Kafka health check failed: ${error.message}`);
+      return false;
+    }
+  }
 }

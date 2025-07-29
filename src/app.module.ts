@@ -10,6 +10,7 @@ import { PermissionMiddleware } from './middleware/permission.middleware';
 import { RolePermissionModule } from './modules/permissionRbac/rolePermissionMapping/role-permission.module';
 import { KafkaModule } from "./kafka/kafka.module";
 import kafkaConfig from "./kafka/kafka.config";
+import { HealthModule } from './health/health.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -23,6 +24,7 @@ import kafkaConfig from "./kafka/kafka.config";
     AttendanceModule,
     RolePermissionModule,
     KafkaModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
