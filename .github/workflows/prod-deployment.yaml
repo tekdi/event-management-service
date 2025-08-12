@@ -83,10 +83,10 @@ jobs:
       run: aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME_PROD }} --region ${{ secrets.AWS_REGION_NAME }}
 
     - name: Deploy ConfigMap
-      run: kubectl apply -f manifest/configmap.yaml --validate=true --v=8
+      run: kubectl apply -f manifest/configmap.yaml && cat manifest/configmap.yaml
 
     - name: Deploy to EKS
-      env:
+      env: 
         ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
         IMAGE_TAG: ${{ env.TAG }}
       run: |
@@ -94,5 +94,6 @@ jobs:
         export IMAGE_TAG=${{ env.TAG }}
         envsubst < manifest/event-service.yaml > manifest/event-service-updated.yaml
         cat manifest/event-service-updated.yaml
-        kubectl apply -f manifest/event-service-updated.yaml --validate=true --v=8
-        kubectl get pods --v=8 | grep eventmanagement
+        kubectl apply -f manifest/event-service-updated.yaml
+        kubectl apply -f manifest/configmap.yaml
+        kubectl get pods | grep eventmanagement

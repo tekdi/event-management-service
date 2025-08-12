@@ -117,6 +117,8 @@ export interface AttendanceRecord {
     duration: number;
     joinTime: string;
     leaveTime: string;
+    attendancePercentage?: number;
+    totalMeetingDuration?: number;
   };
 }
 

@@ -76,6 +76,8 @@ export class AttendanceService implements OnModuleInit {
       relations: ['eventDetail'], // Ensure eventDetail is included
       select: {
         eventRepetitionId: true,
+        startDateTime: true,
+        endDateTime: true,
         eventDetail: {
           onlineProvider: true,
         },
@@ -105,6 +107,11 @@ export class AttendanceService implements OnModuleInit {
       authToken,
     );
 
+    // Calculate scheduled meeting duration from our database
+    const scheduledDuration = eventRepetition.startDateTime && eventRepetition.endDateTime
+      ? (eventRepetition.endDateTime.getTime() - eventRepetition.startDateTime.getTime()) / (1000 * 60)
+      : 0;
+
     // combine data from user service and meeting attendance
     const userDetailList = this.onlineMeetingAdapter
       .getAdapter()
@@ -112,6 +119,7 @@ export class AttendanceService implements OnModuleInit {
         userList,
         participantIdentifiers.inMeetingUserDetails,
         markMeetingAttendanceDto.markAttendanceBy,
+        { scheduledDuration }, // Pass scheduled duration instead of Zoom meeting details
       );
 
     if (!userDetailList.length) {
