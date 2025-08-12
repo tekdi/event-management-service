@@ -12,6 +12,7 @@ export interface IOnlineMeetingLocator {
     userList: UserDetails[],
     meetingParticipantDetails: any[],
     markAttendanceBy: string,
+    meetingDetails?: any,
   ) => AttendanceRecord[];
   getMeetingParticipantsIdentifiers: (
     meetingId: string,

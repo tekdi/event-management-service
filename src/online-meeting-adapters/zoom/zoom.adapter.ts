@@ -159,10 +159,13 @@ export class ZoomService implements IOnlineMeetingLocator {
     }
   }
 
+
+
   getParticipantAttendance(
     userList: UserDetails[],
     meetingParticipantDetails: InZoomMeetingUserDetails[],
     markAttendanceBy: string,
+    meetingDetails?: any,
   ): AttendanceRecord[] {
     const userDetailList = [];
     let userMap: Map<string, UserDetails> = new Map();
@@ -179,6 +182,9 @@ export class ZoomService implements IOnlineMeetingLocator {
       throw new BadRequestException(ERROR_MESSAGES.INVALID_MARK_ATTENDANCE_BY);
     }
 
+    // Use scheduled meeting duration from our database instead of Zoom's actual meeting times
+    const totalMeetingDuration = meetingDetails?.scheduledDuration || 0;
+
     const key = markAttendanceBy === 'email' ? 'user_email' : 'name';
     meetingParticipantDetails.forEach(
       (participantDetail: InZoomMeetingUserDetails) => {
@@ -191,17 +197,36 @@ export class ZoomService implements IOnlineMeetingLocator {
       },
     );
 
-    return userDetailList.map(
-      ({ userId, duration, join_time, leave_time }) => ({
-        userId,
-        attendance: 'present',
-        metaData: {
-          duration,
-          autoMarked: true,
-          joinTime: join_time,
-          leaveTime: leave_time,
-        },
-      }),
+        return userDetailList.map(
+      ({ userId, duration, join_time, leave_time }) => {
+        // Calculate attendance percentage
+        let attendanceStatus: 'present' | 'absent' = 'present';
+        let attendancePercentage = 100;
+
+        if (totalMeetingDuration > 0) {
+          // Duration from Zoom API is in minutes
+          attendancePercentage = (duration / totalMeetingDuration) * 100;
+          
+          // Mark as present only if user attended more than 50% of the meeting
+          attendanceStatus = attendancePercentage > 50 ? 'present' : 'absent';
+        }
+
+        // Console log user duration details
+        console.log(`User ${userId} - Duration: ${duration} minutes, Scheduled Duration: ${totalMeetingDuration} minutes, Attendance: ${attendancePercentage.toFixed(2)}%, Status: ${attendanceStatus}`);
+
+        return {
+          userId,
+          attendance: attendanceStatus,
+          metaData: {
+            duration,
+            autoMarked: true,
+            joinTime: join_time,
+            leaveTime: leave_time,
+            attendancePercentage: Math.round(attendancePercentage * 100) / 100, // Round to 2 decimal places
+            totalMeetingDuration,
+          },
+        };
+      }
     );
   }
 }
