@@ -32,7 +32,7 @@ jobs:
       - name: Debug TAG value
         run: echo "TAG value:${{ env.TAG }}"
 
-      # Step 4: Configure AWS credentials (from environment-specific secrets)
+      # Step 4: Configure AWS credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -40,13 +40,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # Step 5: Generate ConfigMap YAML safely
-      - name: Generate ConfigMap YAML
+      # Step 5: Decode ConfigMap YAML from secret
+      - name: Write ConfigMap manifest
         run: |
           mkdir -p manifest
-          cat <<EOF > manifest/configmap.yaml
-          ${{ secrets.ENV_FILE_CONTENT }}
-          EOF
+          echo "${{ secrets.ENV_FILE_CONTENT }}" | base64 -d > manifest/configmap.yaml
+          echo "Generated ConfigMap:"
+          cat manifest/configmap.yaml
 
       # Step 6: Update Deployment Manifest
       - name: Update Deployment Manifest
@@ -55,7 +55,7 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
         run: |
           mkdir -p manifest
-          envsubst < manifest/event-management-service.yaml > manifest/event-management-service-updated.yaml
+          envsubst < manifest/event-service.yaml > manifest/event-management-service-updated.yaml
           echo "Updated deployment manifest:"
           cat manifest/event-management-service-updated.yaml
 
@@ -67,8 +67,10 @@ jobs:
           NAMESPACE: ${{ github.event.inputs.environment == 'prod' && 'default' || 'microservices-qa' }}
         run: |
           aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
-          kubectl apply -f manifest/event-management-service-updated.yaml -n $NAMESPACE
           kubectl apply -f manifest/configmap.yaml -n $NAMESPACE
+          kubectl apply -f manifest/event-management-service-updated.yaml -n $NAMESPACE
+          # Force pods to reload config after update
+          kubectl rollout restart deployment eventmanagement -n $NAMESPACE
           sleep 10
           echo "Pods status:"
-          kubectl get pods -n $NAMESPACE | grep event-management
+          kubectl get pods -n $NAMESPACE | grep eventmanagement
