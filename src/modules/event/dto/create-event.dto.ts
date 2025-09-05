@@ -34,7 +34,7 @@ import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EndsWithZConstraint } from 'src/common/pipes/event-validation.pipe';
 import { UrlWithProviderValidator } from 'src/common/utils/validation.util';
 
-export class OnlineDetailsDto {
+export class MeetingDetailsDto {
   // Pass the provider from the parent DTO
   onlineProvider: string;
 
@@ -350,7 +350,7 @@ export class CreateEventDto {
   isMeetingNew: boolean;
 
   @ApiProperty({
-    type: OnlineDetailsDto,
+    type: MeetingDetailsDto,
     description: 'Online Meeting Details',
     example: {
       url: 'https://example.com/meeting',
@@ -362,7 +362,7 @@ export class CreateEventDto {
   @ValidateIf((o) => o.isMeetingNew === false)
   @ValidateIf((o) => o.eventType === 'online')
   @ValidateNested({ each: true })
-  @Type(() => OnlineDetailsDto)
+  @Type(() => MeetingDetailsDto)
   @Transform(({ value, obj }) => {
     value.onlineProvider = obj.onlineProvider; // Pass the provider to the nested DTO
     return value;

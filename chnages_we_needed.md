@@ -893,7 +893,7 @@ await this.eventRepetitionRepository.save(eventRepetition);
 
 // 2. System validates onlineDetails
 @ValidateIf((o) => o.onlineProvider != undefined && o.platformIntegration !== true)
-onlineDetails?: OnlineDetailsDto;
+onlineDetails?: MeetingDetailsDto;
 
 // 3. System updates local database only
 eventRepetition.onlineDetails = updateBody.onlineDetails;
@@ -914,7 +914,7 @@ eventRepetition.onlineDetails = updateBody.onlineDetails;
 ```typescript
 // UpdateEventDto - onlineDetails validation
 @ValidateIf((o) => o.onlineProvider != undefined && o.platformIntegration !== true)
-onlineDetails?: OnlineDetailsDto;
+onlineDetails?: MeetingDetailsDto;
 
 // Meaning: Skip validation if platformIntegration is true
 // Because details will come from Zoom API, not user input

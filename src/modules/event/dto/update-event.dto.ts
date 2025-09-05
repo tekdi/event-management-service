@@ -14,7 +14,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { RecurrencePatternDto, OnlineDetailsDto } from './create-event.dto';
+import { RecurrencePatternDto, MeetingDetailsDto } from './create-event.dto';
 import { MeetingType, ApprovalType } from 'src/common/utils/types';
 
 export interface UpdateResult {
@@ -64,7 +64,7 @@ export class UpdateEventDto {
   isMainEvent: boolean;
 
   @ApiProperty({
-    type: OnlineDetailsDto,
+    type: MeetingDetailsDto,
     description: 'Online Meeting Details',
     example: {
       url: 'https://example.com/meeting',
@@ -77,13 +77,13 @@ export class UpdateEventDto {
     (o) => o.onlineProvider != undefined && o.platformIntegration !== true,
   ) // Skip validation if platformIntegration is true
   @ValidateNested()
-  @Type(() => OnlineDetailsDto)
+  @Type(() => MeetingDetailsDto)
   @Transform(({ value, obj }) => {
     if (!value) return undefined; // Ensure undefined is preserved
     value.onlineProvider = obj.onlineProvider; // Pass the provider to the nested DTO
     return value;
   })
-  onlineDetails?: OnlineDetailsDto; // Make it explicitly optional
+  onlineDetails?: MeetingDetailsDto; // Make it explicitly optional
 
   @ApiProperty({
     enum: MeetingType,
