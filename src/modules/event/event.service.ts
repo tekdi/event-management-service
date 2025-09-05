@@ -1571,6 +1571,7 @@ export class EventService {
     eventDetail.maxAttendees = createEventDto?.maxAttendees;
     eventDetail.recordings = createEventDto?.recordings;
     eventDetail.status = createEventDto.status;
+    eventDetail.meetingDetails = createEventDto.meetingDetails,
     eventDetail.attendees = createEventDto?.attendees?.length
       ? createEventDto.attendees
       : null;
@@ -1635,7 +1636,7 @@ export class EventService {
     const eventRepetition = new EventRepetition();
     eventRepetition.event = event;
     eventRepetition.eventDetail = eventDetail;
-    eventRepetition.onlineDetails = createEventDto.onlineDetails;
+    eventRepetition.onlineDetails = createEventDto.meetingDetails;
 
     if (
       createEventDto.eventType === EventTypes.online &&
@@ -1668,7 +1669,7 @@ export class EventService {
       eventRepetition.onlineDetails = createEventDto.onlineDetails;
       eventRepetition.erMetaData = createEventDto.erMetaData;
     } else {
-      eventRepetition.onlineDetails = createEventDto.onlineDetails;
+      eventRepetition.onlineDetails = createEventDto.meetingDetails;
       eventRepetition.erMetaData = createEventDto.erMetaData ?? {};
     }
     if (
@@ -1694,13 +1695,13 @@ export class EventService {
     if (createEventDto.eventType === EventTypes.offline) {
       // create offline event
       createEventDto.onlineProvider = null;
-      createEventDto.onlineDetails = null;
+      createEventDto.meetingDetails = null;
       createEventDto.recordings = null;
     } else if (createEventDto.eventType === EventTypes.online) {
       if (createEventDto.platformIntegration === false) {
         // Use existing meeting details
-        createEventDto.onlineDetails.providerGenerated = false;
-        createEventDto.onlineDetails.meetingType =
+        createEventDto.meetingDetails.providerGenerated = false;
+        createEventDto.meetingDetails.meetingType =
           createEventDto.meetingType || MeetingType.meeting;
       } else {
         // Create new meeting automatically
@@ -2036,7 +2037,7 @@ export class EventService {
         meetingType,
       );
 
-      createEventDto.onlineDetails = {
+      createEventDto.meetingDetails = {
         id: meetingResponse.id,
         url: meetingResponse.join_url,
         start_url: meetingResponse.start_url,

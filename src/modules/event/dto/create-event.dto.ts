@@ -367,7 +367,7 @@ export class CreateEventDto {
     value.onlineProvider = obj.onlineProvider; // Pass the provider to the nested DTO
     return value;
   })
-  onlineDetails: OnlineDetails;
+  meetingDetails: OnlineDetails;
 
   @ApiProperty({
     type: Number,
