@@ -10,6 +10,17 @@ export enum EventStatus {
   archived = 'archived',
 }
 
+export enum MeetingType {
+  meeting = 'meeting',
+  webinar = 'webinar',
+}
+
+export enum ApprovalType {
+  AUTOMATIC = 0, // Automatically approve - private meetings
+  MANUAL = 1, // Manually approve - private meetings
+  NO_REGISTRATION = 2, // No registration required - public meetings
+}
+
 export enum AttendeesStatus {
   active = 'active',
   inactive = 'inactive',
@@ -31,6 +42,9 @@ export type RepetitionDetail = {
         password: string;
         occurrenceId: string;
         providerGenerated: boolean;
+        meetingType?: MeetingType;
+        approvalType?: ApprovalType;
+        timezone?: string;
       }
     | {}
     | null;
@@ -40,13 +54,19 @@ export type RepetitionDetail = {
   endDateTime: Date;
 };
 
-export type MeetingDetails = {
+export type OnlineDetails = {
   id: string;
   url: string;
+  start_url: string;
+  registration_url: string;
   password: string;
   providerGenerated: boolean;
   occurrenceId: string;
   attendanceMarked: boolean;
+  meetingType?: MeetingType;
+  approvalType?: ApprovalType;
+  timezone?: string;
+  params?: string;
 };
 
 export enum DaysOfWeek {

@@ -33,7 +33,7 @@ export class EventAttendees {
   @Column({ type: 'int', nullable: false, default: 0 })
   duration: number;
 
-  @Column({ type: 'varchar', nullable: true, collation: 'pg_catalog.default' })
+  @Column({ type: 'varchar', nullable: true })
   status: string;
 
   @Column({
@@ -52,6 +52,12 @@ export class EventAttendees {
 
   @Column({ type: 'uuid', nullable: true })
   updatedBy: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  params: Record<string, any>;
+
+  @Column({ type: 'varchar', nullable: true })
+  registrantId: string;
 
   // @ManyToOne(() => Events, event => event.eventAttendees)
   // @JoinColumn({ name: 'eventId' })

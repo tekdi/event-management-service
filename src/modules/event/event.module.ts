@@ -5,9 +5,9 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Events } from './entities/event.entity';
 import { EventDetail } from './entities/eventDetail.entity';
-import { AttendeesService } from '../attendees/attendees.service';
 import { EventAttendees } from '../attendees/entity/attendees.entity';
 import { EventRepetition } from './entities/eventRepetition.entity';
+import { OnlineMeetingModule } from 'src/online-meeting-adapters/online-meeting.module';
 
 @Module({
   imports: [
@@ -17,8 +17,9 @@ import { EventRepetition } from './entities/eventRepetition.entity';
       EventDetail,
       EventRepetition,
     ]),
+    OnlineMeetingModule,
   ],
   controllers: [EventController],
-  providers: [EventService, ConfigService, AttendeesService],
+  providers: [EventService],
 })
 export class EventModule {}

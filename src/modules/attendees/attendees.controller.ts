@@ -3,9 +3,14 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
+  Param,
   Patch,
   Post,
+  Put,
+  Query,
   Res,
+  UseFilters,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -23,6 +28,10 @@ import { Response } from 'express';
 import { SearchAttendeesDto } from './dto/searchAttendees.dto';
 import { UpdateAttendeesDto } from './dto/updateAttendees.dto';
 import { GetUserId } from 'src/common/decorators/userId.decorator';
+import { EnrollmentDto } from './dto/provider-enrollment.dto';
+import { DeleteEnrollmentDto } from './dto/delete-enrollment.dto';
+import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
+import { API_ID } from 'src/common/utils/constants.util';
 
 @Controller('attendees/v1')
 @ApiTags('Event-Attendees')
@@ -96,5 +105,57 @@ export class AttendeesController {
       throw new BadRequestException('Please do not pass empty body');
     }
     return this.attendeesService.deleteAttendees(searchAttendeesDto, response);
+  }
+
+  @Post('enroll')
+  @ApiBadRequestResponse({ description: 'Invalid request' })
+  @UsePipes(new ValidationPipe({ transform: true }))
+  @ApiBody({ type: EnrollmentDto })
+  @ApiCreatedResponse({
+    description: 'User enrolled to meeting successfully',
+  })
+  async enrollToProviderMeeting(
+    @Body() enrollmentDto: EnrollmentDto,
+    @Res() response: Response,
+    @GetUserId() userId: string,
+  ) {
+    return this.attendeesService.enrollUserToMeeting(
+      enrollmentDto,
+      response,
+      userId,
+    );
+  }
+
+  @Delete('enroll')
+  @ApiBadRequestResponse({ description: 'Invalid request' })
+  @UsePipes(new ValidationPipe({ transform: true }))
+  @ApiBody({ type: DeleteEnrollmentDto })
+  @ApiOkResponse({
+    description: 'User enrollment deleted successfully',
+  })
+  async deleteEnrollment(
+    @Body() deleteEnrollmentDto: DeleteEnrollmentDto,
+    @Res() response: Response,
+  ) {
+    return this.attendeesService.deleteEnrollment(
+      deleteEnrollmentDto,
+      response,
+    );
+  }
+
+  @Get('/:eventRepetitionId/:userId')
+  @ApiOkResponse({ description: 'Get attendee details by eventId and userId' })
+  @ApiBadRequestResponse({ description: 'Invalid request' })
+  @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_ATTENDEE))
+  async getAttendeeByEventAndUser(
+    @Param('eventRepetitionId') eventRepetitionId: string,
+    @Param('userId') userId: string,
+    @Res() response: Response,
+  ) {
+    return this.attendeesService.getAttendeeByEventAndUser(
+      eventRepetitionId,
+      userId,
+      response,
+    );
   }
 }

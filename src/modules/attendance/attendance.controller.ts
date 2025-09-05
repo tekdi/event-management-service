@@ -42,6 +42,8 @@ export class EventAttendance {
       userId,
       response,
       token,
+      markZoomAttendanceDto.pageSize,
     );
   }
+
 }

@@ -51,7 +51,7 @@ export class EventDetail {
   @Column({ type: 'text' })
   description: string;
 
-  @Column('text', { array: true })
+  @Column('text', { array: true, nullable: true })
   attendees: string[];
 
   @CreateDateColumn({
@@ -82,7 +82,7 @@ export class EventDetail {
   metadata: object;
 
   @OneToOne(() => Events, (event) => event.eventDetail)
-  events: Event[];
+  events: Events[];
 
   @OneToMany(
     () => EventRepetition,
