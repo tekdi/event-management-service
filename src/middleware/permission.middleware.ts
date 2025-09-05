@@ -15,6 +15,7 @@ export class PermissionMiddleware implements NestMiddleware {
     } else {
       role = 'public';
     }
+    //FOR ASPIRE LEADER WE DONT NEED TO CHECK THE PERMISSIONS
     const isPermissionValid = true; // await this.checkPermissions(
     //   role,
     //   req.baseUrl,
