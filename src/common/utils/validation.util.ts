@@ -41,7 +41,7 @@ function validateMeetingUrl(url, provider) {
   return pattern.test(url);
 }
 
-@ValidatorConstraint({ name: 'urlWithProvider', async: false })
+@ValidatorConstraint({ name: 'UrlWithProviderValidator', async: false })
 export class UrlWithProviderValidator implements ValidatorConstraintInterface {
   validate(url: string, args: ValidationArguments) {
     const object = args.object as any;
