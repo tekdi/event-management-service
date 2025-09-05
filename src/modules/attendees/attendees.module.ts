@@ -8,6 +8,7 @@ import { EventService } from '../event/event.service';
 import { Events } from '../event/entities/event.entity';
 import { EventDetail } from '../event/entities/eventDetail.entity';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
+import { OnlineMeetingModule } from 'src/online-meeting-adapters/online-meeting.module';
 
 @Module({
   imports: [
@@ -17,8 +18,9 @@ import { EventRepetition } from '../event/entities/eventRepetition.entity';
       EventDetail,
       EventRepetition,
     ]),
+    OnlineMeetingModule,
   ],
   controllers: [AttendeesController],
-  providers: [AttendeesService, ConfigService, EventService],
+  providers: [AttendeesService, EventService],
 })
 export class AttendeesModule {}

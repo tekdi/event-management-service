@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsString, IsUUID, Matches } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches } from 'class-validator';
 
 export class MarkMeetingAttendanceDto {
   @ApiProperty({
@@ -19,7 +19,7 @@ export class MarkMeetingAttendanceDto {
     example: '1234567890',
   })
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   meetingId: string;
 
   @ApiProperty({
@@ -58,4 +58,13 @@ export class MarkMeetingAttendanceDto {
   @IsUUID()
   @IsNotEmpty()
   tenantId: string;
+
+  @ApiProperty({
+    type: Number,
+    description: 'Page size',
+    example: 300,
+  })
+  @IsNumber()
+  @IsOptional()
+  pageSize: number;
 }

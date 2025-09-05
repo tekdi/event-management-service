@@ -26,13 +26,15 @@ import {
   EndConditionType,
   EventTypes,
   Frequency,
-  MeetingDetails,
+  OnlineDetails,
+  MeetingType,
+  ApprovalType,
 } from 'src/common/utils/types';
 import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EndsWithZConstraint } from 'src/common/pipes/event-validation.pipe';
 import { UrlWithProviderValidator } from 'src/common/utils/validation.util';
 
-export class MeetingDetailsDto {
+export class OnlineDetailsDto {
   // Pass the provider from the parent DTO
   onlineProvider: string;
 
@@ -67,6 +69,26 @@ export class MeetingDetailsDto {
   providerGenerated: boolean;
 
   attendanceMarked: boolean;
+
+  @ApiProperty({
+    enum: MeetingType,
+    description: 'Meeting Type (meeting or webinar)',
+    example: 'meeting',
+    default: 'meeting',
+  })
+  @IsEnum(MeetingType)
+  @IsOptional()
+  meetingType?: MeetingType;
+
+  @ApiProperty({
+    enum: ApprovalType,
+    description: 'Approval Type for registrants',
+    example: ApprovalType.AUTOMATIC,
+    default: ApprovalType.AUTOMATIC,
+  })
+  @IsEnum(ApprovalType)
+  @IsOptional()
+  approvalType?: ApprovalType;
 }
 
 export class EndCondition {
@@ -273,6 +295,52 @@ export class CreateEventDto {
   onlineProvider: string;
 
   @ApiProperty({
+    enum: MeetingType,
+    description: 'Meeting Type (meeting or webinar)',
+    example: 'meeting',
+    default: 'meeting',
+  })
+  @ValidateIf((o) => o.eventType === EventTypes.online)
+  @IsEnum(MeetingType)
+  @IsOptional()
+  meetingType: MeetingType = MeetingType.meeting;
+
+  @ApiProperty({
+    enum: ApprovalType,
+    description: 'Approval Type for registrants',
+    example: ApprovalType.AUTOMATIC,
+    default: ApprovalType.AUTOMATIC,
+  })
+  @ValidateIf((o) => o.eventType === EventTypes.online)
+  @IsEnum(ApprovalType)
+  @IsOptional()
+  approvalType: ApprovalType;
+
+  @ApiProperty({
+    type: String,
+    description:
+      'Timezone for the meeting (e.g., "America/New_York", "Asia/Kolkata")',
+    example: 'Asia/Kolkata',
+    default: 'UTC',
+  })
+  @ValidateIf((o) => o.onlineProvider !== undefined)
+  @IsString()
+  @IsOptional()
+  timezone?: string;
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Whether to integrate with the meeting platform (Zoom) for creating/updating meetings',
+    example: true,
+    default: true,
+  })
+  @ValidateIf((o) => o.onlineProvider !== undefined)
+  @IsBoolean()
+  @IsOptional()
+  platformIntegration?: boolean;
+
+  @ApiProperty({
     type: Boolean,
     description: 'isMeetingNew',
     example: false,
@@ -282,7 +350,7 @@ export class CreateEventDto {
   isMeetingNew: boolean;
 
   @ApiProperty({
-    type: MeetingDetailsDto,
+    type: OnlineDetailsDto,
     description: 'Online Meeting Details',
     example: {
       url: 'https://example.com/meeting',
@@ -294,12 +362,12 @@ export class CreateEventDto {
   @ValidateIf((o) => o.isMeetingNew === false)
   @ValidateIf((o) => o.eventType === 'online')
   @ValidateNested({ each: true })
-  @Type(() => MeetingDetailsDto)
+  @Type(() => OnlineDetailsDto)
   @Transform(({ value, obj }) => {
     value.onlineProvider = obj.onlineProvider; // Pass the provider to the nested DTO
     return value;
   })
-  meetingDetails: MeetingDetails;
+  onlineDetails: OnlineDetails;
 
   @ApiProperty({
     type: Number,

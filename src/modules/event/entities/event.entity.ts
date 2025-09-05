@@ -21,6 +21,7 @@ export class Events {
 
   @Column({
     type: 'timestamptz',
+    nullable: true,
   })
   recurrenceEndDate: Date;
 
