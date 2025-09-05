@@ -66,6 +66,9 @@ export class EventDetail {
   })
   updatedAt: Date;
 
+  @Column({ type: 'jsonb', nullable: true })
+  meetingDetails: object;
+
   @Column({ type: 'uuid', nullable: true })
   createdBy: string;
 
