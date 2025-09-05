@@ -29,6 +29,7 @@ import { SearchAttendeesDto } from './dto/searchAttendees.dto';
 import { UpdateAttendeesDto } from './dto/updateAttendees.dto';
 import { GetUserId } from 'src/common/decorators/userId.decorator';
 import { EnrollmentDto } from './dto/provider-enrollment.dto';
+import { DeleteEnrollmentDto } from './dto/delete-enrollment.dto';
 import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
 import { API_ID } from 'src/common/utils/constants.util';
 
@@ -122,6 +123,23 @@ export class AttendeesController {
       enrollmentDto,
       response,
       userId,
+    );
+  }
+
+  @Delete('enroll')
+  @ApiBadRequestResponse({ description: 'Invalid request' })
+  @UsePipes(new ValidationPipe({ transform: true }))
+  @ApiBody({ type: DeleteEnrollmentDto })
+  @ApiOkResponse({
+    description: 'User enrollment deleted successfully',
+  })
+  async deleteEnrollment(
+    @Body() deleteEnrollmentDto: DeleteEnrollmentDto,
+    @Res() response: Response,
+  ) {
+    return this.attendeesService.deleteEnrollment(
+      deleteEnrollmentDto,
+      response,
     );
   }
 

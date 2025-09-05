@@ -736,4 +736,60 @@ export class ZoomService implements IOnlineMeetingLocator {
       );
     }
   }
+
+  /**
+   * Remove registrant from Zoom meeting or webinar
+   * Endpoints:
+   * - Meetings: DELETE https://api.zoom.us/v2/meetings/{meetingId}/registrants/{registrantId}
+   * - Webinars: DELETE https://api.zoom.us/v2/webinars/{webinarId}/registrants/{registrantId}
+   */
+  async removeRegistrantFromMeeting(
+    meetingId: string,
+    registrantId: string,
+    meetingType: MeetingType = MeetingType.meeting,
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+
+      // Use proper endpoints based on meeting type
+      const endpoint =
+        meetingType === MeetingType.webinar
+          ? `${this.apiBaseUrl}/webinars/${meetingId}/registrants/${registrantId}` // https://api.zoom.us/v2/webinars/{webinarId}/registrants/{registrantId}
+          : `${this.apiBaseUrl}/meetings/${meetingId}/registrants/${registrantId}`; // https://api.zoom.us/v2/meetings/{meetingId}/registrants/{registrantId}
+
+      this.logger.log(
+        `Removing registrant from ${meetingType} ${meetingId} with endpoint: ${endpoint}`,
+      );
+
+      const response = await axios.delete(endpoint, { headers });
+
+      if (response.status === 204) {
+        this.logger.log(`Successfully removed registrant from ${meetingType}`, {
+          meetingId,
+          registrantId,
+        });
+        return { success: true };
+      } else {
+        throw new BadRequestException(
+          `Failed to remove registrant from ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}: ${response.statusText}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error removing registrant from ${meetingType}: ${error.message}`,
+      );
+      if (error.response?.status === 404) {
+        throw new BadRequestException(
+          `Registrant ${registrantId} not found for this ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}`,
+        );
+      }
+      throw new BadRequestException(
+        `Failed to remove registrant from ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}: ${error.message}`,
+      );
+    }
+  }
 }

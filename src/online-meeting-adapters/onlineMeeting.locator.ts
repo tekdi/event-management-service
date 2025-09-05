@@ -80,4 +80,9 @@ export interface IOnlineMeetingLocator {
     },
     meetingType?: MeetingType,
   ) => Promise<any>;
+  removeRegistrantFromMeeting: (
+    meetingId: string,
+    registrantId: string,
+    meetingType?: MeetingType,
+  ) => Promise<any>;
 }

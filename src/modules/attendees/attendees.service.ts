@@ -14,6 +14,7 @@ import { SearchAttendeesDto } from './dto/searchAttendees.dto';
 import { UpdateAttendeesDto } from './dto/updateAttendees.dto';
 import { AttendeesStatus } from 'src/common/utils/types';
 import { EnrollmentDto } from './dto/provider-enrollment.dto';
+import { DeleteEnrollmentDto } from './dto/delete-enrollment.dto';
 import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
 import { MeetingType } from 'src/common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
@@ -553,7 +554,6 @@ export class AttendeesService {
           },
         },
       };
-      console.log(eventAttendeesDTO);
 
       const attendeeRecord = await this.saveattendessRecord(eventAttendeesDTO, [
         userId,
@@ -578,6 +578,121 @@ export class AttendeesService {
           APIResponse.error(
             apiId,
             'Failed to enroll user to meeting',
+            JSON.stringify(e),
+            'INTERNAL_SERVER_ERROR',
+          ),
+        );
+    }
+  }
+
+  async deleteEnrollment(
+    deleteEnrollmentDto: DeleteEnrollmentDto,
+    response: Response,
+  ): Promise<Response> {
+    const apiId = 'delete.enrollment';
+    try {
+      const { userId, eventRepetitionId } = deleteEnrollmentDto;
+
+      // Find the enrollment record
+      const enrollment = await this.eventAttendeesRepository.findOne({
+        where: { userId, eventRepetitionId },
+      });
+
+      if (!enrollment) {
+        return response
+          .status(HttpStatus.NOT_FOUND)
+          .send(
+            APIResponse.error(
+              apiId,
+              `No enrollment found for user ${userId} in event ${eventRepetitionId}`,
+              'Enrollment not found',
+              'NOT_FOUND',
+            ),
+          );
+      }
+
+      // Get event repetition details to find meeting information
+      const eventRepetition = await this.eventRepetitionRepository.findOne({
+        where: { eventRepetitionId },
+      });
+
+      if (!eventRepetition) {
+        return response
+          .status(HttpStatus.NOT_FOUND)
+          .send(
+            APIResponse.error(
+              apiId,
+              `Event repetition not found for ${eventRepetitionId}`,
+              'Event repetition not found',
+              'NOT_FOUND',
+            ),
+          );
+      }
+
+      // Check if there's a registrant ID and online meeting details
+      if (enrollment.registrantId && eventRepetition.onlineDetails) {
+        const meetingId = (eventRepetition.onlineDetails as any).id;
+        const provider = (eventRepetition.onlineDetails as any).provider || 'Zoom';
+        const meetingType = (eventRepetition.onlineDetails as any).meetingType || MeetingType.meeting;
+
+        if (meetingId) {
+          try {
+            // Get the appropriate adapter for the provider
+            const adapter = this.onlineMeetingAdapter.getAdapter();
+
+            // Remove registrant from provider meeting
+            await adapter.removeRegistrantFromMeeting(
+              meetingId,
+              enrollment.registrantId,
+              meetingType,
+            );
+          } catch (providerError) {
+            throw new BadRequestException(
+              `Failed to remove registrant from ${provider} meeting:`,
+              providerError,
+            );
+          }
+        }
+      }
+
+      // Delete the enrollment record from database
+      const deleteResult = await this.eventAttendeesRepository.delete({
+        userId,
+        eventRepetitionId,
+      });
+
+      if (deleteResult.affected === 0) {
+        return response
+          .status(HttpStatus.NOT_FOUND)
+          .send(
+            APIResponse.error(
+              apiId,
+              `Failed to delete enrollment for user ${userId} in event ${eventRepetitionId}`,
+              'Enrollment deletion failed',
+              'NOT_FOUND',
+            ),
+          );
+      }
+
+      return response.status(HttpStatus.OK).send(
+        APIResponse.success(
+          apiId,
+          {
+            deleted: true,
+            userId,
+            eventRepetitionId,
+            registrantId: enrollment.registrantId,
+          },
+          'Enrollment deleted successfully',
+        ),
+      );
+    } catch (e) {
+      return response
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .send(
+          APIResponse.error(
+            apiId,
+            'Failed to delete enrollment',
             JSON.stringify(e),
             'INTERNAL_SERVER_ERROR',
           ),

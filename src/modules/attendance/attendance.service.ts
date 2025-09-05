@@ -110,7 +110,6 @@ export class AttendanceService implements OnModuleInit {
       if (registrantIds.length > 0) {
         // Update each attendee record individually with their specific attendance data
         for (const participant of participantIdentifiers.inMeetingUserDetails) {
-          console.log(participant);
           if (participant.registrant_id) {
             await this.eventAttendeesRepository.update(
               {
