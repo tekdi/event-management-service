@@ -7,6 +7,10 @@ const updateEventsExamples: Record<
     isMainEvent: boolean;
     onlineProvider?: string;
     onlineDetails?: any;
+    meetingType?: string;
+    approvalType?: number;
+    timezone?: string;
+    platformIntegration?: boolean;
     startDatetime: string;
     endDatetime: string;
     location?: string;
@@ -25,6 +29,10 @@ const updateEventsExamples: Record<
     startDatetime: '2024-12-20T02:00:00Z',
     endDatetime: '2024-12-20T03:00:00Z',
     onlineProvider: 'Zoom',
+    meetingType: 'meeting',
+    approvalType: 0,
+    timezone: 'Asia/Kolkata',
+    platformIntegration: true,
     onlineDetails: {
       id: '123-456-0000',
       url: 'http://zoom.us/j/mymeeting?pwd=xyz',
@@ -55,6 +63,10 @@ const updateEventsExamples: Record<
     startDatetime: '2024-12-21T02:00:00Z',
     endDatetime: '2024-12-21T03:00:00Z',
     onlineProvider: 'GoogleMeet',
+    meetingType: 'meeting',
+    approvalType: 1,
+    timezone: 'America/New_York',
+    platformIntegration: false,
     onlineDetails: {
       id: '123-456-0000',
       url: 'https://meet.google.com/hex-uqed-zpp',
@@ -74,6 +86,10 @@ const updateEventsExamples: Record<
     startDatetime: '2024-12-21T02:00:00Z',
     endDatetime: '2024-12-21T03:00:00Z',
     onlineProvider: 'GoogleMeet',
+    meetingType: 'webinar',
+    approvalType: 2,
+    timezone: 'Europe/London',
+    platformIntegration: true,
     onlineDetails: {
       id: '123-456-0000',
       url: 'https://meet.google.com/hex-uqed-zpp',
@@ -160,6 +176,42 @@ const updateEventsExamples: Record<
       topic: '#',
       subTopic: 'Type of C',
       mentorId: '1244546647',
+    },
+  },
+  UpdateWithPlatformIntegration: {
+    isMainEvent: true,
+    title: 'Update Event with Platform Integration',
+    startDatetime: '2024-12-21T02:00:00Z',
+    endDatetime: '2024-12-21T03:00:00Z',
+    onlineProvider: 'Zoom',
+    meetingType: 'webinar',
+    approvalType: 1,
+    timezone: 'Europe/London',
+    platformIntegration: true,
+    onlineDetails: {
+      id: '123-456-0000',
+      url: 'https://zoom.us/j/updated-meeting',
+      password: 'newpassword',
+      occurrenceId: '',
+      providerGenerated: false,
+    },
+  },
+  UpdateWithoutPlatformIntegration: {
+    isMainEvent: false,
+    title: 'Update Event without Platform Integration',
+    startDatetime: '2024-12-21T02:00:00Z',
+    endDatetime: '2024-12-21T03:00:00Z',
+    onlineProvider: 'Zoom',
+    meetingType: 'meeting',
+    approvalType: 0,
+    timezone: 'Asia/Kolkata',
+    platformIntegration: false,
+    onlineDetails: {
+      id: '123-456-0000',
+      url: 'https://zoom.us/j/local-update-only',
+      password: 'localpassword',
+      occurrenceId: '',
+      providerGenerated: false,
     },
   },
 };

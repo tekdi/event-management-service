@@ -1,0 +1,58 @@
+version: "3.6"
+
+services:
+  lms:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: event-management-service
+    ports:
+      - "${PORT}:${PORT}"
+    env_file:
+      - .env  # Load all environment variables from file
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - DB_HOST=postgres
+      - DB_PORT=${POSTGRES_PORT}
+      - DB_USERNAME=${POSTGRES_USERNAME}
+      - DB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_DATABASE=${POSTGRES_DATABASE}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./src:/app/src
+    depends_on:
+      - postgres
+    networks:
+      - event-management-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: event-management-db
+    restart: unless-stopped
+    env_file:
+      - .env  # Shared environment file
+    environment:
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+    ports:
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - event-management-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  event-management-network:
+    driver: bridge

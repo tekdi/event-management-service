@@ -131,6 +131,7 @@ export const SUCCESS_MESSAGES = {
 export const API_ID = {
   CREATE_EVENT: 'api.event.create',
   GET_EVENT_BY_ID: 'api.event.getbyid',
+  GET_EVENT_BY_REPETITION_ID: 'api.event.getbyrepetitionid',
   GET_EVENTS: 'api.events.get',
   UPDATE_EVENT: 'api.event.update',
   DELETE_EVENT: 'api.event.delete',

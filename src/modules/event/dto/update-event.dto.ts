@@ -15,6 +15,8 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { RecurrencePatternDto, MeetingDetailsDto } from './create-event.dto';
+import { MeetingType, ApprovalType } from 'src/common/utils/types';
+
 export interface UpdateResult {
   onlineDetails?: any;
   erMetaData?: any;
@@ -71,7 +73,9 @@ export class UpdateEventDto {
     },
   })
   @IsObject()
-  @ValidateIf((o) => o.onlineProvider != undefined) // Only validate if onlineProvider is set
+  @ValidateIf(
+    (o) => o.onlineProvider != undefined && o.platformIntegration !== true,
+  ) // Skip validation if platformIntegration is true
   @ValidateNested()
   @Type(() => MeetingDetailsDto)
   @Transform(({ value, obj }) => {
@@ -80,6 +84,52 @@ export class UpdateEventDto {
     return value;
   })
   onlineDetails?: MeetingDetailsDto; // Make it explicitly optional
+
+  @ApiProperty({
+    enum: MeetingType,
+    description: 'Meeting Type (meeting or webinar)',
+    example: 'meeting',
+    default: 'meeting',
+  })
+  @ValidateIf((o) => o.onlineProvider !== undefined)
+  @IsEnum(MeetingType)
+  @IsOptional()
+  meetingType?: MeetingType;
+
+  @ApiProperty({
+    enum: ApprovalType,
+    description: 'Approval Type for registrants',
+    example: ApprovalType.AUTOMATIC,
+    default: ApprovalType.AUTOMATIC,
+  })
+  @ValidateIf((o) => o.onlineProvider !== undefined)
+  @IsEnum(ApprovalType)
+  @IsOptional()
+  approvalType?: ApprovalType;
+
+  @ApiProperty({
+    type: String,
+    description:
+      'Timezone for the meeting (e.g., "America/New_York", "Asia/Kolkata")',
+    example: 'Asia/Kolkata',
+    default: 'UTC',
+  })
+  @ValidateIf((o) => o.onlineProvider !== undefined)
+  @IsString()
+  @IsOptional()
+  timezone?: string;
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Whether to integrate with the meeting platform (Zoom) for updating meetings',
+    example: true,
+    default: true,
+  })
+  @ValidateIf((o) => o.onlineProvider !== undefined)
+  @IsBoolean()
+  @IsOptional()
+  platformIntegration?: boolean;
 
   @ApiProperty({
     description: 'ErMetaData Details',
@@ -158,7 +208,7 @@ export class UpdateEventDto {
     description: 'Latitude',
     example: 18.508345134886994,
   })
-  @ValidateIf((o) => o.longitude !== undefined)
+  @ValidateIf((o) => o.latitude !== undefined)
   @IsLatitude()
   latitude: number;
 
@@ -202,11 +252,14 @@ export class UpdateEventDto {
       !o.erMetaData &&
       !o.startDatetime &&
       !o.onlineProvider &&
-      !o.metadata,
+      !o.metadata &&
+      !o.meetingType &&
+      !o.approvalType &&
+      !o.timezone,
   )
   @IsNotEmpty({
     message:
-      'If isMainEvent is provided, at least one of title or status must be provided.',
+      'If isMainEvent is provided, at least one of title, status, or other fields must be provided.',
   })
   validateFields?: any;
 }

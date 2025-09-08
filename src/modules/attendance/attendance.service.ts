@@ -18,7 +18,8 @@ import {
 import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
 import { AttendanceRecord, UserDetails } from 'src/common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
-import { Not, Repository } from 'typeorm';
+import { EventAttendees } from '../attendees/entity/attendees.entity';
+import { In, Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LoggerWinston } from 'src/common/logger/logger.util';
 
@@ -33,6 +34,8 @@ export class AttendanceService implements OnModuleInit {
   constructor(
     @InjectRepository(EventRepetition)
     private readonly eventRepetitionRepository: Repository<EventRepetition>,
+    @InjectRepository(EventAttendees)
+    private readonly eventAttendeesRepository: Repository<EventAttendees>,
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly onlineMeetingAdapter: OnlineMeetingAdapter,
@@ -47,7 +50,6 @@ export class AttendanceService implements OnModuleInit {
   onModuleInit() {
     if (
       !this.userServiceUrl.trim().length ||
-      !this.attendanceServiceUrl.trim().length ||
       !this.onlineMeetingProvider.trim().length
     ) {
       throw new InternalServerErrorException(
@@ -61,6 +63,7 @@ export class AttendanceService implements OnModuleInit {
     userId: string,
     response: Response,
     authToken: string,
+    pageSize: number = 300,
   ) {
     const apiId = API_ID.MARK_EVENT_ATTENDANCE;
 
@@ -74,12 +77,6 @@ export class AttendanceService implements OnModuleInit {
         },
       },
       relations: ['eventDetail'], // Ensure eventDetail is included
-      select: {
-        eventRepetitionId: true,
-        eventDetail: {
-          onlineProvider: true,
-        },
-      },
     });
 
     if (
@@ -94,9 +91,59 @@ export class AttendanceService implements OnModuleInit {
     const participantIdentifiers = await this.onlineMeetingAdapter
       .getAdapter()
       .getMeetingParticipantsIdentifiers(
-        markMeetingAttendanceDto.meetingId,
+        (eventRepetition.onlineDetails as any).id,
         markMeetingAttendanceDto.markAttendanceBy,
+        (eventRepetition.onlineDetails as any).meetingType,
+        pageSize,
       );
+
+   
+
+    if (
+      !this.attendanceServiceUrl.trim().length
+    ) {
+      // match EventAttendees.registrantId with participantIdentifiers.inMeetingUserDetails.registrant_id and mark isAttended as true and duration and joinedLeftHistory as participant details
+      const registrantIds = participantIdentifiers.inMeetingUserDetails
+        .map((participant) => participant.registrant_id)
+        .filter((id) => id); // Filter out any undefined/null values
+
+      if (registrantIds.length > 0) {
+        // Update each attendee record individually with their specific attendance data
+        for (const participant of participantIdentifiers.inMeetingUserDetails) {
+          if (participant.registrant_id) {
+            await this.eventAttendeesRepository.update(
+              {
+                registrantId: participant.registrant_id,
+                eventRepetitionId: markMeetingAttendanceDto.eventRepetitionId,
+              },
+              {
+                isAttended: true,
+                duration: participant.duration,
+                joinedLeftHistory: {
+                  joinTime: participant.join_time,
+                  leaveTime: participant.leave_time,
+                  status: participant.status,
+                } as any,
+              },
+            );
+          }
+        }
+
+        return response.status(HttpStatus.CREATED).json(
+          APIResponse.success(
+            apiId,
+            {          
+              next_page_token: participantIdentifiers.next_page_token,
+              page_count: participantIdentifiers.page_count,
+              page_size: participantIdentifiers.page_size,
+              total_records: participantIdentifiers.total_records,
+            },
+            SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
+          ),
+        );     
+      }
+    }
+
 
     // get userIds from email or username list in user service
     const userList: UserDetails[] = await this.getUserIdList(
@@ -119,12 +166,19 @@ export class AttendanceService implements OnModuleInit {
     }
 
     // mark attendance for each user
-    const res = await this.markUsersAttendance(
+    let res = await this.markUsersAttendance(
       userDetailList,
       markMeetingAttendanceDto,
       userId,
       authToken,
     );
+    res = {
+      ...res,
+      next_page_token: participantIdentifiers.next_page_token,
+      page_count: participantIdentifiers.page_count,
+      page_size: participantIdentifiers.page_size,
+      total_records: participantIdentifiers.total_records,
+    };
 
     LoggerWinston.log(
       SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
