@@ -1077,7 +1077,7 @@ export class EventService {
           );
 
           // Update Zoom meeting via API and get updated details
-          const updatedZoomDetails = await this.updateZoomMeeting(
+          const updatedZoomDetails = await this.updateMeeting(
             existingMeetingId,
             updateBody,
             (eventRepetition.onlineDetails as any).meetingType || 'meeting',
@@ -1445,7 +1445,7 @@ export class EventService {
             );
 
             // Update Zoom meeting via API and get updated details
-            const updatedZoomDetails = await this.updateZoomMeeting(
+            const updatedZoomDetails = await this.updateMeeting(
               existingMeetingId,
               updateBody,
               (eventRepetition.onlineDetails as any).meetingType || 'meeting',
@@ -2097,7 +2097,7 @@ export class EventService {
     return responses;
   }
 
-  async updateZoomMeeting(
+  async updateMeeting(
     meetingId: string,
     updateBody: UpdateEventDto,
     meetingType: MeetingType,
