@@ -866,7 +866,6 @@ export class EventService {
       .andWhere('eventDetail.status != :status', { status: 'archived' })
       .getMany();
   }
-
   async handleAllEventUpdate(
     updateBody: UpdateEventDto,
     event: Events,
@@ -880,9 +879,9 @@ export class EventService {
     eventRepetition['startDatetime'] = startDatetime;
     eventRepetition['endDatetime'] = endDatetime;
 
-    const updateResult: UpdateResult = {};
+    let updateResult: UpdateResult = {};
     let updatedEvents;
-    const eventAndEventDetails: {
+    let eventAndEventDetails: {
       newEvent: Events;
       newEventDetail: EventDetail;
     } = { newEvent: event, newEventDetail: eventDetail };
@@ -971,7 +970,7 @@ export class EventService {
       eventRepetition.endDateTime = new Date(updateBody.endDatetime);
       eventRepetition.updatedAt = new Date();
       await this.eventRepetitionRepository.save(eventRepetition);
-      // ❌ REMOVED: updateResult.repetitionDetail = eventRepetition; (moved to end)
+      updateResult.repetitionDetail = eventRepetition;
     }
 
     // get current first event as we regenerate new events and make other changes first event might change
@@ -995,19 +994,13 @@ export class EventService {
       eventRepetition.startDateTime,
     );
 
-    const updateData: any = { updatedAt: new Date() };
     // Handle onlineDetails or erMetaData updates for single recurring event
-    if (
-      updateBody.onlineDetails ||
-      updateBody.erMetaData ||
-      updateBody.meetingType ||
-      updateBody.approvalType ||
-      updateBody.timezone
-    ) {
+    if (updateBody.onlineDetails || updateBody.erMetaData) {
+      const updateData: any = { updatedAt: new Date() };
       if (updateBody.onlineDetails) {
         Object.assign(eventRepetition.onlineDetails, updateBody.onlineDetails);
         updateData.onlineDetails = eventRepetition.onlineDetails;
-        // ❌ REMOVED: updateResult.onlineDetails = updateBody.onlineDetails; (duplicate)
+        updateResult.onlineDetails = updateBody.onlineDetails;
       }
 
       if (updateBody.erMetaData) {
@@ -1015,155 +1008,10 @@ export class EventService {
         updateData.erMetaData = eventRepetition.erMetaData;
         updateResult.erMetaData = updateBody.erMetaData;
       }
-    }
-
-    // Handle new online meeting fields
-    if (updateBody.meetingType) {
-      eventRepetition.onlineDetails = eventRepetition.onlineDetails || {};
-      (eventRepetition.onlineDetails as any).meetingType =
-        updateBody.meetingType;
-      updateData.onlineDetails = eventRepetition.onlineDetails;
-      // ❌ REMOVED: updateResult.onlineDetails = { ...updateResult.onlineDetails, meetingType: updateBody.meetingType }; (duplicate)
-    }
-
-    if (updateBody.approvalType) {
-      eventRepetition.onlineDetails = eventRepetition.onlineDetails || {};
-      (eventRepetition.onlineDetails as any).approvalType =
-        updateBody.approvalType;
-      updateData.onlineDetails = eventRepetition.onlineDetails;
-      // ❌ REMOVED: updateResult.onlineDetails = { ...updateResult.onlineDetails, approvalType: updateBody.approvalType }; (duplicate)
-    }
-
-    if (updateBody.timezone) {
-      eventRepetition.onlineDetails = eventRepetition.onlineDetails || {};
-      (eventRepetition.onlineDetails as any).timezone = updateBody.timezone;
-      updateData.onlineDetails = eventRepetition.onlineDetails;
-      // ❌ REMOVED: updateResult.onlineDetails = { ...updateResult.onlineDetails, timezone: updateBody.timezone }; (duplicate)
-    }
-
-    // NEW: Handle Zoom API integration based on platformIntegration parameter
-    if (
-      updateBody.platformIntegration !== false &&
-      eventDetail.eventType === 'online'
-    ) {
-      // Get the Zoom meeting ID from existing eventRepetition data
-      const existingMeetingId = (eventRepetition.onlineDetails as any)?.id;
-
-      if (existingMeetingId) {
-        try {
-          // Calculate duration for logging and debugging
-          let durationMinutes: number | undefined;
-          if (updateBody.startDatetime && updateBody.endDatetime) {
-            const startTime = new Date(updateBody.startDatetime);
-            const endTime = new Date(updateBody.endDatetime);
-            durationMinutes = Math.ceil(
-              (endTime.getTime() - startTime.getTime()) / (1000 * 60),
-            );
-          }
-
-          LoggerWinston.log(
-            `Calling updateZoomMeeting for meeting ${existingMeetingId} with data: ${JSON.stringify(
-              {
-                title: updateBody.title,
-                startDatetime: updateBody.startDatetime,
-                endDatetime: updateBody.endDatetime,
-                durationMinutes: durationMinutes,
-                meetingType:
-                  (eventRepetition.onlineDetails as any).meetingType ||
-                  'meeting',
-                platformIntegration: updateBody.platformIntegration,
-              },
-            )}`,
-            API_ID.UPDATE_EVENT,
-          );
-
-          // Update Zoom meeting via API and get updated details
-          const updatedZoomDetails = await this.updateMeeting(
-            existingMeetingId,
-            updateBody,
-            (eventRepetition.onlineDetails as any).meetingType || 'meeting',
-            eventDetail.onlineProvider,
-          );
-
-          if (updatedZoomDetails) {
-            const adapter = this.onlineMeetingAdapter.getAdapter();
-            const meetingDetails = await adapter.getMeetingDetails(
-              existingMeetingId,
-              (eventRepetition.onlineDetails as any).meetingType || 'meeting',
-            );
-
-            this.logger.log(`Meeting details after update: ${meetingDetails}`);
-            // Update local onlineDetails with actual Zoom data
-            eventRepetition.onlineDetails = {
-              ...eventRepetition.onlineDetails,
-              id: meetingDetails.id,
-              url: meetingDetails.join_url,
-              start_url: meetingDetails.start_url,
-              registration_url: meetingDetails.registration_url,
-              password: meetingDetails.password,
-              start_time: meetingDetails.start_time, // ✅ Add missing start_time
-              duration: meetingDetails.duration, // ✅ Add missing duration
-              providerGenerated: true, // Mark as provider-generated since it came from Zoom
-              meetingType:
-                updateBody.meetingType ||
-                (eventRepetition.onlineDetails as any).meetingType,
-              approvalType:
-                updateBody.approvalType ||
-                (eventRepetition.onlineDetails as any).approvalType,
-              timezone:
-                updateBody.timezone ||
-                (eventRepetition.onlineDetails as any).timezone
-            };
-
-            this.logger.log(
-              `EventRepetition onlineDetails after update: ${JSON.stringify(eventRepetition.onlineDetails)}`,
-            );
-
-            // ✅ SAVE THE UPDATED EVENTREPETITION TO DATABASE
-            const savedEventRepetition =
-              await this.eventRepetitionRepository.save(eventRepetition);
-
-            // ✅ UPDATE THE EVENTREPETITION OBJECT WITH SAVED DATA
-            eventRepetition = savedEventRepetition;
-
-            // Update the updateData to include synced Zoom details
-            updateData.onlineDetails = eventRepetition.onlineDetails;
-            // ❌ REMOVED: updateResult.onlineDetails = eventRepetition.onlineDetails; (duplicate)
-          } else {
-            throw new BadRequestException(
-              'Failed to update Zoom meeting via API',
-            );
-          }
-
-          LoggerWinston.log(
-            'Zoom meeting updated successfully via API',
-            API_ID.UPDATE_EVENT,
-          );
-          (updateResult as any).zoomApiUpdated = true;
-        } catch (error) {
-          LoggerWinston.error(
-            'Failed to update Zoom meeting via API',
-            API_ID.UPDATE_EVENT,
-            error,
-          );
-          (updateResult as any).zoomApiError = error.message;
-          // Continue with local update even if Zoom API fails
-        }
-      } else {
-        LoggerWinston.warn(
-          `No Zoom meeting ID found in eventRepetition.onlineDetails. Cannot update Zoom meeting.`,
-          API_ID.UPDATE_EVENT,
-        );
-        (updateResult as any).zoomApiError = 'No Zoom meeting ID found';
-      }
-
       updateResult.updatedRecurringEvent = await this.updateEventRepetition(
         recurrenceRecords,
         updateData,
       );
-
-      // ✅ SET THE UPDATED EVENTREPETITION AFTER ALL CHANGES
-      updateResult.repetitionDetail = eventRepetition;
     }
 
     // Handle event detail updates
