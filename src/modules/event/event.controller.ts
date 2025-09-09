@@ -11,10 +11,12 @@ import {
   BadRequestException,
   UseFilters,
   Get,
+  Delete,
 } from '@nestjs/common';
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
+import { DeleteEventDto } from './dto/delete-event.dto';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -135,6 +137,24 @@ export class EventController {
     }
     updateEventDto.updatedBy = userId;
     return this.eventService.updateEvent(id, updateEventDto, response);
+  }
+
+  @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
+  @Delete('/:id') // eventRepetitionId
+  @ApiOperation({ summary: 'Delete Event Repetition and Optionally Main Event with Online Meeting Cleanup' })
+  @ApiBody({ type: DeleteEventDto })
+  @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_DELETED })
+  @ApiInternalServerErrorResponse({
+    description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+  })
+  deleteEvent(
+    @Param('id') id: string,
+    @Body(new ValidationPipe({ transform: true }))
+    deleteEventDto: DeleteEventDto,
+    @Res() response: Response,
+    @Req() request: Request,
+  ) {
+    return this.eventService.deleteEventRepetition(id, deleteEventDto, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
