@@ -17,6 +17,11 @@ import { UpdateEventDto } from 'src/modules/event/dto/update-event.dto';
 @Injectable()
 export class DateValidationPipe implements PipeTransform {
   transform(createEventDto: CreateEventDto | UpdateEventDto) {
+    // Only validate if startDatetime and endDatetime are provided
+    if (!createEventDto.startDatetime || !createEventDto.endDatetime) {
+      return createEventDto;
+    }
+
     const eventStartDate = createEventDto.startDatetime.split('T')[0];
     const eventEndDate = createEventDto.endDatetime.split('T')[0];
 
@@ -244,6 +249,11 @@ export class RecurringEndDateValidationPipe implements PipeTransform {
     endConditionValue: string,
     recurringStartDate: string,
   ) {
+    // Only validate if both startDatetime and endDatetime are provided
+    if (!createEventDto.endDatetime) {
+      return;
+    }
+
     const endDateTime = endConditionValue.split('T');
     const endDate = endDateTime[0]; // recurring end date
     const startDateTime = recurringStartDate.split('T');

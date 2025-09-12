@@ -16,6 +16,7 @@ import {
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
+import { UpdateEventByIdDto } from './dto/update-event-by-id.dto';
 import { DeleteEventDto } from './dto/delete-event.dto';
 import {
   ApiBadRequestResponse,
@@ -85,6 +86,38 @@ export class EventController {
     createEventDto.createdBy = userId;
     createEventDto.updatedBy = userId;
     return this.eventService.createEvent(createEventDto, response);
+  }
+
+  @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
+  @Patch('/update/:eventId')
+  @ApiOperation({ summary: 'Update Event by Event ID - Comprehensive Update' })
+  @ApiBody({ type: UpdateEventByIdDto })
+  @ApiOkResponse({
+    description: SUCCESS_MESSAGES.EVENT_UPDATED,
+  })
+  @ApiBadRequestResponse({ description: ERROR_MESSAGES.INVALID_REQUEST_BODY })
+  @ApiInternalServerErrorResponse({
+    description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+  })
+  async updateEventComprehensive(
+    @Param('eventId') eventId: string,
+    @Body(
+      new ValidationPipe({ transform: true }),
+      new DateValidationPipe(),
+      new RegistrationDateValidationPipe(),
+      new RecurringEndDateValidationPipe(),
+      new AttendeesValidationPipe(),
+    )
+    updateEventByIdDto: UpdateEventByIdDto,
+    @Res() response: Response,
+    @Req() request: Request,
+    @GetUserId() userId: string,
+  ) {
+    if (!updateEventByIdDto || Object.keys(updateEventByIdDto).length === 0) {
+      throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
+    }
+    updateEventByIdDto.updatedBy = userId;
+    return this.eventService.updateEventComprehensive(eventId, updateEventByIdDto, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENTS))

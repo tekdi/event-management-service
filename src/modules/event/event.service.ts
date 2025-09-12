@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { CreateEventDto, RecurrencePatternDto } from './dto/create-event.dto';
 import { UpdateEventDto, UpdateResult } from './dto/update-event.dto';
+import { UpdateEventByIdDto, UpdateEventByIdResult } from './dto/update-event-by-id.dto';
 import { DeleteEventDto } from './dto/delete-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
@@ -1153,7 +1154,7 @@ export class EventService {
   }
 
   async handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition) {
-    const updateResult: UpdateResult = {};
+    let updateResult: UpdateResult = {};
     if (updateBody?.startDatetime && updateBody?.endDatetime) {
       new DateValidationPipe().transform(updateBody);
       eventRepetition.startDateTime = updateBody.startDatetime;
@@ -1176,15 +1177,20 @@ export class EventService {
       updateBody.onlineDetails ||
       updateBody.metadata
     ) {
-      // onlineDetails updates are now handled in EventRepetition, not EventDetail
-      // Only handle metadata updates in EventDetail
+      if (updateBody.onlineDetails) {
+        Object.assign(
+          existingEventDetails.meetingDetails,
+          updateBody.onlineDetails,
+        );
+      }
 
       if (event.eventDetailId === existingEventDetails.eventDetailId) {
         // as we are updating event from set of events we will make its details separate
         Object.assign(existingEventDetails, updateBody, {
           eventRepetitionId: eventRepetition.eventRepetitionId,
         });
-        existingEventDetails.updatedAt = new Date();
+        existingEventDetails.eventDetailId = undefined;
+
         const result =
           await this.eventDetailRepository.save(existingEventDetails);
         // result contains separated event details which are new and then assign it to the repetition event
@@ -1221,149 +1227,107 @@ export class EventService {
         }
       }
     }
+
+    // NEW: Handle Zoom API integration based on platformIntegration parameter
     if (
-      updateBody.onlineDetails ||
-      updateBody.erMetaData ||
-      updateBody.meetingType ||
-      updateBody.approvalType ||
-      updateBody.timezone
+      updateBody.platformIntegration !== false &&
+      eventRepetition.onlineDetails
     ) {
+      // Get the Zoom meeting ID from existing eventRepetition data
+      const existingMeetingId = (eventRepetition.onlineDetails as any)?.id;
+
+      if (existingMeetingId) {
+        try {
+
+          // Calculate duration for logging and debugging
+          let durationMinutes: number | undefined;
+          if (updateBody.startDatetime && updateBody.endDatetime) {
+            const startTime = new Date(updateBody.startDatetime);
+            const endTime = new Date(updateBody.endDatetime);
+            durationMinutes = Math.ceil(
+              (endTime.getTime() - startTime.getTime()) / (1000 * 60),
+            );
+          }
+
+          // Update Zoom meeting via API and get updated details
+          const updatedZoomDetails = await this.updateMeeting(
+            existingMeetingId,
+            updateBody,
+            (eventRepetition.onlineDetails as any).meetingType || 'meeting',
+            existingEventDetails.onlineProvider,
+          );
+
+          // Sync the updated Zoom data back to local database
+          if (updatedZoomDetails) {
+            // Update local onlineDetails with actual Zoom data
+            eventRepetition.onlineDetails = {
+              ...eventRepetition.onlineDetails,
+              id: updatedZoomDetails.id || existingMeetingId,
+              url:
+                updatedZoomDetails.join_url ||
+                updatedZoomDetails.url ||
+                (eventRepetition.onlineDetails as any).url,
+              start_url:
+                updatedZoomDetails.start_url ||
+                (eventRepetition.onlineDetails as any).start_url,
+              registration_url:
+                updatedZoomDetails.registration_url ||
+                (eventRepetition.onlineDetails as any).registration_url,
+              password:
+                updatedZoomDetails.password ||
+                (eventRepetition.onlineDetails as any).password,
+              start_time: updatedZoomDetails.start_time,
+              duration: updatedZoomDetails.duration,
+              providerGenerated: true,
+              meetingType:
+                updateBody.meetingType ||
+                (eventRepetition.onlineDetails as any).meetingType,
+              approvalType:
+                updateBody.approvalType ||
+                (eventRepetition.onlineDetails as any).approvalType,
+              timezone:
+                updateBody.timezone ||
+                (eventRepetition.onlineDetails as any).timezone
+            };
+
+            const updatedEventRepetition = await this.eventRepetitionRepository.save(eventRepetition);
+
+            const newEventDetails = await this.getEventDetails(
+              updatedEventRepetition.eventDetailId,
+            );
+
+            newEventDetails.meetingDetails = updatedEventRepetition.onlineDetails;
+          }
+
+          (updateResult as any).zoomApiUpdated = true;
+        } catch (error) {
+          LoggerWinston.error(
+            'Failed to update Zoom meeting via API',
+            API_ID.UPDATE_EVENT,
+            error,
+          );
+          (updateResult as any).zoomApiError = error.message;
+        }
+      } else {
+        LoggerWinston.warn(
+          `No Zoom meeting ID found in eventRepetition.onlineDetails. Cannot update Zoom meeting.`,
+          API_ID.UPDATE_EVENT,
+        );
+        (updateResult as any).zoomApiError = 'No Zoom meeting ID found';
+      }
+    }
+
+    if (updateBody.onlineDetails || updateBody.erMetaData) {
       if (updateBody.onlineDetails) {
         Object.assign(eventRepetition.onlineDetails, updateBody.onlineDetails);
+        updateResult.onlineDetails = updateBody.onlineDetails;
       }
       if (updateBody.erMetaData) {
         Object.assign(eventRepetition.erMetaData, updateBody.erMetaData);
+        updateResult.erMetaData = updateBody.erMetaData;
       }
-
-      // Handle new online meeting fields
-      if (updateBody.meetingType) {
-        eventRepetition.onlineDetails = eventRepetition.onlineDetails || {};
-        (eventRepetition.onlineDetails as any).meetingType =
-          updateBody.meetingType;
-      }
-
-      if (updateBody.approvalType) {
-        eventRepetition.onlineDetails = eventRepetition.onlineDetails || {};
-        (eventRepetition.onlineDetails as any).approvalType =
-          updateBody.approvalType;
-      }
-
-      if (updateBody.timezone) {
-        eventRepetition.onlineDetails = eventRepetition.onlineDetails || {};
-        (eventRepetition.onlineDetails as any).timezone = updateBody.timezone;
-      }
-
-      // NEW: Handle Zoom API integration based on platformIntegration parameter
-      if (
-        updateBody.platformIntegration !== false &&
-        eventRepetition.onlineDetails
-      ) {
-        // Get the Zoom meeting ID from existing eventRepetition data
-        const existingMeetingId = (eventRepetition.onlineDetails as any)?.id;
-
-        if (existingMeetingId) {
-          try {
-            const eventDetail = await this.getEventDetails(
-              eventRepetition.eventDetailId,
-            );
-
-            // Calculate duration for logging and debugging
-            let durationMinutes: number | undefined;
-            if (updateBody.startDatetime && updateBody.endDatetime) {
-              const startTime = new Date(updateBody.startDatetime);
-              const endTime = new Date(updateBody.endDatetime);
-              durationMinutes = Math.ceil(
-                (endTime.getTime() - startTime.getTime()) / (1000 * 60),
-              );
-            }
-
-            LoggerWinston.log(
-              `Calling updateZoomMeeting for meeting ${existingMeetingId} with data: ${JSON.stringify(
-                {
-                  title: updateBody.title,
-                  startDatetime: updateBody.startDatetime,
-                  endDatetime: updateBody.endDatetime,
-                  durationMinutes: durationMinutes,
-                  meetingType:
-                    (eventRepetition.onlineDetails as any).meetingType ||
-                    'meeting',
-                  platformIntegration: updateBody.platformIntegration,
-                },
-              )}`,
-              API_ID.UPDATE_EVENT,
-            );
-
-            // Update Zoom meeting via API and get updated details
-            const updatedZoomDetails = await this.updateMeeting(
-              existingMeetingId,
-              updateBody,
-              (eventRepetition.onlineDetails as any).meetingType || 'meeting',
-              eventDetail.onlineProvider,
-            );
-
-            // Sync the updated Zoom data back to local database
-            if (updatedZoomDetails) {
-              // Update local onlineDetails with actual Zoom data
-              eventRepetition.onlineDetails = {
-                ...eventRepetition.onlineDetails,
-                id: updatedZoomDetails.id || existingMeetingId,
-                url:
-                  updatedZoomDetails.join_url ||
-                  updatedZoomDetails.url ||
-                  (eventRepetition.onlineDetails as any).url,
-                start_url:
-                  updatedZoomDetails.start_url ||
-                  (eventRepetition.onlineDetails as any).start_url,
-                registration_url:
-                  updatedZoomDetails.registration_url ||
-                  (eventRepetition.onlineDetails as any).registration_url,
-                password:
-                  updatedZoomDetails.password ||
-                  (eventRepetition.onlineDetails as any).password,
-                start_time: updatedZoomDetails.start_time, // ✅ Add missing start_time
-                duration: updatedZoomDetails.duration, // ✅ Add missing duration
-                providerGenerated: true, // Mark as provider-generated since it came from Zoom
-                meetingType:
-                  updateBody.meetingType ||
-                  (eventRepetition.onlineDetails as any).meetingType,
-                approvalType:
-                  updateBody.approvalType ||
-                  (eventRepetition.onlineDetails as any).approvalType,
-                timezone:
-                  updateBody.timezone ||
-                  (eventRepetition.onlineDetails as any).timezone
-              };
-            }
-
-            LoggerWinston.log(
-              'Zoom meeting updated successfully via API',
-              API_ID.UPDATE_EVENT,
-            );
-            (updateResult as any).zoomApiUpdated = true;
-          } catch (error) {
-            LoggerWinston.error(
-              'Failed to update Zoom meeting via API',
-              API_ID.UPDATE_EVENT,
-              error,
-            );
-            (updateResult as any).zoomApiError = error.message;
-            // Continue with local update even if Zoom API fails
-          }
-        } else {
-          LoggerWinston.warn(
-            `No Zoom meeting ID found in eventRepetition.onlineDetails. Cannot update Zoom meeting.`,
-            API_ID.UPDATE_EVENT,
-          );
-          (updateResult as any).zoomApiError = 'No Zoom meeting ID found';
-        }
-      }
-
       eventRepetition.updatedAt = new Date();
-      const savedEventRepetition =
-        await this.eventRepetitionRepository.save(eventRepetition);
-
-      // ✅ UPDATE THE EVENTREPETITION OBJECT WITH SAVED DATA
-      eventRepetition = savedEventRepetition;
+      await this.eventRepetitionRepository.save(eventRepetition);
     }
     return updateResult;
   }
@@ -1472,6 +1436,7 @@ export class EventService {
       : null;
     event.createdBy = createEventDto.createdBy;
     event.updatedBy = createEventDto.updatedBy;
+    event.platformIntegration = createEventDto.platformIntegration !== undefined ? createEventDto.platformIntegration : true; // Default to true for new events
     event.eventDetail = eventDetail;
 
     return this.eventRepository.save(event);
@@ -2169,6 +2134,172 @@ export class EventService {
   }
 
   /**
+   * Update event by event ID with comprehensive validation and processing
+   * Reuses existing validation and update methods from create event
+   * @param eventId - The ID of the event to update
+   * @param updateEventByIdDto - The update data
+   * @param response - Express response object
+   * @returns Promise<Response>
+   */
+  async updateEventComprehensive(
+    eventId: string,
+    updateEventByIdDto: UpdateEventByIdDto,
+    response: Response,
+  ): Promise<Response> {
+    const apiId = API_ID.UPDATE_EVENT;
+    this.validateTimezone();
+
+    try {
+      // Find the event first
+      const event = await this.findEventById(eventId);
+      if (!event) {
+        throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
+      }
+
+      // Check if event is archived
+      const eventDetail = await this.getEventDetails(event.eventDetailId);
+      if (eventDetail.status === 'archived') {
+        throw new BadRequestException(ERROR_MESSAGES.CANNOT_EDIT_ARCHIVED_EVENTS);
+      }
+
+      // Convert UpdateEventByIdDto to CreateEventDto for validation reuse
+      const createEventDtoForValidation = this.convertUpdateDtoToCreateDto(updateEventByIdDto, eventDetail);
+      
+      // privacy validation from create event
+      await this.validatePrivacyRequirements(createEventDtoForValidation);
+
+      // Convert to UpdateEventDto for validation reuse
+      const updateEventDto = this.convertUpdateEventByIdDtoToUpdateEventDto(updateEventByIdDto);
+      
+      // validation logic
+      const validationResult = this.isInvalidUpdate(updateEventDto, eventDetail);
+      if (!validationResult.isValid) {
+        throw new BadRequestException(validationResult.message);
+      }
+
+      // Additional validations 
+      this.validateEventUpdateBusinessRules(updateEventByIdDto, eventDetail);
+
+      // Validate restricted fields that cannot be changed
+      this.validateRestrictedFields(updateEventByIdDto, eventDetail, event.platformIntegration);
+
+      // Validate isMainEvent for recurring events
+      if (!event.isRecurring && updateEventByIdDto.isMainEvent === false) {
+        throw new BadRequestException(ERROR_MESSAGES.CANNOT_PASS_MAIN_EVENT_FALSE);
+      }
+
+      // Determine if this is a main event update (affects all recurring events)
+      const isMainEventUpdate = updateEventByIdDto.isMainEvent !== undefined ? updateEventByIdDto.isMainEvent : true;
+
+      // Prepare update result
+      const updateResult: UpdateEventByIdResult = {
+        eventUpdated: false,
+        eventDetails: null,
+        onlineDetails: null,
+        recurrencePattern: null,
+        updatedEvent: null,
+        platformIntegrationResult: null,
+      };
+
+        if (eventDetail.eventType === EventTypes.offline) {
+          // Clear online-specific fields when changing to offline
+          updateEventByIdDto.onlineProvider = null;
+          updateEventByIdDto.meetingDetails = null;
+          updateEventByIdDto.recordings = null;
+        } else if (eventDetail.eventType === EventTypes.online) {
+          // Handle online event setup
+          if (updateEventByIdDto.platformIntegration === false && updateEventByIdDto.meetingDetails) {
+            // Use existing meeting details
+            updateEventByIdDto.meetingDetails.providerGenerated = false;
+            updateEventByIdDto.meetingDetails.meetingType = updateEventByIdDto.meetingType || MeetingType.meeting;
+          }else{
+            //if updateEventByIdDto.platformIntegration is true, then we need to update meeting
+             // Handle online meeting updates (regardless of event type change)
+              if (this.hasOnlineMeetingUpdates(updateEventByIdDto)) {
+                const onlineUpdate = await this.handleOnlineMeetingUpdate(
+                  eventId,
+                  updateEventByIdDto,
+                  eventDetail,
+                );
+                updateResult.onlineDetails = onlineUpdate;
+                updateResult.platformIntegrationResult = onlineUpdate.platformIntegrationResult;
+              }
+          }
+        }
+
+      // Get the first event repetition for the update logic (similar to original updateEvent)
+      const currentTimestamp = new Date();
+      const firstEventRepetition = await this.eventRepetitionRepository.findOne({
+        where: {
+          eventId: eventId,
+          startDateTime: MoreThan(currentTimestamp),
+        },
+        relations: ['eventDetail'],
+        order: {
+          startDateTime: 'ASC',
+        },
+      });
+
+      if (!firstEventRepetition) {
+        throw new BadRequestException(ERROR_MESSAGES.EVENT_NOT_FOUND);
+      }
+
+      // Update the event repetition timestamp
+      firstEventRepetition.updatedAt = new Date();
+      firstEventRepetition.updatedBy = updateEventByIdDto.updatedBy;
+
+      // Use the existing handlers from updateEvent method
+      let result;
+      if (isMainEventUpdate) {
+        // Handle updates for all recurrence records using existing method
+        result = await this.handleAllEventUpdate(
+          updateEventDto,
+          event,
+          eventDetail,
+          firstEventRepetition,
+        );
+      } else {
+        // Handle updates for a specific recurrence record using existing method
+        result = await this.handleSpecificRecurrenceUpdate(
+          updateEventDto,
+          event,
+          firstEventRepetition,
+        );
+      }
+
+      // Update attendees if provided
+      if (updateEventByIdDto.attendees && updateEventByIdDto.attendees.length > 0) {
+        await this.updateEventAttendees(eventId, updateEventByIdDto.attendees, updateEventByIdDto.updatedBy);
+      }
+
+      // Set the result from the existing handlers
+      updateResult.eventDetails = result.eventDetails;
+      updateResult.updatedEvent = result.updatedRecurringEvent || result.repetitionDetail;
+      updateResult.recurrencePattern = result.recurrenceUpdate;
+      updateResult.eventUpdated = true;
+
+      LoggerWinston.log(
+        `${SUCCESS_MESSAGES.EVENT_UPDATED_LOG} - Event ID: ${eventId}`,
+        apiId,
+        updateEventByIdDto.updatedBy,
+      );
+
+      return response
+        .status(HttpStatus.OK)
+        .json(APIResponse.success(apiId, updateResult, 'Updated'));
+
+    } catch (error) {
+      LoggerWinston.error(
+        `Error updating event ${eventId}: ${error.message}`,
+        apiId,
+        updateEventByIdDto.updatedBy,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Delete event repetition and optionally the main event
    * @param eventRepetitionId - The ID of the event repetition to delete
    * @param deleteEventDto - Contains isMain flag to determine if main event should be deleted
@@ -2280,5 +2411,288 @@ export class EventService {
 
       throw new InternalServerErrorException(ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Convert UpdateEventByIdDto to UpdateEventDto for validation reuse
+   */
+  private convertUpdateEventByIdDtoToUpdateEventDto(
+    updateEventByIdDto: UpdateEventByIdDto,
+  ): UpdateEventDto {
+    return {
+      title: updateEventByIdDto.title,
+      startDatetime: updateEventByIdDto.startDatetime,
+      endDatetime: updateEventByIdDto.endDatetime,
+      location: updateEventByIdDto.location,
+      longitude: updateEventByIdDto.longitude,
+      latitude: updateEventByIdDto.latitude,
+      onlineDetails: updateEventByIdDto.meetingDetails,
+      onlineProvider: updateEventByIdDto.onlineProvider,
+      meetingType: updateEventByIdDto.meetingType,
+      approvalType: updateEventByIdDto.approvalType,
+      timezone: updateEventByIdDto.timezone,
+      platformIntegration: updateEventByIdDto.platformIntegration,
+      recurrencePattern: updateEventByIdDto.recurrencePattern,
+      erMetaData: updateEventByIdDto.erMetaData,
+      metadata: updateEventByIdDto.metaData,
+      updatedBy: updateEventByIdDto.updatedBy,
+      isMainEvent: updateEventByIdDto.isMainEvent !== undefined ? updateEventByIdDto.isMainEvent : true, // Default to true for comprehensive updates
+      status: updateEventByIdDto.status,
+    } as UpdateEventDto;
+  }
+
+  /**
+   * Convert UpdateEventByIdDto to CreateEventDto for validation reuse
+   */
+  private convertUpdateDtoToCreateDto(
+    updateEventByIdDto: UpdateEventByIdDto,
+    eventDetail: any,
+  ): CreateEventDto {
+    return {
+      title: updateEventByIdDto.title || eventDetail.title,
+      shortDescription: updateEventByIdDto.shortDescription || eventDetail.shortDescription,
+      description: updateEventByIdDto.description || eventDetail.description,
+      eventType: updateEventByIdDto.eventType || eventDetail.eventType,
+      isRestricted: updateEventByIdDto.isRestricted !== undefined ? updateEventByIdDto.isRestricted : eventDetail.isRestricted,
+      autoEnroll: updateEventByIdDto.autoEnroll !== undefined ? updateEventByIdDto.autoEnroll : eventDetail.autoEnroll,
+      startDatetime: updateEventByIdDto.startDatetime || eventDetail.startDatetime,
+      endDatetime: updateEventByIdDto.endDatetime || eventDetail.endDatetime,
+      location: updateEventByIdDto.location || eventDetail.location,
+      longitude: updateEventByIdDto.longitude !== undefined ? updateEventByIdDto.longitude : eventDetail.longitude,
+      latitude: updateEventByIdDto.latitude !== undefined ? updateEventByIdDto.latitude : eventDetail.latitude,
+      onlineProvider: updateEventByIdDto.onlineProvider || eventDetail.onlineProvider,
+      meetingType: updateEventByIdDto.meetingType || eventDetail.meetingType,
+      approvalType: updateEventByIdDto.approvalType !== undefined ? updateEventByIdDto.approvalType : eventDetail.approvalType,
+      timezone: updateEventByIdDto.timezone || eventDetail.timezone,
+      platformIntegration: updateEventByIdDto.platformIntegration !== undefined ? updateEventByIdDto.platformIntegration : eventDetail.platformIntegration,
+      isMeetingNew: updateEventByIdDto.isMeetingNew !== undefined ? updateEventByIdDto.isMeetingNew : eventDetail.isMeetingNew,
+      meetingDetails: updateEventByIdDto.meetingDetails || eventDetail.meetingDetails,
+      maxAttendees: updateEventByIdDto.maxAttendees !== undefined ? updateEventByIdDto.maxAttendees : eventDetail.maxAttendees,
+      attendees: updateEventByIdDto.attendees || eventDetail.attendees,
+      recordings: updateEventByIdDto.recordings || eventDetail.recordings,
+      status: updateEventByIdDto.status || eventDetail.status,
+      idealTime: updateEventByIdDto.idealTime !== undefined ? updateEventByIdDto.idealTime : eventDetail.idealTime,
+      registrationStartDate: updateEventByIdDto.registrationStartDate || eventDetail.registrationStartDate,
+      registrationEndDate: updateEventByIdDto.registrationEndDate || eventDetail.registrationEndDate,
+      isRecurring: updateEventByIdDto.isRecurring !== undefined ? updateEventByIdDto.isRecurring : eventDetail.isRecurring,
+      recurrencePattern: updateEventByIdDto.recurrencePattern || eventDetail.recurrencePattern,
+      metaData: updateEventByIdDto.metaData || eventDetail.metaData,
+      erMetaData: updateEventByIdDto.erMetaData || eventDetail.erMetaData,
+      createdBy: eventDetail.createdBy,
+      updatedBy: updateEventByIdDto.updatedBy,
+    } as CreateEventDto;
+  }
+
+  /**
+   * Handle online meeting updates using existing methods
+   */
+  private async handleOnlineMeetingUpdate(
+    eventId: string,
+    updateEventByIdDto: UpdateEventByIdDto,
+    eventDetail: EventDetail,
+  ): Promise<any> {
+    const result: any = {
+      platformIntegrationResult: null,
+    };
+
+    // If platform integration is enabled, update the meeting on the platform
+    if (updateEventByIdDto.platformIntegration === true) {
+      try {
+        // Reuse existing updateMeeting method
+        const meetingDetails = eventDetail.meetingDetails as any;
+        const platformResult = await this.updateMeeting(
+          meetingDetails.id,
+          updateEventByIdDto as UpdateEventDto,
+          meetingDetails.meetingType || MeetingType.meeting,
+          eventDetail.onlineProvider,
+        );
+        result.platformIntegrationResult = platformResult;
+      } catch (error) {
+        this.logger.error(`Failed to update meeting on platform: ${error.message}`);
+        result.platformIntegrationResult = { error: error.message };
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Check if the update contains event detail changes
+   */
+  private hasEventDetailUpdates(updateEventByIdDto: UpdateEventByIdDto): boolean {
+    return !!(
+      updateEventByIdDto.title ||
+      updateEventByIdDto.shortDescription ||
+      updateEventByIdDto.description ||
+      updateEventByIdDto.eventType ||
+      updateEventByIdDto.isRestricted !== undefined ||
+      updateEventByIdDto.autoEnroll !== undefined ||
+      updateEventByIdDto.status ||
+      updateEventByIdDto.maxAttendees !== undefined ||
+      updateEventByIdDto.idealTime !== undefined ||
+      updateEventByIdDto.registrationStartDate ||
+      updateEventByIdDto.registrationEndDate ||
+      updateEventByIdDto.isRecurring !== undefined ||
+      updateEventByIdDto.metaData ||
+      updateEventByIdDto.erMetaData ||
+      updateEventByIdDto.recordings
+    );
+  }
+
+  /**
+   * Check if the update contains online meeting changes
+   * Note: Restricted fields (onlineProvider, meetingType, isMeetingNew, meetingDetails) 
+   * are not checked here as they cannot be changed when platformIntegration is true
+   */
+  private hasOnlineMeetingUpdates(updateEventByIdDto: UpdateEventByIdDto): boolean {
+    return !!(
+      updateEventByIdDto.approvalType !== undefined ||
+      updateEventByIdDto.timezone ||
+      updateEventByIdDto.platformIntegration !== undefined ||
+      // Include datetime changes only for online events
+      (updateEventByIdDto.eventType === EventTypes.online && (updateEventByIdDto.startDatetime || updateEventByIdDto.endDatetime))
+    );
+  }
+
+  /**
+   * Validate restricted fields that cannot be changed
+   */
+  private validateRestrictedFields(
+    updateEventByIdDto: UpdateEventByIdDto,
+    eventDetail: any,
+    platformIntegration: boolean,
+  ): void {
+    // Check if platformIntegration is true - restrict certain fields
+    if (platformIntegration === true) {
+      if (updateEventByIdDto.onlineProvider !== eventDetail.onlineProvider) {
+        throw new BadRequestException(`Cannot change onlineProvider - ${updateEventByIdDto.onlineProvider}`);
+      }
+      
+      if (updateEventByIdDto.meetingDetails !== undefined) {
+        throw new BadRequestException('Cannot change meetingDetails');
+      }
+      
+      if (updateEventByIdDto.isMeetingNew !== undefined) {
+        throw new BadRequestException('Cannot change isMeetingNew');
+      }
+      
+      if (updateEventByIdDto.meetingType !== undefined) {
+        throw new BadRequestException(`Cannot change meetingType - ${updateEventByIdDto.meetingType}`);
+      }
+    }
+
+    // Always restrict these fields regardless of platformIntegration
+    if (updateEventByIdDto.isRecurring !== undefined) {
+      throw new BadRequestException('Cannot change isRecurring for existing events');
+    }
+    
+    if (updateEventByIdDto.eventType !== undefined) {
+      throw new BadRequestException('Cannot change eventType for existing events');
+    }
+  }
+
+  /**
+   * Validate business rules for event updates (similar to create event validations)
+   */
+  private validateEventUpdateBusinessRules(
+    updateEventByIdDto: UpdateEventByIdDto,
+    eventDetail: any,
+  ): void {
+    // Validate start and end datetime if both are provided
+    if (updateEventByIdDto.startDatetime && updateEventByIdDto.endDatetime) {
+      const startTime = new Date(updateEventByIdDto.startDatetime);
+      const endTime = new Date(updateEventByIdDto.endDatetime);
+      
+      if (endTime <= startTime) {
+        throw new BadRequestException(ERROR_MESSAGES.END_DATE_LESS_THAN_START_DATE);
+      }
+    }
+
+    // Validate registration dates if provided
+    if (updateEventByIdDto.registrationStartDate && updateEventByIdDto.registrationEndDate) {
+      const regStart = new Date(updateEventByIdDto.registrationStartDate);
+      const regEnd = new Date(updateEventByIdDto.registrationEndDate);
+      const eventStart = updateEventByIdDto.startDatetime ? new Date(updateEventByIdDto.startDatetime) : new Date(eventDetail.startDatetime);
+      
+      if (regEnd > regStart) {
+        throw new BadRequestException(ERROR_MESSAGES.REGISTRATION_START_DATE_BEFORE_END_DATE);
+      }
+      
+      if (regStart >= eventStart) {
+        throw new BadRequestException(ERROR_MESSAGES.REGISTRATION_START_DATE_BEFORE_EVENT_DATE);
+      }
+      
+      if (regEnd > eventStart) {
+        throw new BadRequestException(ERROR_MESSAGES.REGISTRATION_END_DATE_BEFORE_EVENT_DATE);
+      }
+    }
+
+    // Validate recurrence pattern if provided
+    if (updateEventByIdDto.isRecurring && updateEventByIdDto.recurrencePattern) {
+      const pattern = updateEventByIdDto.recurrencePattern;
+      
+      if (!pattern.frequency || !pattern.interval || !pattern.recurringStartDate || !pattern.endCondition) {
+        throw new BadRequestException(ERROR_MESSAGES.RECURRENCE_PATTERN_MISSING);
+      }
+      
+      if (pattern.frequency === 'weekly' && (!pattern.daysOfWeek || pattern.daysOfWeek.length === 0)) {
+        throw new BadRequestException(ERROR_MESSAGES.RECURRENCE_PATTERN_MISSING);
+      }
+    }
+
+    // Validate attendees for private events
+    if (updateEventByIdDto.isRestricted === true && updateEventByIdDto.autoEnroll === true) {
+      if (!updateEventByIdDto.attendees || updateEventByIdDto.attendees.length === 0) {
+        throw new BadRequestException(ERROR_MESSAGES.ATTENDEES_REQUIRED);
+      }
+    }
+
+    // Validate no attendees for public events
+    if (updateEventByIdDto.isRestricted === false && updateEventByIdDto.attendees) {
+      throw new BadRequestException(ERROR_MESSAGES.ATTENDEES_NOT_REQUIRED);
+    }
+
+    // Validate online meeting requirements
+    if (updateEventByIdDto.eventType === EventTypes.online) {
+      if (!updateEventByIdDto.onlineProvider) {
+        throw new BadRequestException('Online provider is required for online events');
+      }
+      
+      if (updateEventByIdDto.platformIntegration === false && !updateEventByIdDto.meetingDetails) {
+        throw new BadRequestException('Meeting details are required when platform integration is disabled');
+      }
+    }
+
+    // Validate offline event requirements
+    if (updateEventByIdDto.eventType === EventTypes.offline) {
+      if (!updateEventByIdDto.location) {
+        throw new BadRequestException('Location is required for offline events');
+      }
+    }
+  }
+
+  /**
+   * Update event attendees
+   */
+  private async updateEventAttendees(
+    eventId: string,
+    attendees: string[],
+    updatedBy: string,
+  ): Promise<void> {
+    // Update attendees logic here
+    // This would involve updating the attendees table for all repetitions of this event
+    this.logger.log(`Updating attendees for event ${eventId}: ${attendees.length} attendees`);
+  }
+
+
+  /**
+   * Calculate duration between two datetime strings
+   */
+  private calculateDuration(startDatetime?: string, endDatetime?: string): number {
+    if (!startDatetime || !endDatetime) return 60; // Default 1 hour
+
+    const start = new Date(startDatetime);
+    const end = new Date(endDatetime);
+    return Math.round((end.getTime() - start.getTime()) / (1000 * 60)); // Duration in minutes
   }
 }
