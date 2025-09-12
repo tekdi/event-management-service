@@ -173,8 +173,8 @@ export class EventController {
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
-  @Delete('/:id') // eventRepetitionId
-  @ApiOperation({ summary: 'Delete Event Repetition and Optionally Main Event with Online Meeting Cleanup' })
+  @Delete('/:id') // eventId
+  @ApiOperation({ summary: 'Delete Event by Event ID - Archives Event Detail and Deletes All Repetitions with Online Meeting Cleanup' })
   @ApiBody({ type: DeleteEventDto })
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_DELETED })
   @ApiInternalServerErrorResponse({
@@ -187,7 +187,7 @@ export class EventController {
     @Res() response: Response,
     @Req() request: Request,
   ) {
-    return this.eventService.deleteEventRepetition(id, deleteEventDto, response);
+    return this.eventService.deleteEventById(id, deleteEventDto, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_BY_ID))

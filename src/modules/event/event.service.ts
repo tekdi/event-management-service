@@ -2164,119 +2164,6 @@ export class EventService {
     }
   }
 
-  /**
-   * Delete event repetition and optionally the main event
-   * @param eventRepetitionId - The ID of the event repetition to delete
-   * @param deleteEventDto - Contains isMain flag to determine if main event should be deleted
-   * @param response - Express response object
-   * @returns Promise<Response>
-   */
-  async deleteEventRepetition(
-    eventRepetitionId: string,
-    deleteEventDto: DeleteEventDto,
-    response: Response,
-  ): Promise<Response> {
-    try {
-      // First, find the event repetition to get the eventId
-      const eventRepetition = await this.eventRepetitionRepository.findOne({
-        where: { eventRepetitionId },
-        relations: ['eventDetail'],
-      });
-
-      if (!eventRepetition) {
-        throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
-      }
-
-      const eventId = eventRepetition.eventId;
-
-      // Delete the event repetition
-      const deleteRepetitionResult = await this.eventRepetitionRepository.delete({
-        eventRepetitionId,
-      });
-
-      if (deleteRepetitionResult.affected === 0) {
-        throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
-      }
-
-      let deleteMainEventResult = null;
-
-      // If isMain is true, also delete the main event and all its repetitions
-      if (deleteEventDto.isMainEvent) {
-
-        // Delete online meetings for all repetitions
-        if (eventRepetition.onlineDetails) {
-          const onlineDetails = eventRepetition.onlineDetails as any;
-          const meetingId = onlineDetails?.id;
-          const meetingType = onlineDetails?.meetingType || 'meeting';
-
-          if (meetingId) {
-          try {
-            this.logger.log(
-              `Deleting online meeting ${meetingId} (${meetingType}) for repetition ${eventRepetitionId}`,
-            );
-            await this.onlineMeetingAdapter.getAdapter().deleteMeeting(
-              meetingId,
-              meetingType,
-            );
-            this.logger.log(
-              `Successfully deleted online meeting ${meetingId}`,
-            );
-          } catch (error) {
-            this.logger.error(
-              `Failed to delete online meeting ${meetingId}: ${error.message}`,
-            );
-            // Continue with database deletion even if online meeting deletion fails
-          }
-        }
-      }
-
-        // Delete all remaining repetitions for this event
-        await this.eventRepetitionRepository.delete({ eventId });
-
-        // Delete the main event
-        deleteMainEventResult = await this.deleteEvent(eventId);
-
-        // Also delete associated event details
-        const eventDetails = await this.eventDetailRepository.find({
-          where: { events: { eventId } },
-          relations: ['events'],
-        });
-
-        if (eventDetails.length > 0) {
-          const eventDetailIds = eventDetails.map(detail => detail.eventDetailId);
-          await this.deleteEventDetail(eventDetailIds);
-        }
-      } else {
-        // Even if not deleting main event, delete the online meeting for this specific repetition
-        // TODO: Delete the online meeting for this specific repetition
-      }
-
-      // Prepare response data
-      const responseData = {
-        deletedRepetition: deleteRepetitionResult,
-        deletedMainEvent: deleteMainEventResult,
-        isMainEventDeleted: deleteEventDto.isMainEvent || false,
-        onlineMeetingDeleted: true, // Indicates that online meeting deletion was attempted
-      };
-
-      return response.json(APIResponse.success(
-        API_ID.DELETE_EVENT,
-        responseData,
-        '200',
-      ));
-    } catch (error) {
-      this.logger.error(
-        `Error deleting event repetition ${eventRepetitionId}:`,
-        error,
-      );
-
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
-    }
-  }
 
   /**
    * Convert UpdateEventByIdDto to UpdateEventDto for validation reuse
@@ -2559,5 +2446,91 @@ export class EventService {
     const start = new Date(startDatetime);
     const end = new Date(endDatetime);
     return Math.round((end.getTime() - start.getTime()) / (1000 * 60)); // Duration in minutes
+  }
+
+  /**
+   * Delete event by eventId - Archives event detail and deletes all repetitions with online meeting cleanup
+   * @param eventId - The event ID to delete
+   * @param deleteEventDto - DTO for future extensibility
+   * @param response - Express response object
+   * @returns Promise<Response>
+   */
+  async deleteEventById(
+    eventId: string,
+    deleteEventDto: DeleteEventDto,
+    response: Response,
+  ): Promise<Response> {
+    try {
+      // First, find the event to verify it exists
+      const event = await this.eventRepository.findOne({
+        where: { eventId },
+        relations: ['eventDetail', 'eventRepetitions'],
+      });
+
+      if (!event) {
+        throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
+      }
+
+      // Archive the event detail by updating status to 'archived'
+      if (event.eventDetail) {
+        await this.eventDetailRepository.update(
+          { eventDetailId: event.eventDetail.eventDetailId },
+          { status: 'archived' }
+        );
+        this.logger.log(`Archived event detail for event ${eventId}`);
+      }
+
+      const onlineDetails = event.eventDetail.meetingDetails as any;
+      const meetingId = onlineDetails?.id;
+      const meetingType = onlineDetails?.meetingType || 'meeting';
+      const provider = onlineDetails?.onlineProvider || 'Zoom';
+
+      if (meetingId) {
+        try {
+          const adapter = this.onlineMeetingAdapter.getProvider(provider);
+          await adapter.deleteMeeting(meetingId, meetingType);
+          
+          
+        } catch (error) {
+          throw new BadRequestException(ERROR_MESSAGES.CANNOT_DELETE_ONLINE_MEETING, error.message);
+        }
+
+      // Delete all repetitions for this event
+      const deleteRepetitionsResult = await this.eventRepetitionRepository.delete({ eventId });
+      this.logger.log(`Deleted ${deleteRepetitionsResult.affected} repetitions for event ${eventId}`);
+
+      // Delete the main event
+      const deleteEventResult = await this.eventRepository.delete({ eventId });
+      this.logger.log(`Deleted main event ${eventId}`);
+
+      // Prepare response data
+      const responseData = {
+        eventId,
+        archivedEventDetail: event.eventDetail ? true : false,
+        deletedRepetitions: deleteRepetitionsResult.affected || 0,
+        deletedMainEvent: deleteEventResult.affected || 0,
+        onlineMeetingCleanup: onlineMeetingCleanupResults,
+        totalMeetingsProcessed: onlineMeetingCleanupResults.length,
+        successfulMeetingsDeleted: onlineMeetingCleanupResults.filter(r => r.status === 'success').length,
+        failedMeetingsDeleted: onlineMeetingCleanupResults.filter(r => r.status === 'failed').length,
+      };
+
+      return response.json(APIResponse.success(
+        API_ID.DELETE_EVENT,
+        responseData,
+        '200',
+      ));
+    } catch (error) {
+      this.logger.error(
+        `Error deleting event ${eventId}:`,
+        error,
+      );
+
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
+    }
   }
 }

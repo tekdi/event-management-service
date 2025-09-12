@@ -104,6 +104,7 @@ export const ERROR_MESSAGES = {
   TOKEN_MISSING_USERID: 'Token missing user identifier (sub)',
   AUTH_TOKEN_INVALID: 'Auth token invalid',
   AUTH_TOKEN_MISSING: 'Invalid or missing token',
+  CANNOT_DELETE_ONLINE_MEETING: 'Failed to delete online meeting',
   API_REQ_FAILURE: (url: string) => `Error occurred on API Request: ${url}`,
   DB_QUERY_FAILURE: (url: string) => `Database Query Failed on API: ${url}`,
   API_FAILURE: (url: string) => `API Failure: ${url}`,
