@@ -331,6 +331,7 @@ export class EventService {
     return finalquery;
   }
 
+
   async updateEvent(
     eventRepetitionId: string,
     updateBody: UpdateEventDto,
