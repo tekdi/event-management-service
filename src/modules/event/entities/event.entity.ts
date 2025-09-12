@@ -65,6 +65,9 @@ export class Events {
   @Column({ type: 'uuid' })
   eventDetailId: string;
 
+  @Column({ type: 'boolean', default: false })
+  platformIntegration: boolean;
+
   @OneToOne(() => EventDetail, (eventDetail) => eventDetail.events, {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',

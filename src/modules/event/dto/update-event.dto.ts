@@ -234,6 +234,15 @@ export class UpdateEventDto {
   @IsIn(['Zoom', 'GoogleMeet'])
   onlineProvider: string;
 
+  @ApiProperty({
+    type: Object,
+    description: 'Recordings',
+    example: { url: 'https://example.com/recording' },
+  })
+  @IsObject()
+  @IsOptional()
+  recordings?: any;
+
   updatedBy: string;
 
   @IsOptional()
@@ -255,7 +264,8 @@ export class UpdateEventDto {
       !o.metadata &&
       !o.meetingType &&
       !o.approvalType &&
-      !o.timezone,
+      !o.timezone &&
+      !o.recordings,
   )
   @IsNotEmpty({
     message:

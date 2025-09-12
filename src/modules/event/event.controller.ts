@@ -16,7 +16,7 @@ import {
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { DeleteEventDto } from './dto/delete-event.dto';
+import { UpdateEventByIdDto } from './dto/update-event-by-id.dto';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -87,6 +87,38 @@ export class EventController {
     return this.eventService.createEvent(createEventDto, response);
   }
 
+  @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
+  @Patch('/event/:eventId')
+  @ApiOperation({ summary: 'Update Event by Event ID - Comprehensive Update' })
+  @ApiBody({ type: UpdateEventByIdDto })
+  @ApiOkResponse({
+    description: SUCCESS_MESSAGES.EVENT_UPDATED,
+  })
+  @ApiBadRequestResponse({ description: ERROR_MESSAGES.INVALID_REQUEST_BODY })
+  @ApiInternalServerErrorResponse({
+    description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+  })
+  async updateEventById(
+    @Param('eventId') eventId: string,
+    @Body(
+      new ValidationPipe({ transform: true }),
+      new DateValidationPipe(),
+      new RegistrationDateValidationPipe(),
+      new RecurringEndDateValidationPipe(),
+      new AttendeesValidationPipe(),
+    )
+    updateEventByIdDto: UpdateEventByIdDto,
+    @Res() response: Response,
+    @Req() request: Request,
+    @GetUserId() userId: string,
+  ) {
+    if (!updateEventByIdDto || Object.keys(updateEventByIdDto).length === 0) {
+      throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
+    }
+    updateEventByIdDto.updatedBy = userId;
+    return this.eventService.updateEventById(eventId, updateEventByIdDto, response);
+  }
+
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENTS))
   @Post('/list')
   @ApiOperation({ summary: 'Search Events' })
@@ -140,9 +172,8 @@ export class EventController {
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
-  @Delete('/:id') // eventRepetitionId
-  @ApiOperation({ summary: 'Delete Event Repetition and Optionally Main Event with Online Meeting Cleanup' })
-  @ApiBody({ type: DeleteEventDto })
+  @Delete('/:id') // eventId
+  @ApiOperation({ summary: 'Delete Event by Event ID - Archives Event Detail and Deletes All Repetitions with Online Meeting Cleanup' })
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_DELETED })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
@@ -150,40 +181,10 @@ export class EventController {
   deleteEvent(
     @Param('id') id: string,
     @Body(new ValidationPipe({ transform: true }))
-    deleteEventDto: DeleteEventDto,
     @Res() response: Response,
     @Req() request: Request,
   ) {
-    return this.eventService.deleteEventRepetition(id, deleteEventDto, response);
-  }
-
-  @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
-  @Patch('/event/:eventId') // eventId
-  @ApiOperation({ summary: 'Edit Events by Event ID' })
-  @ApiBody({ type: UpdateEventDto, examples: updateEventsExamplesForSwagger })
-  @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_UPDATED })
-  @ApiInternalServerErrorResponse({
-    description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-  })
-  updateEventById(
-    @Param('eventId') eventId: string,
-    @Body(
-      new ValidationPipe({ transform: true }),
-      new DateValidationPipe(),
-      new RegistrationDateValidationPipe(),
-      new RecurringEndDateValidationPipe(),
-      new AttendeesValidationPipe(),
-    )
-    updateEventDto: UpdateEventDto,
-    @Res() response: Response,
-    @Req() request: Request,
-    @GetUserId() userId: string,
-  ) {
-    if (!updateEventDto || Object.keys(updateEventDto).length === 0) {
-      throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
-    }
-    updateEventDto.updatedBy = userId;
-    return this.eventService.updateEventById(eventId, updateEventDto, response);
+    return this.eventService.deleteEventById(id, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_BY_ID))

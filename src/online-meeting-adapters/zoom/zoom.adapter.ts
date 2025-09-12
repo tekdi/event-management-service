@@ -75,6 +75,34 @@ export class ZoomService implements IOnlineMeetingLocator {
     this.authMethod = this.determineAuthMethod();
   }
 
+  /**
+   * Converts UTC time to the specified timezone for Zoom API
+   * Zoom expects start_time to be in the meeting's timezone, not UTC
+   */
+  private convertUtcToTimezone(utcTime: string, timezone: string): string {
+    try {
+      const utcDate = new Date(utcTime);
+      
+      // Convert UTC time to the specified timezone
+      const timezoneDate = new Date(utcDate.toLocaleString('en-US', { timeZone: timezone }));
+      
+      // Format as ISO string without the 'Z' suffix (Zoom doesn't expect UTC indicator)
+      // and ensure it's in the correct timezone format
+      const year = timezoneDate.getFullYear();
+      const month = String(timezoneDate.getMonth() + 1).padStart(2, '0');
+      const day = String(timezoneDate.getDate()).padStart(2, '0');
+      const hours = String(timezoneDate.getHours()).padStart(2, '0');
+      const minutes = String(timezoneDate.getMinutes()).padStart(2, '0');
+      const seconds = String(timezoneDate.getSeconds()).padStart(2, '0');
+      
+      return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    } catch (error) {
+      this.logger.warn(`Failed to convert timezone for ${utcTime} to ${timezone}, using original time`, error.message);
+      // Fallback to original time if conversion fails
+      return utcTime.replace('Z', '');
+    }
+  }
+
   private determineAuthMethod(): AuthMethod {
     const hasS2SCredentials =
       this.clientId && this.clientSecret && this.accountId;
@@ -202,8 +230,7 @@ export class ZoomService implements IOnlineMeetingLocator {
         meetingType === MeetingType.webinar
           ? `${this.apiBaseUrl}/users/${this.zoomHostId}/webinars` // https://api.zoom.us/v2/users/me/webinars
           : `${this.apiBaseUrl}/users/${this.zoomHostId}/meetings`; // https://api.zoom.us/v2/users/me/meetings
-
-      // Prepare meeting settings with approval type and timezone
+      
       const meetingData = {
         topic: request.topic,
         type: meetingType === MeetingType.webinar ? 5 : 2, // 2 for scheduled meeting, 5 for webinar
@@ -286,7 +313,9 @@ export class ZoomService implements IOnlineMeetingLocator {
 
       const updateData: any = {};
       if (request.topic) updateData.topic = request.topic;
-      if (request.startTime) updateData.start_time = request.startTime;
+      if (request.startTime) {
+        updateData.start_time = request.startTime;
+      }
       if (request.duration) updateData.duration = request.duration;
       if (request.timezone) updateData.timezone = request.timezone;
       if (request.password) updateData.password = request.password;
@@ -325,6 +354,8 @@ export class ZoomService implements IOnlineMeetingLocator {
           updateData.settings.jbh_time = request.settings.jbhTime;
       }
 
+      console.log('updateData', updateData);
+      console.log('endpoint', endpoint);
       const response = await axios.patch(endpoint, updateData, {
         headers: {
           'Content-Type': 'application/json',
@@ -332,6 +363,7 @@ export class ZoomService implements IOnlineMeetingLocator {
         },
       });
 
+      console.log('response', response);
       // Return the response data for local sync
       return response.status === 204 ? true : false;
     } catch (error) {

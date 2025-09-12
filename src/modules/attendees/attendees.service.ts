@@ -12,16 +12,19 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SearchAttendeesDto } from './dto/searchAttendees.dto';
 import { UpdateAttendeesDto } from './dto/updateAttendees.dto';
-import { AttendeesStatus } from 'src/common/utils/types';
+import { AttendeesStatus, EventStatus } from 'src/common/utils/types';
 import { EnrollmentDto } from './dto/provider-enrollment.dto';
 import { DeleteEnrollmentDto } from './dto/delete-enrollment.dto';
 import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
 import { MeetingType } from 'src/common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
+import { Events } from '../event/entities/event.entity';
 
 @Injectable()
 export class AttendeesService {
   constructor(
+    @InjectRepository(Events)
+    private readonly eventRepository: Repository<Events>,
     @InjectRepository(EventAttendees)
     private readonly eventAttendeesRepository: Repository<EventAttendees>,
     @InjectRepository(EventRepetition)
@@ -421,13 +424,26 @@ export class AttendeesService {
   }
 
   async getAttendeeByEventAndUser(
+    eventId: string,
     eventRepetitionId: string,
     userId: string,
     response: Response,
   ): Promise<Response> {
-    const apiId = 'api.get.attendee.by.event.and.user';
+    const apiId = 'api.get.attendee';
     try {
-      // Find attendee by eventId and userId
+      if (eventId !==undefined && eventRepetitionId === undefined) {
+        const eventRepetition = await this.eventRepetitionRepository.findOne({
+          where: { eventId },
+        });
+
+        if (!eventRepetition) {
+          throw new BadRequestException(
+            `Event repetition not found for event ${eventId}`,
+          );
+        }
+
+        eventRepetitionId = eventRepetition.eventRepetitionId;
+      }
       const attendee = await this.eventAttendeesRepository.findOne({
         where: { eventRepetitionId, userId },
       });
@@ -469,8 +485,40 @@ export class AttendeesService {
   ): Promise<Response> {
     const apiId = 'enroll.user';
     try {
-      const { eventRepetitionId, userId, userEmail, firstName, lastName } = enrollmentDto;
+      const { eventId, userId, userEmail, firstName, lastName } = enrollmentDto;
 
+      let eventRepetitionId = enrollmentDto.eventRepetitionId;
+      // if both eventRepetitionId and eventId are not passed, throw an error
+      if (enrollmentDto.eventRepetitionId === undefined && eventId === undefined) {
+        throw new BadRequestException(
+          `Either eventRepetitionId or eventId must be passed`,
+        );
+      }
+
+      if (eventId !==undefined && enrollmentDto.eventRepetitionId === undefined) {
+       
+        const event = await this.eventRepository.findOne({
+          where: { eventId: eventId },
+          relations: ['eventDetail', 'eventRepetitions'],
+        });
+
+        if (!event || event.eventDetail.status === EventStatus.archived) {
+          throw new BadRequestException(
+            `Event not found for event ${eventId}`,
+          );
+        }
+        const eventRepetition = await this.eventRepetitionRepository.findOne({
+          where: { eventId },
+        });
+
+        if (!event.eventRepetitions || event.eventRepetitions.length === 0) {
+          throw new BadRequestException(
+            `Event repetition not found for event ${eventId}`,
+          );
+        }
+
+        eventRepetitionId = eventRepetition.eventRepetitionId;
+      }
       // Check if user is already enrolled for this event
       const existingAttendee = await this.eventAttendeesRepository.findOne({
         where: { userId, eventRepetitionId },
@@ -591,8 +639,37 @@ export class AttendeesService {
   ): Promise<Response> {
     const apiId = 'delete.enrollment';
     try {
-      const { userId, eventRepetitionId } = deleteEnrollmentDto;
+      const { userId } = deleteEnrollmentDto;
 
+      let eventRepetitionId = deleteEnrollmentDto.eventRepetitionId;
+      // if both eventRepetitionId and eventId are not passed, throw an error
+      if (deleteEnrollmentDto.eventRepetitionId === undefined && deleteEnrollmentDto.eventId === undefined) {
+        throw new BadRequestException(
+          `Either eventRepetitionId or eventId must be passed`,
+        );
+      }
+
+      if (deleteEnrollmentDto.eventId !==undefined && deleteEnrollmentDto.eventRepetitionId === undefined) {
+       
+        const event = await this.eventRepository.findOne({
+          where: { eventId: deleteEnrollmentDto.eventId },
+          relations: ['eventDetail', 'eventRepetitions'],
+        });
+
+        if (!event || event.eventDetail?.status === EventStatus.archived) {
+          throw new BadRequestException(
+            `Event not found for event ${deleteEnrollmentDto.eventId}`,
+          );
+        }
+
+        if (!event.eventRepetitions || event.eventRepetitions.length === 0) {
+          throw new BadRequestException(
+            `Event repetition not found for event ${deleteEnrollmentDto.eventId}`,
+          );
+        }
+
+        eventRepetitionId = event.eventRepetitions[0].eventRepetitionId;
+      }
       // Find the enrollment record
       const enrollment = await this.eventAttendeesRepository.findOne({
         where: { userId, eventRepetitionId },
