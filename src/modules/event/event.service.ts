@@ -2490,7 +2490,6 @@ export class EventService {
           const adapter = this.onlineMeetingAdapter.getProvider(provider);
           await adapter.deleteMeeting(meetingId, meetingType);
           
-          
         } catch (error) {
           throw new BadRequestException(ERROR_MESSAGES.CANNOT_DELETE_ONLINE_MEETING, error.message);
         }
