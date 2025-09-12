@@ -10,7 +10,6 @@ import {
 import { CreateEventDto, RecurrencePatternDto } from './dto/create-event.dto';
 import { UpdateEventDto, UpdateResult } from './dto/update-event.dto';
 import { UpdateEventByIdDto, UpdateEventByIdResult } from './dto/update-event-by-id.dto';
-import { DeleteEventDto } from './dto/delete-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Repository,
@@ -43,6 +42,7 @@ import {
   MeetingType,
   ApprovalType,
   OnlineDetails,
+  EventStatus,
 } from 'src/common/utils/types';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -1912,6 +1912,10 @@ export class EventService {
       throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
     }
 
+    if (event.eventDetail.status === EventStatus.archived) {
+      throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
+    }
+
     if (!event.eventRepetitions || event.eventRepetitions.length === 0) {
       throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
     }
@@ -2268,28 +2272,6 @@ export class EventService {
     return result;
   }
 
-  /**
-   * Check if the update contains event detail changes
-   */
-  private hasEventDetailUpdates(updateEventByIdDto: UpdateEventByIdDto): boolean {
-    return !!(
-      updateEventByIdDto.title ||
-      updateEventByIdDto.shortDescription ||
-      updateEventByIdDto.description ||
-      updateEventByIdDto.eventType ||
-      updateEventByIdDto.isRestricted !== undefined ||
-      updateEventByIdDto.autoEnroll !== undefined ||
-      updateEventByIdDto.status ||
-      updateEventByIdDto.maxAttendees !== undefined ||
-      updateEventByIdDto.idealTime !== undefined ||
-      updateEventByIdDto.registrationStartDate ||
-      updateEventByIdDto.registrationEndDate ||
-      updateEventByIdDto.isRecurring !== undefined ||
-      updateEventByIdDto.metaData ||
-      updateEventByIdDto.erMetaData ||
-      updateEventByIdDto.recordings
-    );
-  }
 
   /**
    * Check if the update contains online meeting changes
@@ -2457,7 +2439,6 @@ export class EventService {
    */
   async deleteEventById(
     eventId: string,
-    deleteEventDto: DeleteEventDto,
     response: Response,
   ): Promise<Response> {
     try {
@@ -2471,13 +2452,8 @@ export class EventService {
         throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
       }
 
-      // Archive the event detail by updating status to 'archived'
-      if (event.eventDetail) {
-        await this.eventDetailRepository.update(
-          { eventDetailId: event.eventDetail.eventDetailId },
-          { status: 'archived' }
-        );
-        this.logger.log(`Archived event detail for event ${eventId}`);
+      if (event.eventDetail.status === EventStatus.archived) {
+        throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
       }
 
       const onlineDetails = event.eventDetail.meetingDetails as any;
@@ -2491,8 +2467,18 @@ export class EventService {
           await adapter.deleteMeeting(meetingId, meetingType);
           
         } catch (error) {
+          console.log('error', error);
           throw new BadRequestException(ERROR_MESSAGES.CANNOT_DELETE_ONLINE_MEETING, error.message);
         }
+
+          // Archive the event detail by updating status to 'archived'
+      if (event.eventDetail) {
+        await this.eventDetailRepository.update(
+          { eventDetailId: event.eventDetail.eventDetailId },
+          { status: 'archived' }
+        );
+        this.logger.log(`Archived event detail for event ${eventId}`);
+      }
 
       // Delete all repetitions for this event
       const deleteRepetitionsResult = await this.eventRepetitionRepository.delete({ eventId });
@@ -2508,28 +2494,24 @@ export class EventService {
         archivedEventDetail: event.eventDetail ? true : false,
         deletedRepetitions: deleteRepetitionsResult.affected || 0,
         deletedMainEvent: deleteEventResult.affected || 0,
-        onlineMeetingCleanup: onlineMeetingCleanupResults,
-        totalMeetingsProcessed: onlineMeetingCleanupResults.length,
-        successfulMeetingsDeleted: onlineMeetingCleanupResults.filter(r => r.status === 'success').length,
-        failedMeetingsDeleted: onlineMeetingCleanupResults.filter(r => r.status === 'failed').length,
       };
 
-      return response.json(APIResponse.success(
-        API_ID.DELETE_EVENT,
-        responseData,
-        '200',
-      ));
-    } catch (error) {
-      this.logger.error(
-        `Error deleting event ${eventId}:`,
-        error,
-      );
+      return response
+        .status(HttpStatus.OK)
+        .json(APIResponse.success(API_ID.DELETE_EVENT, responseData, '200'));
 
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
     }
+  } catch (error) {
+    this.logger.error(
+      `Error deleting event ${eventId}:`,
+      error,
+    );
+
+    if (error instanceof NotFoundException || error instanceof BadRequestException) {
+      throw error;
+    }
+
+    throw new InternalServerErrorException(ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
   }
+}
 }

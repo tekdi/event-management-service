@@ -17,7 +17,6 @@ import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { UpdateEventByIdDto } from './dto/update-event-by-id.dto';
-import { DeleteEventDto } from './dto/delete-event.dto';
 import {
   ApiBadRequestResponse,
   ApiBody,
@@ -175,7 +174,6 @@ export class EventController {
   @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
   @Delete('/:id') // eventId
   @ApiOperation({ summary: 'Delete Event by Event ID - Archives Event Detail and Deletes All Repetitions with Online Meeting Cleanup' })
-  @ApiBody({ type: DeleteEventDto })
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_DELETED })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
@@ -183,11 +181,10 @@ export class EventController {
   deleteEvent(
     @Param('id') id: string,
     @Body(new ValidationPipe({ transform: true }))
-    deleteEventDto: DeleteEventDto,
     @Res() response: Response,
     @Req() request: Request,
   ) {
-    return this.eventService.deleteEventById(id, deleteEventDto, response);
+    return this.eventService.deleteEventById(id, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_BY_ID))

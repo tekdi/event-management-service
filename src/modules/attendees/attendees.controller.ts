@@ -143,16 +143,18 @@ export class AttendeesController {
     );
   }
 
-  @Get('/:eventRepetitionId/:userId')
+  @Get('/:eventId/:userId')
   @ApiOkResponse({ description: 'Get attendee details by eventId and userId' })
   @ApiBadRequestResponse({ description: 'Invalid request' })
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_ATTENDEE))
   async getAttendeeByEventAndUser(
-    @Param('eventRepetitionId') eventRepetitionId: string,
+    @Param('eventId') eventId: string,
     @Param('userId') userId: string,
+    @Query('eventRepetitionId') eventRepetitionId: string,
     @Res() response: Response,
   ) {
     return this.attendeesService.getAttendeeByEventAndUser(
+      eventId,
       eventRepetitionId,
       userId,
       response,

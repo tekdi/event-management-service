@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 
 export class DeleteEnrollmentDto {
   @ApiProperty({
@@ -14,7 +14,13 @@ export class DeleteEnrollmentDto {
     description: 'Event Repetition ID',
     example: 'bfec8878-623d-40ff-90aa-9bcaf6a73602',
   })
-  @IsUUID()
-  @IsNotEmpty()
+  @IsOptional()
   eventRepetitionId: string;
+
+  @ApiProperty({
+    description: 'Event ID',
+    example: 'bfec8878-623d-40ff-90aa-9bcaf6a73602',
+  })
+  @IsOptional()
+  eventId?: string;
 }

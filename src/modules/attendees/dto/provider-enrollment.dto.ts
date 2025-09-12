@@ -1,13 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class EnrollmentDto {
+  @ApiProperty({
+    description: 'Event Repetition ID',
+    example: 'bfec8878-623d-40ff-90aa-9bcaf6a73602',
+  })
+  @IsOptional()
+  eventRepetitionId?: string;
+
   @ApiProperty({
     description: 'Event ID',
     example: 'bfec8878-623d-40ff-90aa-9bcaf6a73602',
   })
-  @IsUUID()
-  eventRepetitionId: string;
+  @IsOptional()
+  eventId?: string;
 
   @ApiProperty({
     description: 'User ID',
