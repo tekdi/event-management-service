@@ -2088,52 +2088,6 @@ export class EventService {
   }
 
   /**
-   * Update event by eventId - finds the first upcoming event repetition and updates it
-   */
-  async updateEventById(
-    eventId: string,
-    updateBody: UpdateEventDto,
-    response: Response,
-  ) {
-    const apiId = API_ID.UPDATE_EVENT;
-    
-    // Find the event first
-    const event = await this.findEventById(eventId);
-    if (!event) {
-      throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
-    }
-
-    // Check if event is archived
-    const eventDetail = await this.getEventDetails(event.eventDetailId);
-    if (eventDetail.status === 'archived') {
-      throw new BadRequestException(ERROR_MESSAGES.CANNOT_EDIT_ARCHIVED_EVENTS);
-    }
-
-    // Find the first upcoming event repetition for this event
-    const currentTimestamp = new Date();
-    const firstUpcomingRepetition = await this.eventRepetitionRepository.findOne({
-      where: {
-        eventId: eventId,
-        startDateTime: MoreThan(currentTimestamp),
-        eventDetail: {
-          status: Not('archived'),
-        },
-      },
-      relations: ['eventDetail'],
-      order: {
-        startDateTime: 'ASC',
-      },
-    });
-
-    if (!firstUpcomingRepetition) {
-      throw new BadRequestException(ERROR_MESSAGES.EVENT_NOT_FOUND);
-    }
-
-    // Use the existing updateEvent method with the found repetition ID
-    return this.updateEvent(firstUpcomingRepetition.eventRepetitionId, updateBody, response);
-  }
-
-  /**
    * Update event by event ID with comprehensive validation and processing
    * Reuses existing validation and update methods from create event
    * @param eventId - The ID of the event to update
@@ -2141,7 +2095,7 @@ export class EventService {
    * @param response - Express response object
    * @returns Promise<Response>
    */
-  async updateEventComprehensive(
+  async updateEventById(
     eventId: string,
     updateEventByIdDto: UpdateEventByIdDto,
     response: Response,

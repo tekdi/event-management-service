@@ -89,7 +89,7 @@ export class EventController {
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
-  @Patch('/update/:eventId')
+  @Patch('/event/:eventId')
   @ApiOperation({ summary: 'Update Event by Event ID - Comprehensive Update' })
   @ApiBody({ type: UpdateEventByIdDto })
   @ApiOkResponse({
@@ -99,7 +99,7 @@ export class EventController {
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
   })
-  async updateEventComprehensive(
+  async updateEventById(
     @Param('eventId') eventId: string,
     @Body(
       new ValidationPipe({ transform: true }),
@@ -117,7 +117,7 @@ export class EventController {
       throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
     }
     updateEventByIdDto.updatedBy = userId;
-    return this.eventService.updateEventComprehensive(eventId, updateEventByIdDto, response);
+    return this.eventService.updateEventById(eventId, updateEventByIdDto, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENTS))
@@ -188,35 +188,6 @@ export class EventController {
     @Req() request: Request,
   ) {
     return this.eventService.deleteEventRepetition(id, deleteEventDto, response);
-  }
-
-  @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
-  @Patch('/event/:eventId') // eventId
-  @ApiOperation({ summary: 'Edit Events by Event ID' })
-  @ApiBody({ type: UpdateEventDto, examples: updateEventsExamplesForSwagger })
-  @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_UPDATED })
-  @ApiInternalServerErrorResponse({
-    description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-  })
-  updateEventById(
-    @Param('eventId') eventId: string,
-    @Body(
-      new ValidationPipe({ transform: true }),
-      new DateValidationPipe(),
-      new RegistrationDateValidationPipe(),
-      new RecurringEndDateValidationPipe(),
-      new AttendeesValidationPipe(),
-    )
-    updateEventDto: UpdateEventDto,
-    @Res() response: Response,
-    @Req() request: Request,
-    @GetUserId() userId: string,
-  ) {
-    if (!updateEventDto || Object.keys(updateEventDto).length === 0) {
-      throw new BadRequestException(ERROR_MESSAGES.INVALID_REQUEST_BODY);
-    }
-    updateEventDto.updatedBy = userId;
-    return this.eventService.updateEventById(eventId, updateEventDto, response);
   }
 
   @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_BY_ID))
