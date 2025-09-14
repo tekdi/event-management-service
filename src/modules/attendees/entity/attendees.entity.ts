@@ -59,9 +59,9 @@ export class EventAttendees {
   @Column({ type: 'varchar', nullable: true })
   registrantId: string;
 
-  // @ManyToOne(() => Events, event => event.eventAttendees)
-  // @JoinColumn({ name: 'eventId' })
-  // event: Events;
+  @ManyToOne(() => Events, event => event.eventAttendees)
+  @JoinColumn({ name: 'eventId' })
+  event: Events;
 
   // @ManyToOne(() => Users, user => user.eventAttendees)
   // @JoinColumn({ name: 'userId' })

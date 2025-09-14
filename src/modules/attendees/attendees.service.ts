@@ -19,6 +19,8 @@ import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.
 import { MeetingType } from 'src/common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
 import { Events } from '../event/entities/event.entity';
+import { EventDetail } from '../event/entities/eventDetail.entity';
+import { Search_Event_AttendeesDto } from './dto/search-attendees.dto';
 
 @Injectable()
 export class AttendeesService {
@@ -770,6 +772,174 @@ export class AttendeesService {
           APIResponse.error(
             apiId,
             'Failed to delete enrollment',
+            JSON.stringify(e),
+            'INTERNAL_SERVER_ERROR',
+          ),
+        );
+    }
+  }
+
+  async searchAttendees(
+    searchAttendeesDto: Search_Event_AttendeesDto,
+    response: Response,
+  ) {
+    const apiId = 'api.search.attendees';
+    const { 
+      userIds, 
+      eventIds, 
+      eventRepetitionId, 
+      offset = 0, 
+      limit = 10 
+    } = searchAttendeesDto;
+
+    try {
+      // Validate that at least one filter is provided
+      if (!userIds?.length && !eventIds?.length && !eventRepetitionId) {
+        return response
+          .status(HttpStatus.BAD_REQUEST)
+          .send(
+            APIResponse.error(
+              apiId,
+              'At least one filter (userIds, eventIds, or eventRepetitionId) must be provided',
+              'Invalid request parameters',
+              'BAD_REQUEST',
+            ),
+          );
+      }
+
+      // Use offset directly for pagination
+      const skip = offset;
+
+      // Use raw query to get attendee details and recordings only
+      let whereConditions = [];
+      let queryParams = [];
+      let paramIndex = 1;
+
+      // Build WHERE conditions
+      if (userIds?.length && userIds.length > 0) {
+        whereConditions.push(`ea."userId" = ANY($${paramIndex})`);
+        queryParams.push(userIds);
+        paramIndex++;
+      }
+
+      if (eventIds?.length && eventIds.length > 0) {
+        whereConditions.push(`ea."eventId" = ANY($${paramIndex})`);
+        queryParams.push(eventIds);
+        paramIndex++;
+      }
+
+      if (eventRepetitionId) {
+        whereConditions.push(`ea."eventRepetitionId" = $${paramIndex}`);
+        queryParams.push(eventRepetitionId);
+        paramIndex++;
+      }
+
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // Count query
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM "EventAttendees" ea
+        ${whereClause}
+      `;
+
+      const countResult = await this.eventAttendeesRepository.query(countQuery, queryParams);
+      const totalCount = parseInt(countResult[0].total);
+
+      // Main query - select only attendee details and recordings
+      const mainQuery = `
+        SELECT 
+          ea.*,
+          ed.recordings
+        FROM "EventAttendees" ea
+        LEFT JOIN "Events" e ON e."eventId" = ea."eventId"
+        LEFT JOIN "EventDetails" ed ON ed."eventDetailId" = e."eventDetailId"
+        ${whereClause}
+        ORDER BY ea."enrolledAt" DESC
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+
+      queryParams.push(limit, skip);
+
+      const attendees = await this.eventAttendeesRepository.query(mainQuery, queryParams);
+
+      // Calculate pagination metadata
+      const totalPages = Math.ceil(totalCount / limit);
+      const currentPage = Math.floor(offset / limit) + 1;
+      const hasNextPage = offset + limit < totalCount;
+      const hasPreviousPage = offset > 0;
+
+      const paginationMetadata = {
+        offset,
+        currentPage,
+        totalPages,
+        totalCount,
+        limit,
+        hasNextPage,
+        hasPreviousPage,
+      };
+
+      // Determine search type and generate appropriate response
+      let searchType = 'combined_filters';
+      let message = `Found ${attendees.length} attendees matching the search criteria`;
+      let notFoundMessage = 'No attendees found matching the provided criteria';
+
+      // Determine search type based on filters used
+      if (userIds?.length && !eventIds?.length && !eventRepetitionId) {
+        searchType = 'user_events';
+        message = `Found ${attendees.length} events for ${userIds.length} user(s)`;
+        notFoundMessage = `No events found for the specified user(s)`;
+      } else if (eventIds?.length && !userIds?.length && !eventRepetitionId) {
+        searchType = 'event_attendees';
+        message = `Found ${attendees.length} attendees for ${eventIds.length} event(s)`;
+        notFoundMessage = `No attendees found for the specified event(s)`;
+      } else if (eventRepetitionId && !userIds?.length && !eventIds?.length) {
+        searchType = 'event_repetition_attendees';
+        message = `Found ${attendees.length} attendees for event repetition ${eventRepetitionId}`;
+        notFoundMessage = `No attendees found for event repetition ${eventRepetitionId}`;
+      }
+
+      // Handle no results found
+      if (attendees.length === 0) {
+        return response
+          .status(HttpStatus.NOT_FOUND)
+          .send(
+            APIResponse.error(
+              apiId,
+              notFoundMessage,
+              'No attendees match the search criteria',
+              'NOT_FOUND',
+            ),
+          );
+      }
+
+      // Return successful response
+      return response
+        .status(HttpStatus.OK)
+        .send(
+          APIResponse.success(
+            apiId,
+            {
+              attendees,
+              pagination: paginationMetadata,
+              searchType,
+              message,
+              filters: {
+                userIds: userIds?.length ? userIds : null,
+                eventIds: eventIds?.length ? eventIds : null,
+                eventRepetitionId: eventRepetitionId || null,
+              },
+            },
+            'Attendees retrieved successfully',
+          ),
+        );
+    } catch (e) {
+      return response
+        .status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .send(
+          APIResponse.error(
+            apiId,
+            'Failed to search attendees',
             JSON.stringify(e),
             'INTERNAL_SERVER_ERROR',
           ),

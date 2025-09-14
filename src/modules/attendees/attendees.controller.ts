@@ -32,6 +32,7 @@ import { EnrollmentDto } from './dto/provider-enrollment.dto';
 import { DeleteEnrollmentDto } from './dto/delete-enrollment.dto';
 import { AllExceptionsFilter } from 'src/common/filters/exception.filter';
 import { API_ID } from 'src/common/utils/constants.util';
+import { Search_Event_AttendeesDto } from './dto/search-attendees.dto';
 
 @Controller('attendees/v1')
 @ApiTags('Event-Attendees')
@@ -64,7 +65,7 @@ export class AttendeesController {
   @ApiBadRequestResponse({ description: 'Invalid request' })
   @UsePipes(new ValidationPipe({ transform: true }))
   @ApiBody({ type: SearchAttendeesDto })
-  async searchAttendees(
+  async getAttendees(
     @Body() searchAttendeesDto: SearchAttendeesDto,
     @Res() response: Response,
   ) {
@@ -157,6 +158,62 @@ export class AttendeesController {
       eventId,
       eventRepetitionId,
       userId,
+      response,
+    );
+  }
+
+  @Post('search')
+  @ApiOkResponse({ 
+    description: 'Search attendees with different filters (userIds, eventIds, eventRepetitionId) with offset-based pagination. Supports arrays of IDs.',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        apiId: { type: 'string' },
+        data: {
+          type: 'object',
+          properties: {
+            attendees: { type: 'array' },
+            pagination: {
+              type: 'object',
+              properties: {
+                offset: { type: 'number' },
+                currentPage: { type: 'number' },
+                totalPages: { type: 'number' },
+                totalCount: { type: 'number' },
+                limit: { type: 'number' },
+                hasNextPage: { type: 'boolean' },
+                hasPreviousPage: { type: 'boolean' }
+              }
+            },
+            searchType: { 
+              type: 'string',
+              enum: ['user_events', 'event_attendees', 'event_repetition_attendees', 'combined_filters']
+            },
+            message: { type: 'string' },
+            filters: {
+              type: 'object',
+              properties: {
+                userIds: { type: 'array', items: { type: 'string' }, nullable: true },
+                eventIds: { type: 'array', items: { type: 'string' }, nullable: true },
+                eventRepetitionId: { type: 'string', nullable: true }
+              }
+            }
+          }
+        },
+        message: { type: 'string' }
+      }
+    }
+  })
+  @ApiBadRequestResponse({ description: 'Invalid request parameters' })
+  @UseFilters(new AllExceptionsFilter(API_ID.GET_EVENT_ATTENDEE))
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async searchAttendees(
+    @Body() searchAttendeesDto: Search_Event_AttendeesDto,
+    @Res() response: Response,
+  ) {
+    return this.attendeesService.searchAttendees(
+      searchAttendeesDto,
       response,
     );
   }

@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { EventDetail } from './eventDetail.entity';
 import { EventRepetition } from './eventRepetition.entity';
+import { EventAttendees } from '../../attendees/entity/attendees.entity';
 
 @Entity('Events')
 export class Events {
@@ -77,4 +78,7 @@ export class Events {
 
   @OneToMany(() => EventRepetition, (eventRepetition) => eventRepetition.event)
   eventRepetitions: EventRepetition[];
+
+  @OneToMany(() => EventAttendees, (eventAttendees) => eventAttendees.event)
+  eventAttendees: EventAttendees[];
 }
