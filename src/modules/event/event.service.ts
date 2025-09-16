@@ -2097,7 +2097,6 @@ export class EventService {
       const firstEventRepetition = await this.eventRepetitionRepository.findOne({
         where: {
           eventId: eventId,
-          startDateTime: MoreThan(currentTimestamp),
         },
         relations: ['eventDetail'],
         order: {
