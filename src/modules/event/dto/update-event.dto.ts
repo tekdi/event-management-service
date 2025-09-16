@@ -144,6 +144,14 @@ export class UpdateEventDto {
   erMetaData: any;
 
   @ApiProperty({
+    description: 'Description',
+    example: 'This is a description',
+  })
+  @IsString()
+  @IsOptional()
+  description: string;
+
+  @ApiProperty({
     description: 'MetaData Details',
     example: {
       framework: {

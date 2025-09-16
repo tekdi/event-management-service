@@ -354,8 +354,6 @@ export class ZoomService implements IOnlineMeetingLocator {
           updateData.settings.jbh_time = request.settings.jbhTime;
       }
 
-      console.log('updateData', updateData);
-      console.log('endpoint', endpoint);
       const response = await axios.patch(endpoint, updateData, {
         headers: {
           'Content-Type': 'application/json',

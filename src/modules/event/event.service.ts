@@ -1016,6 +1016,7 @@ export class EventService {
       );
     }
 
+    console.log('updateBody', updateBody);
     // Handle event detail updates
     if (
       updateBody.title ||
@@ -1023,7 +1024,9 @@ export class EventService {
       updateBody.latitude ||
       updateBody.status ||
       updateBody.onlineDetails ||
-      updateBody.metadata
+      updateBody.metadata ||
+      updateBody.recordings ||
+      updateBody.description
     ) {
       updateResult.updatedEventDetails =
         await this.updateEventDetailsForRecurringEvents(
@@ -1176,7 +1179,9 @@ export class EventService {
       updateBody.latitude ||
       updateBody.status ||
       updateBody.onlineDetails ||
-      updateBody.metadata
+      updateBody.metadata ||
+      updateBody.recordings ||
+      updateBody.description
     ) {
       if (updateBody.onlineDetails) {
         Object.assign(
@@ -2040,7 +2045,7 @@ export class EventService {
       // Convert to UpdateEventDto for validation reuse
       const updateEventDto = this.convertUpdateEventByIdDtoToUpdateEventDto(updateEventByIdDto);
       
-      // validation logic
+      // // validation logic
       const validationResult = this.isInvalidUpdate(updateEventDto, eventDetail);
       if (!validationResult.isValid) {
         throw new BadRequestException(validationResult.message);
@@ -2050,7 +2055,7 @@ export class EventService {
       this.validateEventUpdateBusinessRules(updateEventByIdDto, eventDetail);
 
       // Validate restricted fields that cannot be changed
-      this.validateRestrictedFields(updateEventByIdDto, eventDetail, event.platformIntegration);
+     this.validateRestrictedFields(updateEventByIdDto, eventDetail, event.platformIntegration);
 
       // Validate isMainEvent for recurring events
       if (!event.isRecurring && updateEventByIdDto.isMainEvent === false) {
@@ -2060,16 +2065,8 @@ export class EventService {
       // Determine if this is a main event update (affects all recurring events)
       const isMainEventUpdate = updateEventByIdDto.isMainEvent !== undefined ? updateEventByIdDto.isMainEvent : true;
 
-      // Prepare update result
-      const updateResult: UpdateEventByIdResult = {
-        eventUpdated: false,
-        eventDetails: null,
-        onlineDetails: null,
-        recurrencePattern: null,
-        updatedEvent: null,
-        platformIntegrationResult: null,
-      };
 
+      console.log('event.eventType', event);
         if (eventDetail.eventType === EventTypes.offline) {
           // Clear online-specific fields when changing to offline
           updateEventByIdDto.onlineProvider = null;
@@ -2077,7 +2074,7 @@ export class EventService {
           updateEventByIdDto.recordings = null;
         } else if (eventDetail.eventType === EventTypes.online) {
           // Handle online event setup
-          if (updateEventByIdDto.platformIntegration === false && updateEventByIdDto.meetingDetails) {
+          if (event.platformIntegration === false && updateEventByIdDto.meetingDetails) {
             // Use existing meeting details
             updateEventByIdDto.meetingDetails.providerGenerated = false;
             updateEventByIdDto.meetingDetails.meetingType = updateEventByIdDto.meetingType || MeetingType.meeting;
@@ -2090,8 +2087,7 @@ export class EventService {
                   updateEventByIdDto,
                   eventDetail,
                 );
-                updateResult.onlineDetails = onlineUpdate;
-                updateResult.platformIntegrationResult = onlineUpdate.platformIntegrationResult;
+                updateEventDto.onlineDetails = onlineUpdate;
               }
           }
         }
@@ -2141,11 +2137,11 @@ export class EventService {
         await this.updateEventAttendees(eventId, updateEventByIdDto.attendees, updateEventByIdDto.updatedBy);
       }
 
-      // Set the result from the existing handlers
-      updateResult.eventDetails = result.eventDetails;
-      updateResult.updatedEvent = result.updatedRecurringEvent || result.repetitionDetail;
-      updateResult.recurrencePattern = result.recurrenceUpdate;
-      updateResult.eventUpdated = true;
+      // return events along with event details
+      const eventResult = await this.eventRepository.findOne({
+        where: { eventId: eventId },
+        relations: ['eventDetail', 'eventRepetitions'],
+      });
 
       LoggerWinston.log(
         `${SUCCESS_MESSAGES.EVENT_UPDATED_LOG} - Event ID: ${eventId}`,
@@ -2155,7 +2151,7 @@ export class EventService {
 
       return response
         .status(HttpStatus.OK)
-        .json(APIResponse.success(apiId, updateResult, 'Updated'));
+        .json(APIResponse.success(apiId, eventResult, 'Updated'));
 
     } catch (error) {
       LoggerWinston.error(
@@ -2192,6 +2188,10 @@ export class EventService {
       erMetaData: updateEventByIdDto.erMetaData,
       metadata: updateEventByIdDto.metaData,
       updatedBy: updateEventByIdDto.updatedBy,
+      recordings: updateEventByIdDto.recordings,
+      description: updateEventByIdDto.description,
+      updateAt: new Date(),
+      isRecurring: updateEventByIdDto.isRecurring,
       isMainEvent: updateEventByIdDto.isMainEvent !== undefined ? updateEventByIdDto.isMainEvent : true, // Default to true for comprehensive updates
       status: updateEventByIdDto.status,
     } as UpdateEventDto;
@@ -2251,8 +2251,6 @@ export class EventService {
       platformIntegrationResult: null,
     };
 
-    // If platform integration is enabled, update the meeting on the platform
-    if (updateEventByIdDto.platformIntegration === true) {
       try {
         // Reuse existing updateMeeting method
         const meetingDetails = eventDetail.meetingDetails as any;
@@ -2267,7 +2265,6 @@ export class EventService {
         this.logger.error(`Failed to update meeting on platform: ${error.message}`);
         result.platformIntegrationResult = { error: error.message };
       }
-    }
 
     return result;
   }
@@ -2281,10 +2278,8 @@ export class EventService {
   private hasOnlineMeetingUpdates(updateEventByIdDto: UpdateEventByIdDto): boolean {
     return !!(
       updateEventByIdDto.approvalType !== undefined ||
-      updateEventByIdDto.timezone ||
-      updateEventByIdDto.platformIntegration !== undefined ||
-      // Include datetime changes only for online events
-      (updateEventByIdDto.eventType === EventTypes.online && (updateEventByIdDto.startDatetime || updateEventByIdDto.endDatetime))
+      updateEventByIdDto.timezone !== undefined ||
+      (updateEventByIdDto.startDatetime !== undefined || updateEventByIdDto.endDatetime !== undefined)
     );
   }
 
@@ -2298,7 +2293,7 @@ export class EventService {
   ): void {
     // Check if platformIntegration is true - restrict certain fields
     if (platformIntegration === true) {
-      if (updateEventByIdDto.onlineProvider !== eventDetail.onlineProvider) {
+      if (updateEventByIdDto.onlineProvider !== eventDetail.onlineProvider && updateEventByIdDto.onlineProvider !== undefined) {
         throw new BadRequestException(`Cannot change onlineProvider - ${updateEventByIdDto.onlineProvider}`);
       }
       
