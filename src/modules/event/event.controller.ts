@@ -87,6 +87,7 @@ export class EventController {
     return this.eventService.createEvent(createEventDto, response);
   }
 
+  //* This endpoint is used to update event by event ID - aspire leader specific
   @UseFilters(new AllExceptionsFilter(API_ID.UPDATE_EVENT))
   @Patch('/event/:eventId')
   @ApiOperation({ summary: 'Update Event by Event ID - Comprehensive Update' })
