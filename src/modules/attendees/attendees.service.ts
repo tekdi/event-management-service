@@ -448,6 +448,7 @@ export class AttendeesService {
       }
       const attendee = await this.eventAttendeesRepository.findOne({
         where: { eventRepetitionId, userId },
+        relations: ['eventDetail'],
       });
 
       if (!attendee) {
@@ -785,22 +786,21 @@ export class AttendeesService {
   ) {
     const apiId = 'api.search.attendees';
     const { 
-      userIds, 
+      userId, 
       eventIds, 
-      eventRepetitionId, 
       offset = 0, 
       limit = 10 
     } = searchAttendeesDto;
 
     try {
       // Validate that at least one filter is provided
-      if (!userIds?.length && !eventIds?.length && !eventRepetitionId) {
+      if (!userId && !eventIds?.length) {
         return response
           .status(HttpStatus.BAD_REQUEST)
           .send(
             APIResponse.error(
               apiId,
-              'At least one filter (userIds, eventIds, or eventRepetitionId) must be provided',
+              'At least one filter (userId, eventIds) must be provided',
               'Invalid request parameters',
               'BAD_REQUEST',
             ),
@@ -810,54 +810,122 @@ export class AttendeesService {
       // Use offset directly for pagination
       const skip = offset;
 
-      // Use raw query to get attendee details and recordings only
+      // Use raw query to get attendee details and recordings
       let whereConditions = [];
       let queryParams = [];
       let paramIndex = 1;
 
       // Build WHERE conditions
-      if (userIds?.length && userIds.length > 0) {
-        whereConditions.push(`ea."userId" = ANY($${paramIndex})`);
-        queryParams.push(userIds);
-        paramIndex++;
-      }
-
       if (eventIds?.length && eventIds.length > 0) {
-        whereConditions.push(`ea."eventId" = ANY($${paramIndex})`);
+        whereConditions.push(`e."eventId" = ANY($${paramIndex})`);
         queryParams.push(eventIds);
         paramIndex++;
       }
 
-      if (eventRepetitionId) {
-        whereConditions.push(`ea."eventRepetitionId" = $${paramIndex}`);
-        queryParams.push(eventRepetitionId);
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+      
+      // Build JOIN condition for userId
+      const userIdJoinCondition = userId ? ` AND ea."userId" = $${paramIndex}` : '';
+      if (userId) {
+        queryParams.push(userId);
         paramIndex++;
       }
 
-      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+      let countQuery, mainQuery, totalCount;
 
-      // Count query
-      const countQuery = `
-        SELECT COUNT(*) as total
-        FROM "EventAttendees" ea
-        ${whereClause}
-      `;
+      if (eventIds?.length && eventIds.length > 0) {
+        // Count events when eventIds are provided
+        countQuery = `
+          SELECT COUNT(DISTINCT e."eventId") as total
+          FROM "Events" e
+          LEFT JOIN "EventDetails" ed ON ed."eventDetailId" = e."eventDetailId"
+          LEFT JOIN "EventAttendees" ea ON ea."eventId" = e."eventId"${userIdJoinCondition}
+          ${whereClause}
+        `;
 
-      const countResult = await this.eventAttendeesRepository.query(countQuery, queryParams);
-      const totalCount = parseInt(countResult[0].total);
+        const countResult = await this.eventAttendeesRepository.query(countQuery, queryParams);
+        totalCount = parseInt(countResult[0].total);
 
-      // Main query - select only attendee details and recordings
-      const mainQuery = `
-        SELECT 
-          ea.*,
-          ed.recordings
-        FROM "EventAttendees" ea
-        LEFT JOIN "Events" e ON e."eventId" = ea."eventId"
-        LEFT JOIN "EventDetails" ed ON ed."eventDetailId" = e."eventDetailId"
-        ${whereClause}
-        ORDER BY ea."enrolledAt" DESC
-        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-      `;
+        // Main query - get events with their details and any attendees
+        mainQuery = `
+          SELECT 
+            e."eventId",
+            e."isRecurring",
+            ed."eventDetailId",
+            ed."title",
+            ed."shortDescription",
+            ed."eventType",
+            ed."isRestricted",
+            ed."onlineProvider",
+            ed."recordings",
+            ed."status",
+            ed."description",
+            ed."meetingDetails",
+            ea."eventAttendeesId",
+            ea."userId",
+            ea."eventRepetitionId",
+            ea."isAttended",
+            ea."joinedLeftHistory",
+            ea."duration",
+            ea."enrolledAt",
+            ea."enrolledBy",
+            ea."params",
+            ea."registrantId"
+          FROM "Events" e
+          LEFT JOIN "EventDetails" ed ON ed."eventDetailId" = e."eventDetailId"
+          LEFT JOIN "EventAttendees" ea ON ea."eventId" = e."eventId"${userIdJoinCondition}
+          ${whereClause}
+          ORDER BY e."createdAt" DESC, ea."enrolledAt" DESC
+          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+
+        console.log(mainQuery);
+      } else {
+        // Original logic for userId search
+        countQuery = `
+          SELECT COUNT(DISTINCT e."eventId") as total
+          FROM "Events" e
+          LEFT JOIN "EventDetails" ed ON ed."eventDetailId" = e."eventDetailId"
+          LEFT JOIN "EventAttendees" ea ON ea."eventId" = e."eventId"${userIdJoinCondition}
+          ${whereClause}
+        `;
+
+        const countResult = await this.eventAttendeesRepository.query(countQuery, queryParams);
+        totalCount = parseInt(countResult[0].total);
+
+        // Main query - select attendee details and recordings
+        mainQuery = `
+          SELECT 
+            e."eventId",
+            e."isRecurring",
+            ed."eventDetailId",
+            ed."title",
+            ed."shortDescription",
+            ed."eventType",
+            ed."isRestricted",
+            ed."onlineProvider",
+            ed."recordings",
+            ed."status",
+            ed."description",
+            ed."meetingDetails",
+            ea."eventAttendeesId",
+            ea."userId",
+            ea."eventRepetitionId",
+            ea."isAttended",
+            ea."joinedLeftHistory",
+            ea."duration",
+            ea."enrolledAt",
+            ea."enrolledBy",
+            ea."params",
+            ea."registrantId"
+          FROM "Events" e
+          LEFT JOIN "EventDetails" ed ON ed."eventDetailId" = e."eventDetailId"
+          LEFT JOIN "EventAttendees" ea ON ea."eventId" = e."eventId"${userIdJoinCondition}
+          ${whereClause}
+          ORDER BY e."createdAt" DESC, ea."enrolledAt" DESC
+          LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+      }
 
       queryParams.push(limit, skip);
 
@@ -881,22 +949,18 @@ export class AttendeesService {
 
       // Determine search type and generate appropriate response
       let searchType = 'combined_filters';
-      let message = `Found ${attendees.length} attendees matching the search criteria`;
-      let notFoundMessage = 'No attendees found matching the provided criteria';
+      let message = `Found ${attendees.length} events matching the search criteria`;
+      let notFoundMessage = 'No events found matching the provided criteria';
 
       // Determine search type based on filters used
-      if (userIds?.length && !eventIds?.length && !eventRepetitionId) {
+      if (userId && !eventIds?.length) {
         searchType = 'user_events';
-        message = `Found ${attendees.length} events for ${userIds.length} user(s)`;
-        notFoundMessage = `No events found for the specified user(s)`;
-      } else if (eventIds?.length && !userIds?.length && !eventRepetitionId) {
+        message = `Found ${attendees.length} events for user ${userId}`;
+        notFoundMessage = `No events found for the specified user`;
+      } else if (eventIds?.length && !userId) {
         searchType = 'event_attendees';
-        message = `Found ${attendees.length} attendees for ${eventIds.length} event(s)`;
-        notFoundMessage = `No attendees found for the specified event(s)`;
-      } else if (eventRepetitionId && !userIds?.length && !eventIds?.length) {
-        searchType = 'event_repetition_attendees';
-        message = `Found ${attendees.length} attendees for event repetition ${eventRepetitionId}`;
-        notFoundMessage = `No attendees found for event repetition ${eventRepetitionId}`;
+        message = `Found ${attendees.length} events for ${eventIds.length} event(s)`;
+        notFoundMessage = `No events found for the specified event(s)`;
       }
 
       // Handle no results found
@@ -907,7 +971,7 @@ export class AttendeesService {
             APIResponse.error(
               apiId,
               notFoundMessage,
-              'No attendees match the search criteria',
+              'No events match the search criteria',
               'NOT_FOUND',
             ),
           );
@@ -925,12 +989,11 @@ export class AttendeesService {
               searchType,
               message,
               filters: {
-                userIds: userIds?.length ? userIds : null,
+                userId: userId || null,
                 eventIds: eventIds?.length ? eventIds : null,
-                eventRepetitionId: eventRepetitionId || null,
               },
             },
-            'Attendees retrieved successfully',
+            'Events retrieved successfully',
           ),
         );
     } catch (e) {
