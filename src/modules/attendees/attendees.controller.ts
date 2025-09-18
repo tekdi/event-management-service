@@ -162,9 +162,11 @@ export class AttendeesController {
     );
   }
 
+// Aspire Leader Specific API
+// Return Events details and attendees details for a given user id
   @Post('search')
   @ApiOkResponse({ 
-    description: 'Search attendees with different filters (userIds, eventIds, eventRepetitionId) with offset-based pagination. Supports arrays of IDs.',
+    description: 'Search attendees with different filters (userId, eventIds) with offset-based pagination. Supports arrays of IDs.',
     schema: {
       type: 'object',
       properties: {
@@ -188,7 +190,7 @@ export class AttendeesController {
             },
             searchType: { 
               type: 'string',
-              enum: ['user_events', 'event_attendees', 'event_repetition_attendees', 'combined_filters']
+              enum: ['user_events', 'event_attendees', 'combined_filters']
             },
             message: { type: 'string' },
             filters: {
