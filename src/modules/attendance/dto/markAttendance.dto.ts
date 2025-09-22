@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, IsBoolean, Min, Max, IsDateString } from 'class-validator';
 
 export class MarkMeetingAttendanceDto {
   @ApiProperty({
@@ -67,4 +67,46 @@ export class MarkMeetingAttendanceDto {
   @IsNumber()
   @IsOptional()
   pageSize: number;
+}
+
+export class MarkAttendanceDto {
+  @ApiProperty({
+    description: 'Event repetition ID to mark attendance for (optional - if not provided, will process all ended events)',
+    example: 'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9',
+    required: false
+  })
+  @IsOptional()
+  @IsUUID('4')
+  eventRepetitionId?: string;
+
+
+  @ApiProperty({
+    description: 'Page size for Zoom API calls (max 300)',
+    example: 300,
+    default: 300
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(300)
+  pageSize?: number = 300;
+
+  @ApiProperty({
+    description: 'Force re-process even if attendance already marked',
+    example: false,
+    default: false
+  })
+  @IsOptional()
+  @IsBoolean()
+  forceReprocess?: boolean = false;
+
+  @ApiProperty({
+    description: 'Mark attendance by registrant ID (matches EventAttendees.registrantId with Zoom participant registrant_id)',
+    example: 'registrant_id',
+    default: 'registrant_id'
+  })
+  @IsOptional()
+  @IsEnum(['registrant_id'])
+  markBy?: 'registrant_id' = 'registrant_id';
+
 }

@@ -56,6 +56,7 @@ export interface IOnlineMeetingLocator {
     token: string,
     userArray: any[],
     meetingId: string,
+    meetingType: MeetingType,
     url: string,
   ) => Promise<any>;
   getParticipantAttendance: (
