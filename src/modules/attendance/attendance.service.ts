@@ -614,7 +614,6 @@ export class AttendanceService implements OnModuleInit {
           
           nextPageToken = initialResponse.next_page_token;
           currentPage = 1;
-          console.log('Page', currentPage ,'Participants',  initialResponse.participants.length);
           // Update checkpoint with total participants count
           checkpoint.totalParticipants = totalParticipants;
           checkpoint.nextPageToken = nextPageToken;
@@ -670,7 +669,6 @@ export class AttendanceService implements OnModuleInit {
           // Update pagination state
           nextPageToken = participantResponse.next_page_token;
           currentPage++;
-          console.log('Page', currentPage ,'Participants',  participantResponse.participants.length);
           // Update checkpoint after each page
           checkpoint.nextPageToken = nextPageToken;
           checkpoint.currentPage = currentPage;
@@ -783,16 +781,16 @@ export class AttendanceService implements OnModuleInit {
 
         attendeesToPersist.push(eventAttendee);
         // Call LMS service for lesson completion if participant attended
-          // const lmsCall = this.callLmsLessonCompletion(
-          //   eventInfo.eventId,
-          //   eventAttendee.userId,
-          //   participant.duration || 0,
-          //   authToken
-          // ).catch(error => {
-          //   this.logger.error(`Failed to call LMS service for user ${eventAttendee.userId}`, error);
-          //   return null; // Don't fail the entire process if LMS call fails
-          // });
-          // lmsServiceCalls.push(lmsCall);
+          const lmsCall = this.callLmsLessonCompletion(
+            eventInfo.eventId,
+            eventAttendee.userId,
+            participant.duration || 0,
+            authToken
+          ).catch(error => {
+            this.logger.error(`Failed to call LMS service for user ${eventAttendee.userId}`, error);
+            return null; // Don't fail the entire process if LMS call fails
+          });
+          lmsServiceCalls.push(lmsCall);
         }
   
         participantsProcessed++;
