@@ -10,7 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
-import { MarkMeetingAttendanceDto, MarkAttendanceDto } from './dto/markAttendance.dto';
+import { MarkMeetingAttendanceDto } from './dto/markAttendance.dto';
 import {
   API_ID,
   ERROR_MESSAGES,
@@ -353,7 +353,6 @@ export class AttendanceService implements OnModuleInit {
    * @returns Promise resolving to HTTP response
    */
   async markAttendance(
-    dto: MarkAttendanceDto,
     userId: string,
     response: Response,
     authToken: string
@@ -364,7 +363,7 @@ export class AttendanceService implements OnModuleInit {
 
     try {
       // Process all ended events with resumability support
-      const result = await this.processAllEndedEventsWithResumability(dto, authToken, startTime, userId);
+      const result = await this.processAllEndedEventsWithResumability(authToken, startTime, userId);
       return this.sendSuccessResponse(response, result);
     } catch (error) {
       this.logger.error('Failed to mark attendance', error);
@@ -387,7 +386,6 @@ export class AttendanceService implements OnModuleInit {
    * @returns Promise resolving to attendance marking response
    */
   private async processAllEndedEventsWithResumability(
-    dto: MarkAttendanceDto,
     authToken: string,
     startTime: number,
     userId: string
@@ -396,7 +394,7 @@ export class AttendanceService implements OnModuleInit {
     const eventResults: any[] = [];
 
     // Get events that need attendance marking
-    const eventsToProcess = await this.getEndedEventsForAttendanceMarking(dto);
+    const eventsToProcess = await this.getEndedEventsForAttendanceMarking();
     
     if (eventsToProcess.length === 0) {
       return {
@@ -429,7 +427,7 @@ export class AttendanceService implements OnModuleInit {
         };
 
         // Skip if already processed and not forcing reprocess
-        if (!dto.forceReprocess && eventInfo.attendanceMarked) {
+        if (eventInfo.attendanceMarked) {
           this.logger.log(`Event ${eventInfo.eventRepetitionId} already processed, skipping`);
           continue;
         }
@@ -437,7 +435,6 @@ export class AttendanceService implements OnModuleInit {
         // Process the event with checkpoint support
         const result = await this.processEventWithSimpleCheckpoint(
           eventInfo,
-          dto,
           authToken
         );
 
@@ -517,15 +514,14 @@ export class AttendanceService implements OnModuleInit {
    */
   private async processEventWithSimpleCheckpoint(
     eventInfo: EventInfo,
-    dto: MarkAttendanceDto,
-    authToken: string
+    authToken: string 
   ): Promise<ProcessingResult> {
     // Check if checkpoint exists
     let checkpoint = await this.checkpointService.loadCheckpoint(eventInfo.eventRepetitionId);
     
-    if (checkpoint && !dto.forceReprocess) {
+    if (checkpoint) {
       this.logger.log(`Resuming event ${eventInfo.eventRepetitionId} from checkpoint`);
-      return await this.resumeEventFromCheckpoint(eventInfo, dto, authToken, checkpoint);
+      return await this.resumeEventFromCheckpoint(eventInfo, authToken, checkpoint);
     }
 
     // Create new checkpoint
@@ -536,7 +532,7 @@ export class AttendanceService implements OnModuleInit {
     );
 
     // Process the event
-    const result = await this.processEventParticipants(eventInfo, dto, authToken, checkpoint);
+    const result = await this.processEventParticipants(eventInfo, authToken, checkpoint);
 
     // Only clean up checkpoint if event is fully completed
     const isFullyCompleted = !result.pagination.hasNextPage && 
@@ -560,12 +556,11 @@ export class AttendanceService implements OnModuleInit {
    */
   private async resumeEventFromCheckpoint(
     eventInfo: EventInfo,
-    dto: MarkAttendanceDto,
     authToken: string,
     checkpoint: SimpleCheckpoint
   ): Promise<ProcessingResult> {
     this.logger.log(`Resuming event ${eventInfo.eventRepetitionId} from page ${checkpoint.currentPage}`);
-    return await this.processEventParticipants(eventInfo, dto, authToken, checkpoint);
+    return await this.processEventParticipants(eventInfo, authToken, checkpoint);
   }
 
   /**
@@ -579,7 +574,6 @@ export class AttendanceService implements OnModuleInit {
    */
   private async processEventParticipants(
     eventInfo: EventInfo,
-    dto: MarkAttendanceDto,
     authToken: string,
     checkpoint: SimpleCheckpoint
   ): Promise<ProcessingResult> {
@@ -629,7 +623,6 @@ export class AttendanceService implements OnModuleInit {
         const result = await this.processParticipantBatch(
           initialResponse.participants,
           eventInfo,
-          dto,
           authToken
         );
 
@@ -656,7 +649,6 @@ export class AttendanceService implements OnModuleInit {
           const result = await this.processParticipantBatch(
             participantResponse.participants,
             eventInfo,
-            dto,
             authToken
           );
 
@@ -690,7 +682,7 @@ export class AttendanceService implements OnModuleInit {
         updatedAttendeeRecords,
         nextPageToken,
         pagination: {
-          totalPages: Math.ceil(totalParticipants / dto.pageSize),
+          totalPages: Math.ceil(totalParticipants / 300),
           currentPage: currentPage - 1,
           hasNextPage: !!nextPageToken // true if there are more pages
         }
@@ -714,7 +706,6 @@ export class AttendanceService implements OnModuleInit {
   private async processParticipantBatch(
     participants: any[],
     eventInfo: EventInfo,
-    dto: MarkAttendanceDto,
     authToken: string
   ): Promise<{
     participantsProcessed: number;
@@ -836,9 +827,7 @@ export class AttendanceService implements OnModuleInit {
     await this.checkpointService.deleteCheckpoint(eventRepetitionId);
   }
 
-  private async getEndedEventsForAttendanceMarking(
-    dto: MarkAttendanceDto
-  ): Promise<EventRepetition[]> {
+  private async getEndedEventsForAttendanceMarking(): Promise<EventRepetition[]> {
     const queryBuilder = this.eventRepetitionRepository
       .createQueryBuilder('er')
       .leftJoinAndSelect('er.eventDetail', 'ed')
