@@ -42,8 +42,33 @@ export class EventAttendance {
       userId,
       response,
       token,
-      markZoomAttendanceDto.pageSize,
     );
   }
 
+  /**
+   * Mark attendance for a meeting participants
+   * seach ended events for attendance marking and whose attendance is not marked and mark attendance for them
+   * @param response - Response object
+   * @param request - Request object
+   * @param userId - User ID
+   * @returns Response object
+   */
+  @UseFilters(new AllExceptionsFilter(API_ID.MARK_ATTENDANCE))
+  @Post('/mark-attendance')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async markAttendance(
+    @Res() response: Response,
+    @Req() request: Request,
+    @GetUserId() userId: string,
+  ): Promise<Response> {
+    if (!request?.headers?.authorization) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+    const token = request.headers.authorization;
+    return this.attendanceService.markAttendance(
+      userId,
+      response,
+      token
+    );
+  }
 }

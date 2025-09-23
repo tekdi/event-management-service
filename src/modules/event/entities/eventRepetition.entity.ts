@@ -61,6 +61,15 @@ export class EventRepetition {
   @Column({ type: 'uuid', nullable: true })
   updatedBy: string;
 
+  @Column({ type: 'boolean', default: false })
+  attendanceMarked: boolean;
+
+  @Column({ type: 'int', default: 0 })
+  totalParticipantsProcessed: number;
+
+  @Column({ type: 'int', default: 0 })
+  totalParticipantsExpected: number;
+
   @ManyToOne(() => Events, (event) => event.eventRepetitions, {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',

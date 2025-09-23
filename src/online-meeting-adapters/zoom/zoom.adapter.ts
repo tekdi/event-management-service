@@ -450,8 +450,9 @@ export class ZoomService implements IOnlineMeetingLocator {
       : this.zoomPastMeetings;
     
     const finalUrl =
-      `${baseEndpoint}/${zoomId}/participants?page_size=${pageSize}` +
+      `${baseEndpoint}/${zoomId}/participants?include_fields=registrant_id,user_email&page_size=${pageSize}` +
       url;
+      console.log('finalUrl', finalUrl);
     try {
       const response = await axios.get(finalUrl, headers);
       return response.data;

@@ -147,4 +147,5 @@ export const API_ID = {
   UPDATE_EVENT_ATTENDEE_HISTORY_ITEM: 'api.event.attendee.history.item.update',
   DELETE_EVENT_ATTENDEE_HISTORY_ITEM: 'api.event.attendee.history.item.delete',
   MARK_EVENT_ATTENDANCE: 'api.event.mark.attendance',
+  MARK_ATTENDANCE: 'api.event.attendance.mark',
 };
