@@ -45,27 +45,16 @@ interface EventInfo {
  * Contains comprehensive statistics and pagination information
  */
 interface ProcessingResult {
-  /** Total number of participants in the event */
   totalParticipants: number;
-  /** Number of participants processed during this run */
   participantsProcessed: number;
-  /** Number of participants who attended the event */
   participantsAttended: number;
-  /** Number of participants who did not attend the event */
   participantsNotAttended: number;
-  /** Number of new attendee records created */
   newAttendeeRecords: number;
-  /** Number of existing attendee records updated */
   updatedAttendeeRecords: number;
-  /** Pagination token for next page (null if no more pages) */
   nextPageToken: string | null;
-  /** Pagination information */
   pagination: {
-    /** Total number of pages in the participant list */
     totalPages: number;
-    /** Current page number (0-based) */
     currentPage: number;
-    /** Whether there are more pages to process */
     hasNextPage: boolean;
   };
 }
@@ -108,13 +97,11 @@ export class AttendanceService implements OnModuleInit {
   }
 
 
-
   async markAttendanceForMeetingParticipants(
     markMeetingAttendanceDto: MarkMeetingAttendanceDto,
     userId: string,
     response: Response,
     authToken: string,
-    pageSize: number = 300,
   ) {
     const apiId = API_ID.MARK_EVENT_ATTENDANCE;
 
@@ -128,6 +115,12 @@ export class AttendanceService implements OnModuleInit {
         },
       },
       relations: ['eventDetail'], // Ensure eventDetail is included
+      select: {
+        eventRepetitionId: true,
+        eventDetail: {
+          onlineProvider: true,
+        },
+      },
     });
 
     if (
@@ -142,59 +135,11 @@ export class AttendanceService implements OnModuleInit {
     const participantIdentifiers = await this.onlineMeetingAdapter
       .getAdapter()
       .getMeetingParticipantsIdentifiers(
-        (eventRepetition.onlineDetails as any).id,
+        markMeetingAttendanceDto.meetingId,
         markMeetingAttendanceDto.markAttendanceBy,
-        (eventRepetition.onlineDetails as any).meetingType,
-        pageSize,
+        MeetingType.meeting,
+        markMeetingAttendanceDto.pageSize,
       );
-
-   
-
-    if (
-      !this.attendanceServiceUrl.trim().length
-    ) {
-      // match EventAttendees.registrantId with participantIdentifiers.inMeetingUserDetails.registrant_id and mark isAttended as true and duration and joinedLeftHistory as participant details
-      const registrantIds = participantIdentifiers.inMeetingUserDetails
-        .map((participant) => participant.registrant_id)
-        .filter((id) => id); // Filter out any undefined/null values
-
-      if (registrantIds.length > 0) {
-        // Update each attendee record individually with their specific attendance data
-        for (const participant of participantIdentifiers.inMeetingUserDetails) {
-          if (participant.registrant_id) {
-            await this.eventAttendeesRepository.update(
-              {
-                registrantId: participant.registrant_id,
-                eventRepetitionId: markMeetingAttendanceDto.eventRepetitionId,
-              },
-              {
-                isAttended: true,
-                duration: participant.duration,
-                joinedLeftHistory: {
-                  joinTime: participant.join_time,
-                  leaveTime: participant.leave_time,
-                  status: participant.status,
-                } as any,
-              },
-            );
-          }
-        }
-
-        return response.status(HttpStatus.CREATED).json(
-          APIResponse.success(
-            apiId,
-            {          
-              next_page_token: participantIdentifiers.next_page_token,
-              page_count: participantIdentifiers.page_count,
-              page_size: participantIdentifiers.page_size,
-              total_records: participantIdentifiers.total_records,
-            },
-            SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
-          ),
-        );     
-      }
-    }
-
 
     // get userIds from email or username list in user service
     const userList: UserDetails[] = await this.getUserIdList(
@@ -217,19 +162,12 @@ export class AttendanceService implements OnModuleInit {
     }
 
     // mark attendance for each user
-    let res = await this.markUsersAttendance(
+    const res = await this.markUsersAttendance(
       userDetailList,
       markMeetingAttendanceDto,
       userId,
       authToken,
     );
-    res = {
-      ...res,
-      next_page_token: participantIdentifiers.next_page_token,
-      page_count: participantIdentifiers.page_count,
-      page_size: participantIdentifiers.page_size,
-      total_records: participantIdentifiers.total_records,
-    };
 
     LoggerWinston.log(
       SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
