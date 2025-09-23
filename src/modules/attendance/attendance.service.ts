@@ -15,6 +15,7 @@ import {
   API_ID,
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
+  testIds,
 } from 'src/common/utils/constants.util';
 import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
 import { AttendanceRecord, UserDetails } from 'src/common/utils/types';
@@ -441,7 +442,7 @@ export class AttendanceService implements OnModuleInit {
         );
 
         // Only mark as completed if all participants processed AND no more pages
-        const isFullyCompleted = !result.pagination.hasNextPage && 
+        const isFullyCompleted = !result.pagination.hasNextPage || 
                                 result.participantsProcessed === result.totalParticipants;
 
         eventResults.push({
@@ -596,26 +597,34 @@ export class AttendanceService implements OnModuleInit {
 
     try {
       // Get initial participant data if not resuming from checkpoint
+      let initialResponse: any = null;
       if (totalParticipants === 0) {
-        const initialResponse = await this.onlineMeetingAdapter
-          .getAdapter()
-          .getMeetingParticipantList(
-            await this.onlineMeetingAdapter.getAdapter().getToken(),
-            [],
-            zoomId,
-            meetingType,
-            ''
-          );
-        
-        totalParticipants = initialResponse.total_records;
-        nextPageToken = initialResponse.next_page_token;
-        currentPage = 1;
+        try {
+          initialResponse = await this.onlineMeetingAdapter
+            .getAdapter()
+            .getMeetingParticipantList(
+              await this.onlineMeetingAdapter.getAdapter().getToken(),
+              [],
+              zoomId,
+              meetingType,
+              ''
+            );
+          
+          totalParticipants = initialResponse.total_records;
+          
+          nextPageToken = initialResponse.next_page_token;
+          currentPage = 1;
+          console.log('Page', currentPage ,'Participants',  initialResponse.participants.length);
+          // Update checkpoint with total participants count
+          checkpoint.totalParticipants = totalParticipants;
+          checkpoint.nextPageToken = nextPageToken;
+          checkpoint.currentPage = currentPage;
+          await this.checkpointService.updateCheckpoint(checkpoint);
 
-        // Update checkpoint with total participants count
-        checkpoint.totalParticipants = totalParticipants;
-        checkpoint.nextPageToken = nextPageToken;
-        checkpoint.currentPage = currentPage;
-        await this.checkpointService.updateCheckpoint(checkpoint);
+        } catch (error) {
+          this.logger.error(`Failed to get initial participant list for event ${eventInfo.eventRepetitionId}`, error);
+          throw new Error(`Failed to fetch participants for event ${eventInfo.eventRepetitionId}: ${error.message}`);
+        }
 
         // Process participants from the initial response
         const result = await this.processParticipantBatch(
@@ -634,43 +643,46 @@ export class AttendanceService implements OnModuleInit {
 
       // Process remaining pages
       while (nextPageToken) {
-        console.log('API call for nextPageToken', nextPageToken);
-        const participantResponse = await this.onlineMeetingAdapter
-          .getAdapter()
-          .getMeetingParticipantList(
-            await this.onlineMeetingAdapter.getAdapter().getToken(),
-            [],
-            zoomId,
-            meetingType,
-            `&next_page_token=${nextPageToken}`
+        try {
+          const participantResponse = await this.onlineMeetingAdapter
+            .getAdapter()
+            .getMeetingParticipantList(
+              await this.onlineMeetingAdapter.getAdapter().getToken(),
+              [],
+              zoomId,
+              meetingType,
+              `&next_page_token=${nextPageToken}`
+            );
+
+          const result = await this.processParticipantBatch(
+            participantResponse.participants,
+            eventInfo,
+            dto,
+            authToken
           );
-        console.log('After API call for nextPageToken', nextPageToken);
 
-        const result = await this.processParticipantBatch(
-          participantResponse.participants,
-          eventInfo,
-          dto,
-          authToken
-        );
+          participantsProcessed += result.participantsProcessed;
+          participantsAttended += result.participantsAttended;
+          participantsNotAttended += result.participantsNotAttended;
+          newAttendeeRecords += result.newAttendeeRecords;
+          updatedAttendeeRecords += result.updatedAttendeeRecords;
 
-        participantsProcessed += result.participantsProcessed;
-        participantsAttended += result.participantsAttended;
-        participantsNotAttended += result.participantsNotAttended;
-        newAttendeeRecords += result.newAttendeeRecords;
-        updatedAttendeeRecords += result.updatedAttendeeRecords;
+          // Update pagination state
+          nextPageToken = participantResponse.next_page_token;
+          currentPage++;
+          console.log('Page', currentPage ,'Participants',  participantResponse.participants.length);
+          // Update checkpoint after each page
+          checkpoint.nextPageToken = nextPageToken;
+          checkpoint.currentPage = currentPage;
+          checkpoint.participantsProcessed = participantsProcessed;
+          await this.checkpointService.updateCheckpoint(checkpoint);
 
-        // Update pagination state
-        nextPageToken = participantResponse.next_page_token;
-        currentPage++;
-
-        // Update checkpoint after each page
-        checkpoint.nextPageToken = nextPageToken;
-        checkpoint.currentPage = currentPage;
-        checkpoint.participantsProcessed = participantsProcessed;
-        await this.checkpointService.updateCheckpoint(checkpoint);
-        console.log('After update checkpoint', currentPage);
+        } catch (error) {
+          this.logger.error(`Failed to process page ${currentPage} for event ${eventInfo.eventRepetitionId}`, error);
+          // Break the loop on error to prevent infinite retries
+          break;
+        }
       }
-
       return {
         totalParticipants,
         participantsProcessed,
@@ -753,16 +765,12 @@ export class AttendanceService implements OnModuleInit {
         }
   
         let eventAttendee = attendeeMap.get(identifier);
-        const isNewRecord = !eventAttendee;
   
         if (!eventAttendee) {
           continue;
         } else {
           updatedAttendeeRecords++;
-        }
-  
-        const attended = participant.status === 'in_meeting';
-        eventAttendee.isAttended = attended;
+        eventAttendee.isAttended = true;
         eventAttendee.duration = participant.duration || 0;
         eventAttendee.joinedLeftHistory = {
           joinTime: participant.join_time,
@@ -772,25 +780,23 @@ export class AttendanceService implements OnModuleInit {
           zoomParticipantId: participant.id,
           lastUpdated: now
         };
-  
+
         attendeesToPersist.push(eventAttendee);
-  
         // Call LMS service for lesson completion if participant attended
-        if (attended && eventAttendee.userId) {
-          const lmsCall = this.callLmsLessonCompletion(
-            eventInfo.eventId,
-            eventAttendee.userId,
-            participant.duration || 0,
-            authToken
-          ).catch(error => {
-            this.logger.error(`Failed to call LMS service for user ${eventAttendee.userId}`, error);
-            return null; // Don't fail the entire process if LMS call fails
-          });
-          lmsServiceCalls.push(lmsCall);
+          // const lmsCall = this.callLmsLessonCompletion(
+          //   eventInfo.eventId,
+          //   eventAttendee.userId,
+          //   participant.duration || 0,
+          //   authToken
+          // ).catch(error => {
+          //   this.logger.error(`Failed to call LMS service for user ${eventAttendee.userId}`, error);
+          //   return null; // Don't fail the entire process if LMS call fails
+          // });
+          // lmsServiceCalls.push(lmsCall);
         }
   
         participantsProcessed++;
-        attended ? participantsAttended++ : participantsNotAttended++;
+        eventAttendee.isAttended ? participantsAttended++ : participantsNotAttended++;
       } catch (error) {
         this.logger.error(`Failed to process participant ${participant.id}`, error);
         participantsProcessed++;
@@ -801,13 +807,10 @@ export class AttendanceService implements OnModuleInit {
     if (attendeesToPersist.length > 0) {
       await this.eventAttendeesRepository.save(attendeesToPersist);
     }
-    console.log('save and update attendees', participantsProcessed);
 
     // Wait for all LMS service calls to complete
     if (lmsServiceCalls.length > 0) {
-      console.log(`Making ${lmsServiceCalls.length} LMS service calls for lesson completion`);
       await Promise.allSettled(lmsServiceCalls);
-      console.log('All LMS service calls completed');
     }
   
     return {
@@ -832,6 +835,7 @@ export class AttendanceService implements OnModuleInit {
         totalParticipantsProcessed: participantsProcessed
       }
     );
+    await this.checkpointService.deleteCheckpoint(eventRepetitionId);
   }
 
   private async getEndedEventsForAttendanceMarking(
@@ -891,6 +895,8 @@ export class AttendanceService implements OnModuleInit {
   ): Promise<any> {
     try {
       const lmsServiceUrl = this.configService.get('LMS_SERVICE_URL');
+      const tenantId = this.configService.get('TENANT_ID');
+      const organisationId = this.configService.get('ORGANISATION_ID');
       
       if (!lmsServiceUrl) {
         this.logger.warn('LMS_SERVICE_URL not configured, skipping lesson completion call');
@@ -907,9 +913,10 @@ export class AttendanceService implements OnModuleInit {
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': authToken
+            'Authorization': authToken,
+            'tenantid': tenantId,
+            'organisationid': organisationId
           },
-          timeout: 10000 // 10 second timeout
         }
       );
 
@@ -925,5 +932,4 @@ export class AttendanceService implements OnModuleInit {
       throw error;
     }
   }
-
-}
+  }
