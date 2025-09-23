@@ -15,7 +15,6 @@ import {
   API_ID,
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
-  testIds,
 } from 'src/common/utils/constants.util';
 import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
 import { AttendanceRecord, UserDetails } from 'src/common/utils/types';

@@ -45,6 +45,14 @@ export class EventAttendance {
     );
   }
 
+  /**
+   * Mark attendance for a meeting participants
+   * seach ended events for attendance marking and whose attendance is not marked and mark attendance for them
+   * @param response - Response object
+   * @param request - Request object
+   * @param userId - User ID
+   * @returns Response object
+   */
   @UseFilters(new AllExceptionsFilter(API_ID.MARK_ATTENDANCE))
   @Post('/mark-attendance')
   @UsePipes(new ValidationPipe({ transform: true }))
