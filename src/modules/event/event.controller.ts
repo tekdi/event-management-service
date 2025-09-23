@@ -181,7 +181,6 @@ export class EventController {
   })
   deleteEvent(
     @Param('id') id: string,
-    @Body(new ValidationPipe({ transform: true }))
     @Res() response: Response,
     @Req() request: Request,
   ) {

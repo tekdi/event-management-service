@@ -2427,7 +2427,6 @@ export class EventService {
   /**
    * Delete event by eventId - Archives event detail and deletes all repetitions with online meeting cleanup
    * @param eventId - The event ID to delete
-   * @param deleteEventDto - DTO for future extensibility
    * @param response - Express response object
    * @returns Promise<Response>
    */
@@ -2464,8 +2463,9 @@ export class EventService {
           console.log('error', error);
           throw new BadRequestException(ERROR_MESSAGES.CANNOT_DELETE_ONLINE_MEETING, error.message);
         }
+      }
 
-          // Archive the event detail by updating status to 'archived'
+      // Archive the event detail by updating status to 'archived'
       if (event.eventDetail) {
         await this.eventDetailRepository.update(
           { eventDetailId: event.eventDetail.eventDetailId },
@@ -2494,18 +2494,17 @@ export class EventService {
         .status(HttpStatus.OK)
         .json(APIResponse.success(API_ID.DELETE_EVENT, responseData, '200'));
 
-    }
-  } catch (error) {
-    this.logger.error(
-      `Error deleting event ${eventId}:`,
-      error,
-    );
+    } catch (error) {
+      this.logger.error(
+        `Error deleting event ${eventId}:`,
+        error,
+      );
 
-    if (error instanceof NotFoundException || error instanceof BadRequestException) {
-      throw error;
-    }
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
 
-    throw new InternalServerErrorException(ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
+      throw new InternalServerErrorException(ERROR_MESSAGES.INTERNAL_SERVER_ERROR);
+    }
   }
-}
 }
