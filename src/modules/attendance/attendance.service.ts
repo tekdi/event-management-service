@@ -604,6 +604,7 @@ export class AttendanceService implements OnModuleInit {
           checkpoint.participantsProcessed = participantsProcessed;
           await this.checkpointService.updateCheckpoint(checkpoint);
 
+          break;
         } catch (error) {
           this.logger.error(`Failed to process page ${currentPage} for event ${eventInfo.eventRepetitionId}`, error);
           // Break the loop on error to prevent infinite retries
@@ -826,7 +827,6 @@ export class AttendanceService implements OnModuleInit {
         this.logger.warn('LMS_SERVICE_URL not configured, skipping lesson completion call');
         return null;
       }
-
       const response = await this.httpService.axiosRef.patch(
         `${lmsServiceUrl}/v1/tracking/event/${eventId}`,
         {

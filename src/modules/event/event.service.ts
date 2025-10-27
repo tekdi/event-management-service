@@ -1016,7 +1016,7 @@ export class EventService {
       );
     }
 
-    console.log('updateBody', updateBody);
+    // console.log('updateBody', updateBody); // Removed for production
     // Handle event detail updates
     if (
       updateBody.title ||
@@ -2066,7 +2066,7 @@ export class EventService {
       const isMainEventUpdate = updateEventByIdDto.isMainEvent !== undefined ? updateEventByIdDto.isMainEvent : true;
 
 
-      console.log('event.eventType', event);
+      // console.log('event.eventType', event); // Removed for production
         if (eventDetail.eventType === EventTypes.offline) {
           // Clear online-specific fields when changing to offline
           updateEventByIdDto.onlineProvider = null;
@@ -2460,7 +2460,7 @@ export class EventService {
           await adapter.deleteMeeting(meetingId, meetingType);
           
         } catch (error) {
-          console.log('error', error);
+          // console.log('error', error); // Removed for production
           throw new BadRequestException(ERROR_MESSAGES.CANNOT_DELETE_ONLINE_MEETING, error.message);
         }
       }

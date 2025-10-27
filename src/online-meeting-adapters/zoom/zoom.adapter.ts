@@ -249,9 +249,9 @@ export class ZoomService implements IOnlineMeetingLocator {
           audio: request.settings?.audio ?? 'both',
           auto_recording: request.settings?.autoRecording ?? 'none',
           registrants_confirmation_email:
-            request.settings?.registrantsConfirmationEmail ?? true,
+            request.settings?.registrantsConfirmationEmail ?? false,
           registrants_email_notification:
-            request.settings?.registrantsEmailNotification ?? true,
+            request.settings?.registrantsEmailNotification ?? false,
           waiting_room: request.settings?.waitingRoom ?? false,
           jbh_time: request.settings?.jbhTime ?? 0,
         },

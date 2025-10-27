@@ -879,7 +879,6 @@ export class AttendeesService {
           LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
 
-        console.log(mainQuery);
       } else {
         // Original logic for userId search
         countQuery = `
