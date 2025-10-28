@@ -19,6 +19,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         //   User
         // ],
         autoLoadEntities: true,
+        logging: false,
       }),
       inject: [ConfigService],
     }),
