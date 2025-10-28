@@ -376,8 +376,8 @@ export class AttendanceService implements OnModuleInit {
         );
 
         // Only mark as completed if all participants processed AND no more pages
-        const isFullyCompleted = !result.pagination.hasNextPage || 
-                                result.participantsProcessed === result.totalParticipants;
+        const isFullyCompleted = !result.pagination.hasNextPage && 
+                                result.participantsProcessed >= result.totalParticipants;
 
         eventResults.push({
           eventRepetitionId: eventInfo.eventRepetitionId,
@@ -473,7 +473,7 @@ export class AttendanceService implements OnModuleInit {
 
     // Only clean up checkpoint if event is fully completed
     const isFullyCompleted = !result.pagination.hasNextPage && 
-                            result.participantsProcessed === result.totalParticipants;
+                            result.participantsProcessed >= result.totalParticipants;
     
     if (isFullyCompleted) {
       await this.checkpointService.deleteCheckpoint(eventInfo.eventRepetitionId);
@@ -604,6 +604,7 @@ export class AttendanceService implements OnModuleInit {
           checkpoint.participantsProcessed = participantsProcessed;
           await this.checkpointService.updateCheckpoint(checkpoint);
 
+          break;
         } catch (error) {
           this.logger.error(`Failed to process page ${currentPage} for event ${eventInfo.eventRepetitionId}`, error);
           // Break the loop on error to prevent infinite retries
@@ -681,6 +682,7 @@ export class AttendanceService implements OnModuleInit {
     const attendeesToPersist: EventAttendees[] = [];
     const now = new Date().toISOString();
     const lmsServiceCalls: Promise<any>[] = [];
+    const LMS_BATCH_SIZE = 50; 
   
     for (const participant of participants) {
       try {
@@ -696,19 +698,20 @@ export class AttendanceService implements OnModuleInit {
           continue;
         } else {
           updatedAttendeeRecords++;
-        eventAttendee.isAttended = true;
-        eventAttendee.duration = participant.duration || 0;
-        eventAttendee.joinedLeftHistory = {
-          joinTime: participant.join_time,
-          leaveTime: participant.leave_time,
-          duration: participant.duration,
-          status: participant.status,
-          zoomParticipantId: participant.id,
-          lastUpdated: now
-        };
+          eventAttendee.isAttended = true;
+          eventAttendee.duration = participant.duration || 0;
+          eventAttendee.joinedLeftHistory = {
+            joinTime: participant.join_time,
+            leaveTime: participant.leave_time,
+            duration: participant.duration,
+            status: participant.status,
+            zoomParticipantId: participant.id,
+            lastUpdated: now
+          };
 
-        attendeesToPersist.push(eventAttendee);
-        // Call LMS service for lesson completion if participant attended
+          attendeesToPersist.push(eventAttendee);
+          
+          // Call LMS service for lesson completion if participant attended
           const lmsCall = this.callLmsLessonCompletion(
             eventInfo.eventId,
             eventAttendee.userId,
@@ -719,6 +722,12 @@ export class AttendanceService implements OnModuleInit {
             return null; // Don't fail the entire process if LMS call fails
           });
           lmsServiceCalls.push(lmsCall);
+          
+          // Process LMS calls in batches to prevent memory overload
+          if (lmsServiceCalls.length >= LMS_BATCH_SIZE) {
+            await Promise.allSettled(lmsServiceCalls);
+            lmsServiceCalls.length = 0; // Clear array to release memory
+          }
         }
   
         participantsProcessed++;
@@ -734,10 +743,15 @@ export class AttendanceService implements OnModuleInit {
       await this.eventAttendeesRepository.save(attendeesToPersist);
     }
 
-    // Wait for all LMS service calls to complete
+    // Wait for remaining LMS service calls to complete
     if (lmsServiceCalls.length > 0) {
       await Promise.allSettled(lmsServiceCalls);
+      lmsServiceCalls.length = 0; // Clear array to release memory
     }
+  
+    // Clear large arrays to help garbage collection
+    attendeesToPersist.length = 0;
+    registrantIds.length = 0;
   
     return {
       participantsProcessed,
@@ -826,7 +840,6 @@ export class AttendanceService implements OnModuleInit {
         this.logger.warn('LMS_SERVICE_URL not configured, skipping lesson completion call');
         return null;
       }
-
       const response = await this.httpService.axiosRef.patch(
         `${lmsServiceUrl}/v1/tracking/event/${eventId}`,
         {

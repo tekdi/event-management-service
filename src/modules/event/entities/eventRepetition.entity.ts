@@ -27,6 +27,9 @@ export class EventRepetition {
   @Column({ type: 'jsonb', nullable: true })
   erMetaData: object;
 
+  @Column({ type: 'jsonb', nullable: true })
+  params: object;
+
   @Column({
     type: 'timestamptz',
     default: () => "timezone('utc', now())",
