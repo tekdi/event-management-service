@@ -17,7 +17,8 @@ spec:
       labels:
         app: event-management
     spec:
-      containers:
+      containers: https://github.com/tekdi/event-management-service/tree/aspire-leaders
+
       - image: ${ECR_REPOSITORY}:${IMAGE_TAG}
         imagePullPolicy: "Always"
         name: event-management
@@ -28,7 +29,7 @@ spec:
             name: event-service-config
         resources:
           requests:
-            cpu: "7000m"
+            cpu: "700m"
             memory: "700Mi"
           limits:
             cpu: "1000m"
