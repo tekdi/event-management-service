@@ -26,7 +26,13 @@ spec:
         envFrom:
         - configMapRef:
             name: event-service-config
-        resources: {}
+        resources:
+          requests:
+            cpu: "7000m"
+            memory: "700Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
       restartPolicy: Always
 status: {}
 
