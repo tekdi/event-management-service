@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, IsBoolean, Min, Max, IsDateString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, IsBoolean, Min, Max, IsDateString, IsArray, ArrayMinSize } from 'class-validator';
 
 export class MarkMeetingAttendanceDto {
   @ApiProperty({
@@ -109,4 +109,79 @@ export class MarkAttendanceDto {
   @IsEnum(['registrant_id'])
   markBy?: 'registrant_id' = 'registrant_id';
 
+}
+
+/**
+ * DTO for marking attendance by userId directly (without Zoom API)
+ * This API is designed for Postman runner testing and manual attendance marking
+ */
+export class MarkAttendanceByUsernameDto {
+  @ApiProperty({
+    type: [String],
+    description: 'Array of user IDs (UUIDs) to mark attendance for',
+    example: ['123e4567-e89b-12d3-a456-426614174000', '223e4567-e89b-12d3-a456-426614174001', '323e4567-e89b-12d3-a456-426614174002'],
+    isArray: true,
+  })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'At least one userId is required' })
+  @IsUUID('4', { each: true, message: 'Each userId must be a valid UUID' })
+  @IsNotEmpty()
+  userIds: string[];
+
+  @ApiProperty({
+    type: String,
+    description: 'Event Repetition ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsUUID()
+  @IsNotEmpty()
+  eventRepetitionId: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'Event ID (UUID) - used for LMS lesson completion',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsUUID()
+  @IsNotEmpty()
+  eventId: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'The date of the attendance in format yyyy-mm-dd',
+    example: '2024-01-15',
+  })
+  @IsNotEmpty()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Please provide a valid date in the format yyyy-mm-dd',
+  })
+  attendanceDate: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'Scope of the attendance',
+    example: 'student',
+  })
+  @IsString()
+  @IsNotEmpty()
+  scope: string;
+
+  @ApiProperty({
+    type: String,
+    description: 'Tenant ID (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsUUID()
+  @IsNotEmpty()
+  tenantId: string;
+
+  @ApiProperty({
+    type: Number,
+    description: 'Time spent in seconds (optional, defaults to 0)',
+    example: 3600,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  timeSpent?: number = 0;
 }

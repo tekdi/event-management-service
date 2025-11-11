@@ -10,14 +10,21 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import APIResponse from 'src/common/utils/response';
-import { MarkMeetingAttendanceDto } from './dto/markAttendance.dto';
+import {
+  MarkMeetingAttendanceDto,
+  MarkAttendanceByUsernameDto,
+} from './dto/markAttendance.dto';
 import {
   API_ID,
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
 } from 'src/common/utils/constants.util';
 import { OnlineMeetingAdapter } from 'src/online-meeting-adapters/onlineMeeting.adapter';
-import { AttendanceRecord, UserDetails } from 'src/common/utils/types';
+import {
+  AttendanceRecord,
+  UserDetails,
+  AttendeesStatus,
+} from 'src/common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
 import { EventAttendees } from '../attendees/entity/attendees.entity';
 import { In, Not, Repository } from 'typeorm';
@@ -94,7 +101,6 @@ export class AttendanceService implements OnModuleInit {
       );
     }
   }
-
 
   async markAttendanceForMeetingParticipants(
     markMeetingAttendanceDto: MarkMeetingAttendanceDto,
@@ -276,13 +282,13 @@ export class AttendanceService implements OnModuleInit {
 
   /**
    * Main entry point for marking attendance with resumability support
-   * 
+   *
    * This method provides the primary API endpoint for attendance marking:
    * - Supports both single event and bulk processing
    * - Implements checkpoint-based resumability for long-running operations
    * - Handles errors gracefully and provides detailed response information
    * - Can resume from interruptions using stored checkpoint data
-   * 
+   *
    * @param dto - The attendance marking request data
    * @param userId - ID of the user initiating the process
    * @param response - Express response object for sending results
@@ -292,7 +298,7 @@ export class AttendanceService implements OnModuleInit {
   async markAttendance(
     userId: string,
     response: Response,
-    authToken: string
+    authToken: string,
   ): Promise<Response> {
     const startTime = Date.now();
     const errors: string[] = [];
@@ -300,7 +306,11 @@ export class AttendanceService implements OnModuleInit {
 
     try {
       // Process all ended events with resumability support
-      const result = await this.processAllEndedEventsWithResumability(authToken, startTime, userId);
+      const result = await this.processAllEndedEventsWithResumability(
+        authToken,
+        startTime,
+        userId,
+      );
       return this.sendSuccessResponse(response, result);
     } catch (error) {
       this.logger.error('Failed to mark attendance', error);
@@ -310,12 +320,12 @@ export class AttendanceService implements OnModuleInit {
 
   /**
    * Processes all ended events with simplified checkpoint support
-   * 
+   *
    * This method handles attendance marking with simple checkpoint-based resumability:
    * 1. Gets events that need attendance marking
    * 2. Processes each event with individual simple checkpoints
    * 3. Handles errors and cleanup appropriately
-   * 
+   *
    * @param dto - The attendance marking request data
    * @param authToken - Authentication token for API calls
    * @param startTime - Timestamp when processing started
@@ -325,14 +335,14 @@ export class AttendanceService implements OnModuleInit {
   private async processAllEndedEventsWithResumability(
     authToken: string,
     startTime: number,
-    userId: string
+    userId: string,
   ): Promise<any> {
     const errors: string[] = [];
     const eventResults: any[] = [];
 
     // Get events that need attendance marking
     const eventsToProcess = await this.getEndedEventsForAttendanceMarking();
-    
+
     if (eventsToProcess.length === 0) {
       return {
         success: true,
@@ -343,7 +353,7 @@ export class AttendanceService implements OnModuleInit {
         processingTimeMs: Date.now() - startTime,
         errors: ['No ended events found for attendance marking'],
         eventResults: [],
-        message: 'No ended events found for attendance marking'
+        message: 'No ended events found for attendance marking',
       };
     }
 
@@ -360,24 +370,27 @@ export class AttendanceService implements OnModuleInit {
           eventId: event.eventId,
           zoomId: (event.onlineDetails as any)?.id || '',
           meetingType: (event.onlineDetails as any)?.meetingType || 'meeting',
-          attendanceMarked: event.attendanceMarked
+          attendanceMarked: event.attendanceMarked,
         };
 
         // Skip if already processed and not forcing reprocess
         if (eventInfo.attendanceMarked) {
-          this.logger.log(`Event ${eventInfo.eventRepetitionId} already processed, skipping`);
+          this.logger.log(
+            `Event ${eventInfo.eventRepetitionId} already processed, skipping`,
+          );
           continue;
         }
 
         // Process the event with checkpoint support
         const result = await this.processEventWithSimpleCheckpoint(
           eventInfo,
-          authToken
+          authToken,
         );
 
         // Only mark as completed if all participants processed AND no more pages
-        const isFullyCompleted = !result.pagination.hasNextPage && 
-                                result.participantsProcessed >= result.totalParticipants;
+        const isFullyCompleted =
+          !result.pagination.hasNextPage &&
+          result.participantsProcessed >= result.totalParticipants;
 
         eventResults.push({
           eventRepetitionId: eventInfo.eventRepetitionId,
@@ -391,25 +404,32 @@ export class AttendanceService implements OnModuleInit {
           newAttendeeRecords: result.newAttendeeRecords,
           updatedAttendeeRecords: result.updatedAttendeeRecords,
           status: isFullyCompleted ? 'success' : 'partial',
-          processingTimeMs: 0
+          processingTimeMs: 0,
         });
 
         totalEventsProcessed++;
         if (isFullyCompleted) {
           successfulEvents++;
           // Mark event as completed only when fully done
-          await this.markEventAttendanceCompleted(eventInfo.eventRepetitionId, result.participantsProcessed);
+          await this.markEventAttendanceCompleted(
+            eventInfo.eventRepetitionId,
+            result.participantsProcessed,
+          );
         } else {
           // Event partially processed - will be resumed later
-          this.logger.log(`Event ${eventInfo.eventRepetitionId} partially processed: ${result.participantsProcessed}/${result.totalParticipants} participants`);
+          this.logger.log(
+            `Event ${eventInfo.eventRepetitionId} partially processed: ${result.participantsProcessed}/${result.totalParticipants} participants`,
+          );
         }
         totalParticipantsProcessed += result.participantsProcessed;
-
       } catch (error) {
-        this.logger.error(`Failed to process event ${event.eventRepetitionId}`, error);
+        this.logger.error(
+          `Failed to process event ${event.eventRepetitionId}`,
+          error,
+        );
         failedEvents++;
         errors.push(`Event ${event.eventRepetitionId}: ${error.message}`);
-        
+
         eventResults.push({
           eventRepetitionId: event.eventRepetitionId,
           eventTitle: (event.eventDetail as any)?.eventTitle || 'Unknown Event',
@@ -423,7 +443,7 @@ export class AttendanceService implements OnModuleInit {
           updatedAttendeeRecords: 0,
           status: 'failed',
           errorMessage: error.message,
-          processingTimeMs: 0
+          processingTimeMs: 0,
         });
       }
     }
@@ -437,13 +457,13 @@ export class AttendanceService implements OnModuleInit {
       processingTimeMs: Date.now() - startTime,
       errors,
       eventResults,
-      message: `Processed ${totalEventsProcessed} events successfully`
+      message: `Processed ${totalEventsProcessed} events successfully`,
     };
   }
 
   /**
    * Processes a single event with simple checkpoint support
-   * 
+   *
    * @param eventInfo - Information about the event being processed
    * @param dto - The attendance marking request data
    * @param authToken - Authentication token for API calls
@@ -451,32 +471,47 @@ export class AttendanceService implements OnModuleInit {
    */
   private async processEventWithSimpleCheckpoint(
     eventInfo: EventInfo,
-    authToken: string 
+    authToken: string,
   ): Promise<ProcessingResult> {
     // Check if checkpoint exists
-    let checkpoint = await this.checkpointService.loadCheckpoint(eventInfo.eventRepetitionId);
-    
+    let checkpoint = await this.checkpointService.loadCheckpoint(
+      eventInfo.eventRepetitionId,
+    );
+
     if (checkpoint) {
-      this.logger.log(`Resuming event ${eventInfo.eventRepetitionId} from checkpoint`);
-      return await this.resumeEventFromCheckpoint(eventInfo, authToken, checkpoint);
+      this.logger.log(
+        `Resuming event ${eventInfo.eventRepetitionId} from checkpoint`,
+      );
+      return await this.resumeEventFromCheckpoint(
+        eventInfo,
+        authToken,
+        checkpoint,
+      );
     }
 
     // Create new checkpoint
     checkpoint = await this.checkpointService.createCheckpoint(
       eventInfo.eventRepetitionId,
       eventInfo.eventId,
-      eventInfo.zoomId
+      eventInfo.zoomId,
     );
 
     // Process the event
-    const result = await this.processEventParticipants(eventInfo, authToken, checkpoint);
+    const result = await this.processEventParticipants(
+      eventInfo,
+      authToken,
+      checkpoint,
+    );
 
     // Only clean up checkpoint if event is fully completed
-    const isFullyCompleted = !result.pagination.hasNextPage && 
-                            result.participantsProcessed >= result.totalParticipants;
-    
+    const isFullyCompleted =
+      !result.pagination.hasNextPage &&
+      result.participantsProcessed >= result.totalParticipants;
+
     if (isFullyCompleted) {
-      await this.checkpointService.deleteCheckpoint(eventInfo.eventRepetitionId);
+      await this.checkpointService.deleteCheckpoint(
+        eventInfo.eventRepetitionId,
+      );
     }
 
     return result;
@@ -484,7 +519,7 @@ export class AttendanceService implements OnModuleInit {
 
   /**
    * Resumes event processing from an existing checkpoint
-   * 
+   *
    * @param eventInfo - Information about the event being processed
    * @param dto - The attendance marking request data
    * @param authToken - Authentication token for API calls
@@ -494,15 +529,21 @@ export class AttendanceService implements OnModuleInit {
   private async resumeEventFromCheckpoint(
     eventInfo: EventInfo,
     authToken: string,
-    checkpoint: SimpleCheckpoint
+    checkpoint: SimpleCheckpoint,
   ): Promise<ProcessingResult> {
-    this.logger.log(`Resuming event ${eventInfo.eventRepetitionId} from page ${checkpoint.currentPage}`);
-    return await this.processEventParticipants(eventInfo, authToken, checkpoint);
+    this.logger.log(
+      `Resuming event ${eventInfo.eventRepetitionId} from page ${checkpoint.currentPage}`,
+    );
+    return await this.processEventParticipants(
+      eventInfo,
+      authToken,
+      checkpoint,
+    );
   }
 
   /**
    * Processes event participants with checkpoint support
-   * 
+   *
    * @param eventInfo - Information about the event being processed
    * @param dto - The attendance marking request data
    * @param authToken - Authentication token for API calls
@@ -512,11 +553,11 @@ export class AttendanceService implements OnModuleInit {
   private async processEventParticipants(
     eventInfo: EventInfo,
     authToken: string,
-    checkpoint: SimpleCheckpoint
+    checkpoint: SimpleCheckpoint,
   ): Promise<ProcessingResult> {
     const zoomId = eventInfo.zoomId;
     const meetingType = eventInfo.meetingType as MeetingType;
-    
+
     let totalParticipants = checkpoint.totalParticipants;
     let participantsProcessed = checkpoint.participantsProcessed;
     let participantsAttended = 0;
@@ -538,11 +579,11 @@ export class AttendanceService implements OnModuleInit {
               [],
               zoomId,
               meetingType,
-              ''
+              '',
             );
-          
+
           totalParticipants = initialResponse.total_records;
-          
+
           nextPageToken = initialResponse.next_page_token;
           currentPage = 1;
           // Update checkpoint with total participants count
@@ -550,17 +591,21 @@ export class AttendanceService implements OnModuleInit {
           checkpoint.nextPageToken = nextPageToken;
           checkpoint.currentPage = currentPage;
           await this.checkpointService.updateCheckpoint(checkpoint);
-
         } catch (error) {
-          this.logger.error(`Failed to get initial participant list for event ${eventInfo.eventRepetitionId}`, error);
-          throw new Error(`Failed to fetch participants for event ${eventInfo.eventRepetitionId}: ${error.message}`);
+          this.logger.error(
+            `Failed to get initial participant list for event ${eventInfo.eventRepetitionId}`,
+            error,
+          );
+          throw new Error(
+            `Failed to fetch participants for event ${eventInfo.eventRepetitionId}: ${error.message}`,
+          );
         }
 
         // Process participants from the initial response
         const result = await this.processParticipantBatch(
           initialResponse.participants,
           eventInfo,
-          authToken
+          authToken,
         );
 
         participantsProcessed += result.participantsProcessed;
@@ -580,13 +625,13 @@ export class AttendanceService implements OnModuleInit {
               [],
               zoomId,
               meetingType,
-              `&next_page_token=${nextPageToken}`
+              `&next_page_token=${nextPageToken}`,
             );
 
           const result = await this.processParticipantBatch(
             participantResponse.participants,
             eventInfo,
-            authToken
+            authToken,
           );
 
           participantsProcessed += result.participantsProcessed;
@@ -606,7 +651,10 @@ export class AttendanceService implements OnModuleInit {
 
           break;
         } catch (error) {
-          this.logger.error(`Failed to process page ${currentPage} for event ${eventInfo.eventRepetitionId}`, error);
+          this.logger.error(
+            `Failed to process page ${currentPage} for event ${eventInfo.eventRepetitionId}`,
+            error,
+          );
           // Break the loop on error to prevent infinite retries
           break;
         }
@@ -622,19 +670,21 @@ export class AttendanceService implements OnModuleInit {
         pagination: {
           totalPages: Math.ceil(totalParticipants / 300),
           currentPage: currentPage - 1,
-          hasNextPage: !!nextPageToken // true if there are more pages
-        }
+          hasNextPage: !!nextPageToken, // true if there are more pages
+        },
       };
-
     } catch (error) {
-      this.logger.error(`Failed to process participants for event ${eventInfo.eventRepetitionId}`, error);
+      this.logger.error(
+        `Failed to process participants for event ${eventInfo.eventRepetitionId}`,
+        error,
+      );
       throw error;
     }
   }
 
   /**
    * Processes a batch of participants with optimized batch database operations
-   * 
+   *
    * @param participants - Array of participants to process
    * @param eventInfo - Information about the event being processed
    * @param dto - The attendance marking request data
@@ -644,7 +694,7 @@ export class AttendanceService implements OnModuleInit {
   private async processParticipantBatch(
     participants: any[],
     eventInfo: EventInfo,
-    authToken: string
+    authToken: string,
   ): Promise<{
     participantsProcessed: number;
     participantsAttended: number;
@@ -657,43 +707,47 @@ export class AttendanceService implements OnModuleInit {
     let participantsNotAttended = 0;
     let newAttendeeRecords = 0;
     let updatedAttendeeRecords = 0;
-  
-    const registrantIds = participants.map(p => p.registrant_id).filter(Boolean);
-  
+
+    const registrantIds = participants
+      .map((p) => p.registrant_id)
+      .filter(Boolean);
+
     if (!registrantIds.length) {
       return {
         participantsProcessed: 0,
         participantsAttended: 0,
         participantsNotAttended: 0,
         newAttendeeRecords: 0,
-        updatedAttendeeRecords: 0
+        updatedAttendeeRecords: 0,
       };
     }
-  
+
     const existingAttendees = await this.eventAttendeesRepository.findBy({
       eventRepetitionId: eventInfo.eventRepetitionId,
       registrantId: In(registrantIds),
     });
-  
+
     const attendeeMap = new Map(
-      existingAttendees.map(att => [att.registrantId, att])
+      existingAttendees.map((att) => [att.registrantId, att]),
     );
-  
+
     const attendeesToPersist: EventAttendees[] = [];
     const now = new Date().toISOString();
     const lmsServiceCalls: Promise<any>[] = [];
-    const LMS_BATCH_SIZE = 50; 
-  
+    const LMS_BATCH_SIZE = 50;
+
     for (const participant of participants) {
       try {
         const identifier = participant.registrant_id;
         if (!identifier) {
-          this.logger.warn(`Participant ${participant.id} missing registrant_id, skipping`);
+          this.logger.warn(
+            `Participant ${participant.id} missing registrant_id, skipping`,
+          );
           continue;
         }
-  
+
         let eventAttendee = attendeeMap.get(identifier);
-  
+
         if (!eventAttendee) {
           continue;
         } else {
@@ -706,39 +760,47 @@ export class AttendanceService implements OnModuleInit {
             duration: participant.duration,
             status: participant.status,
             zoomParticipantId: participant.id,
-            lastUpdated: now
+            lastUpdated: now,
           };
 
           attendeesToPersist.push(eventAttendee);
-          
+
           // Call LMS service for lesson completion if participant attended
           const lmsCall = this.callLmsLessonCompletion(
             eventInfo.eventId,
             eventAttendee.userId,
             participant.duration || 0,
-            authToken
-          ).catch(error => {
-            this.logger.error(`Failed to call LMS service for user ${eventAttendee.userId}`, error);
+            authToken,
+          ).catch((error) => {
+            this.logger.error(
+              `Failed to call LMS service for user ${eventAttendee.userId}`,
+              error,
+            );
             return null; // Don't fail the entire process if LMS call fails
           });
           lmsServiceCalls.push(lmsCall);
-          
+
           // Process LMS calls in batches to prevent memory overload
           if (lmsServiceCalls.length >= LMS_BATCH_SIZE) {
             await Promise.allSettled(lmsServiceCalls);
             lmsServiceCalls.length = 0; // Clear array to release memory
           }
         }
-  
+
         participantsProcessed++;
-        eventAttendee.isAttended ? participantsAttended++ : participantsNotAttended++;
+        eventAttendee.isAttended
+          ? participantsAttended++
+          : participantsNotAttended++;
       } catch (error) {
-        this.logger.error(`Failed to process participant ${participant.id}`, error);
+        this.logger.error(
+          `Failed to process participant ${participant.id}`,
+          error,
+        );
         participantsProcessed++;
         participantsNotAttended++;
       }
     }
-  
+
     if (attendeesToPersist.length > 0) {
       await this.eventAttendeesRepository.save(attendeesToPersist);
     }
@@ -748,77 +810,83 @@ export class AttendanceService implements OnModuleInit {
       await Promise.allSettled(lmsServiceCalls);
       lmsServiceCalls.length = 0; // Clear array to release memory
     }
-  
+
     // Clear large arrays to help garbage collection
     attendeesToPersist.length = 0;
     registrantIds.length = 0;
-  
+
     return {
       participantsProcessed,
       participantsAttended,
       participantsNotAttended,
       newAttendeeRecords,
-      updatedAttendeeRecords
+      updatedAttendeeRecords,
     };
   }
-  
-
 
   private async markEventAttendanceCompleted(
     eventRepetitionId: string,
-    participantsProcessed: number
+    participantsProcessed: number,
   ): Promise<void> {
     await this.eventRepetitionRepository.update(
       { eventRepetitionId },
       {
         attendanceMarked: true,
-        totalParticipantsProcessed: participantsProcessed
-      }
+        totalParticipantsProcessed: participantsProcessed,
+      },
     );
     await this.checkpointService.deleteCheckpoint(eventRepetitionId);
   }
 
-  private async getEndedEventsForAttendanceMarking(): Promise<EventRepetition[]> {
+  private async getEndedEventsForAttendanceMarking(): Promise<
+    EventRepetition[]
+  > {
     const queryBuilder = this.eventRepetitionRepository
       .createQueryBuilder('er')
       .leftJoinAndSelect('er.eventDetail', 'ed')
       .leftJoinAndSelect('er.event', 'e')
       .where('er.endDateTime < :currentTime', { currentTime: new Date() })
       .andWhere('ed.eventType = :eventType', { eventType: 'online' })
-      .andWhere('er.attendanceMarked = :attendanceMarked', { attendanceMarked: false })
+      .andWhere('er.attendanceMarked = :attendanceMarked', {
+        attendanceMarked: false,
+      })
       .andWhere('er.onlineDetails IS NOT NULL');
 
     return queryBuilder.getMany();
   }
 
   private async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private sendSuccessResponse(response: Response, data: any): Response {
-    return response.status(HttpStatus.OK).json(
-      APIResponse.success(
-        data,
-        SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
-        API_ID.MARK_ATTENDANCE,
-      ),
-    );
+    return response
+      .status(HttpStatus.OK)
+      .json(
+        APIResponse.success(
+          data,
+          SUCCESS_MESSAGES.ATTENDANCE_MARKED_FOR_MEETING,
+          API_ID.MARK_ATTENDANCE,
+        ),
+      );
   }
 
   private sendErrorResponse(response: Response, message: string): Response {
-    return response.status(HttpStatus.BAD_REQUEST).json(
-      APIResponse.error(
-        message,
-        API_ID.MARK_ATTENDANCE,
-        '400',
-        'Bad Request'
-      ),
-    );
+    return response
+      .status(HttpStatus.BAD_REQUEST)
+      .json(
+        APIResponse.error(
+          message,
+          API_ID.MARK_ATTENDANCE,
+          '400',
+          'Bad Request',
+        ),
+      );
   }
 
   /**
    * Calls LMS service to mark lesson as completed for a user
-   * 
+   *
    * @param eventId - The event ID that maps to lesson.media.source
    * @param userId - The user ID
    * @param timeSpent - Time spent in seconds
@@ -829,15 +897,17 @@ export class AttendanceService implements OnModuleInit {
     eventId: string,
     userId: string,
     timeSpent: number,
-    authToken: string
+    authToken: string,
   ): Promise<any> {
     try {
       const lmsServiceUrl = this.configService.get('LMS_SERVICE_URL');
       const tenantId = this.configService.get('TENANT_ID');
       const organisationId = this.configService.get('ORGANISATION_ID');
-      
+
       if (!lmsServiceUrl) {
-        this.logger.warn('LMS_SERVICE_URL not configured, skipping lesson completion call');
+        this.logger.warn(
+          'LMS_SERVICE_URL not configured, skipping lesson completion call',
+        );
         return null;
       }
       const response = await this.httpService.axiosRef.patch(
@@ -845,28 +915,393 @@ export class AttendanceService implements OnModuleInit {
         {
           userId,
           status: 'completed',
-          timeSpent: Math.floor(timeSpent) // Convert to integer seconds
+          timeSpent: Math.floor(timeSpent), // Convert to integer seconds
         },
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': authToken,
-            'tenantid': tenantId,
-            'organisationid': organisationId
+            Authorization: authToken,
+            tenantid: tenantId,
+            organisationid: organisationId,
           },
-        }
+        },
       );
 
-      this.logger.log(`Successfully marked lesson completion for user ${userId} in event ${eventId}`);
+      this.logger.log(
+        `Successfully marked lesson completion for user ${userId} in event ${eventId}`,
+      );
       return response.data;
-
     } catch (error) {
-      this.logger.error(`Failed to call LMS service for event ${eventId}, user ${userId}`, {
-        error: error.message,
-        status: error.response?.status,
-        data: error.response?.data
-      });
+      this.logger.error(
+        `Failed to call LMS service for event ${eventId}, user ${userId}`,
+        {
+          error: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+        },
+      );
       throw error;
     }
   }
+
+  /**
+   * Mark attendance by userId directly (without Zoom API and User Service lookup)
+   * This method is designed for Postman runner testing and manual attendance marking
+   *
+   * Flow:
+   * 1. Validate event exists
+   * 2. Create attendance records directly from provided userIds (skip User Service)
+   * 3. Update EventAttendees table to mark users as attended (isAttended = true, duration, joinedLeftHistory)
+   * 4. Skip Attendance Service call (bypassed)
+   * 5. Mark lesson completion in LMS Service
+   *
+   * @param markAttendanceByUsernameDto - DTO containing userIds and event details
+   * @param loggedInUserId - User ID of the person marking attendance
+   * @param response - Express response object
+   * @param authToken - Authentication token
+   * @returns Promise resolving to HTTP response
+   */
+  async markAttendanceByUserId(
+    markAttendanceByUsernameDto: MarkAttendanceByUsernameDto,
+    loggedInUserId: string,
+    response: Response,
+    authToken: string,
+  ): Promise<Response> {
+    const apiId = API_ID.MARK_ATTENDANCE_BY_USERNAME;
+    const startTime = Date.now();
+
+    this.logger.log(
+      `[${apiId}] Starting attendance marking by userId - Event Repetition ID: ${markAttendanceByUsernameDto.eventRepetitionId}`,
+    );
+    this.logger.log(
+      `[${apiId}] Number of userIds to process: ${markAttendanceByUsernameDto.userIds.length}`,
+    );
+    this.logger.log(
+      `[${apiId}] User IDs: ${JSON.stringify(markAttendanceByUsernameDto.userIds)}`,
+    );
+
+    try {
+      // Step 1: Validate event exists
+      this.logger.log(`[${apiId}] Step 1: Validating event exists...`);
+      const eventRepetition = await this.eventRepetitionRepository.findOne({
+        where: {
+          eventRepetitionId: markAttendanceByUsernameDto.eventRepetitionId,
+          eventDetail: {
+            status: Not('archived'),
+          },
+        },
+        relations: ['eventDetail'],
+        select: {
+          eventRepetitionId: true,
+          eventId: true,
+          eventDetail: {
+            title: true,
+            status: true,
+          },
+        },
+      });
+
+      if (!eventRepetition) {
+        this.logger.error(
+          `[${apiId}] Event not found: ${markAttendanceByUsernameDto.eventRepetitionId}`,
+        );
+        throw new BadRequestException(ERROR_MESSAGES.EVENT_DOES_NOT_EXIST);
+      }
+
+      this.logger.log(
+        `[${apiId}] Event validated successfully - Event ID: ${eventRepetition.eventId || markAttendanceByUsernameDto.eventId}, Title: ${eventRepetition.eventDetail.title}`,
+      );
+
+      // Step 2: Create attendance records directly from provided userIds (skip User Service lookup)
+      this.logger.log(
+        `[${apiId}] Step 2: Creating attendance records directly from ${markAttendanceByUsernameDto.userIds.length} userIds (skipping User Service lookup)...`,
+      );
+      const timeSpent = markAttendanceByUsernameDto.timeSpent || 0;
+      const now = new Date().toISOString();
+
+      const userAttendance: AttendanceRecord[] =
+        markAttendanceByUsernameDto.userIds.map((userId) => {
+          this.logger.log(
+            `[${apiId}] Creating attendance record for userId: ${userId}`,
+          );
+          return {
+            userId: userId,
+            attendance: 'present',
+            metaData: {
+              autoMarked: true,
+              duration: timeSpent,
+              joinTime: now,
+              leaveTime: now,
+            },
+          };
+        });
+
+      this.logger.log(
+        `[${apiId}] Created ${userAttendance.length} attendance records`,
+      );
+
+      // Step 3: Update EventAttendees table to mark users as attended
+      this.logger.log(
+        `[${apiId}] Step 3: Updating EventAttendees table to mark users as attended...`,
+      );
+
+      // Try to find existing attendees by eventRepetitionId and userId
+      const existingAttendees = await this.eventAttendeesRepository.find({
+        where: {
+          eventRepetitionId: markAttendanceByUsernameDto.eventRepetitionId,
+          userId: In(markAttendanceByUsernameDto.userIds),
+        },
+      });
+
+      this.logger.log(
+        `[${apiId}] Found ${existingAttendees.length} existing attendee records for ${markAttendanceByUsernameDto.userIds.length} userIds`,
+      );
+
+      // If not found, try to find by eventId and userId (in case eventRepetitionId is different)
+      let allExistingAttendees = existingAttendees;
+      if (existingAttendees.length === 0) {
+        this.logger.log(
+          `[${apiId}] No attendees found by eventRepetitionId, trying to find by eventId...`,
+        );
+        const attendeesByEventId = await this.eventAttendeesRepository.find({
+          where: {
+            eventId: markAttendanceByUsernameDto.eventId,
+            userId: In(markAttendanceByUsernameDto.userIds),
+          },
+        });
+        this.logger.log(
+          `[${apiId}] Found ${attendeesByEventId.length} attendee records by eventId`,
+        );
+        allExistingAttendees = attendeesByEventId;
+      }
+
+      const attendeesToUpdate: EventAttendees[] = [];
+      const attendeesToCreate: EventAttendees[] = [];
+      let updatedAttendeeRecords = 0;
+      let createdAttendeeRecords = 0;
+
+      for (const userId of markAttendanceByUsernameDto.userIds) {
+        let eventAttendee = allExistingAttendees.find(
+          (att) => att.userId === userId,
+        );
+
+        if (eventAttendee) {
+          // Update existing record
+          this.logger.log(
+            `[${apiId}] Updating existing EventAttendee record for userId: ${userId}`,
+          );
+          eventAttendee.isAttended = true;
+          eventAttendee.duration = timeSpent;
+          eventAttendee.eventRepetitionId =
+            markAttendanceByUsernameDto.eventRepetitionId; // Ensure eventRepetitionId is set
+          eventAttendee.eventId = markAttendanceByUsernameDto.eventId; // Ensure eventId is set
+          eventAttendee.joinedLeftHistory = {
+            joinTime: now,
+            leaveTime: now,
+            duration: timeSpent,
+            status: 'attended',
+            lastUpdated: now,
+          };
+          eventAttendee.updatedAt = new Date();
+          eventAttendee.updatedBy = loggedInUserId;
+          attendeesToUpdate.push(eventAttendee);
+          updatedAttendeeRecords++;
+        } else {
+          // Create new record if it doesn't exist
+          this.logger.log(
+            `[${apiId}] Creating new EventAttendee record for userId: ${userId}`,
+          );
+          const newEventAttendee = new EventAttendees();
+          newEventAttendee.userId = userId;
+          newEventAttendee.eventId = markAttendanceByUsernameDto.eventId;
+          newEventAttendee.eventRepetitionId =
+            markAttendanceByUsernameDto.eventRepetitionId;
+          newEventAttendee.isAttended = true;
+          newEventAttendee.duration = timeSpent;
+          newEventAttendee.joinedLeftHistory = {
+            joinTime: now,
+            leaveTime: now,
+            duration: timeSpent,
+            status: 'attended',
+            lastUpdated: now,
+          };
+          newEventAttendee.enrolledAt = new Date();
+          newEventAttendee.enrolledBy = loggedInUserId;
+          newEventAttendee.updatedAt = new Date();
+          newEventAttendee.updatedBy = loggedInUserId;
+          newEventAttendee.status = AttendeesStatus.active;
+          attendeesToCreate.push(newEventAttendee);
+          createdAttendeeRecords++;
+        }
+      }
+
+      // Save updates and creates
+      if (attendeesToUpdate.length > 0) {
+        await this.eventAttendeesRepository.save(attendeesToUpdate);
+        this.logger.log(
+          `[${apiId}] Successfully updated ${updatedAttendeeRecords} EventAttendee records in database`,
+        );
+      }
+
+      if (attendeesToCreate.length > 0) {
+        await this.eventAttendeesRepository.save(attendeesToCreate);
+        this.logger.log(
+          `[${apiId}] Successfully created ${createdAttendeeRecords} new EventAttendee records in database`,
+        );
+      }
+
+      const totalAttendeesProcessed =
+        updatedAttendeeRecords + createdAttendeeRecords;
+      if (totalAttendeesProcessed === 0) {
+        this.logger.warn(
+          `[${apiId}] No EventAttendee records were updated or created.`,
+        );
+      }
+
+      // Step 4: Skip Attendance Service call (bypassed as per requirement)
+      this.logger.log(
+        `[${apiId}] Step 4: Skipping Attendance Service call (bypassed)...`,
+      );
+      this.logger.log(
+        `[${apiId}] Attendance marking in Attendance Service is bypassed for this API`,
+      );
+
+      // Step 5: Mark lesson completion in LMS Service (only for users whose EventAttendees were updated/created)
+      // Same logic as markAttendance API - only call LMS for users who were successfully marked as attended
+      const processedUserIds = [...attendeesToUpdate, ...attendeesToCreate].map(
+        (att) => att.userId,
+      );
+      this.logger.log(
+        `[${apiId}] Step 5: Marking lesson completion in LMS Service for ${processedUserIds.length} users (only for users with EventAttendees updated/created)...`,
+      );
+
+      const lmsServiceCalls: Promise<any>[] = [];
+      const LMS_BATCH_SIZE = 50;
+      let lmsSuccessCount = 0;
+      let lmsFailureCount = 0;
+
+      // Only call LMS for users whose EventAttendees were successfully updated/created (same as markAttendance API)
+      for (const eventAttendee of [
+        ...attendeesToUpdate,
+        ...attendeesToCreate,
+      ]) {
+        if (!eventAttendee.isAttended) {
+          this.logger.log(
+            `[${apiId}] Skipping LMS call for userId: ${eventAttendee.userId} - not marked as attended`,
+          );
+          continue;
+        }
+
+        this.logger.log(
+          `[${apiId}] Calling LMS service for userId: ${eventAttendee.userId} (EventAttendee updated/created)`,
+        );
+
+        // Call LMS service for lesson completion if participant attended (same as markAttendance API)
+        const lmsCall = this.callLmsLessonCompletion(
+          markAttendanceByUsernameDto.eventId,
+          eventAttendee.userId,
+          eventAttendee.duration || timeSpent,
+          authToken,
+        )
+          .then((result) => {
+            lmsSuccessCount++;
+            this.logger.log(
+              `[${apiId}] Successfully marked LMS lesson completion for userId: ${eventAttendee.userId}`,
+            );
+            return result;
+          })
+          .catch((error) => {
+            lmsFailureCount++;
+            this.logger.error(
+              `[${apiId}] Failed to call LMS service for user ${eventAttendee.userId}`,
+              {
+                error: error.message,
+                status: error.response?.status,
+                data: error.response?.data,
+              },
+            );
+            return null; // Don't fail the entire process if LMS call fails (same as markAttendance API)
+          });
+
+        lmsServiceCalls.push(lmsCall);
+
+        // Process LMS calls in batches to prevent memory overload (same as markAttendance API)
+        if (lmsServiceCalls.length >= LMS_BATCH_SIZE) {
+          this.logger.log(
+            `[${apiId}] Processing batch of ${LMS_BATCH_SIZE} LMS calls...`,
+          );
+          await Promise.allSettled(lmsServiceCalls);
+          lmsServiceCalls.length = 0; // Clear array to release memory
+        }
+      }
+
+      // Wait for remaining LMS service calls to complete (same as markAttendance API)
+      if (lmsServiceCalls.length > 0) {
+        this.logger.log(
+          `[${apiId}] Processing remaining ${lmsServiceCalls.length} LMS calls...`,
+        );
+        await Promise.allSettled(lmsServiceCalls);
+      }
+
+      this.logger.log(
+        `[${apiId}] LMS Service calls completed - Success: ${lmsSuccessCount}, Failed: ${lmsFailureCount}`,
+      );
+
+      // Calculate processing time
+      const processingTimeMs = Date.now() - startTime;
+      this.logger.log(
+        `[${apiId}] Total processing time: ${processingTimeMs}ms`,
+      );
+
+      // Prepare response
+      const result = {
+        eventRepetitionId: markAttendanceByUsernameDto.eventRepetitionId,
+        eventId: markAttendanceByUsernameDto.eventId,
+        totalUsersProcessed: markAttendanceByUsernameDto.userIds.length,
+        eventAttendeesUpdated: updatedAttendeeRecords,
+        eventAttendeesCreated: createdAttendeeRecords,
+        totalEventAttendeesProcessed:
+          updatedAttendeeRecords + createdAttendeeRecords,
+        attendanceMarked: 'bypassed', // Attendance Service call is bypassed
+        lmsLessonCompletion: {
+          total: markAttendanceByUsernameDto.userIds.length,
+          success: lmsSuccessCount,
+          failed: lmsFailureCount,
+        },
+        processingTimeMs,
+        userIds: markAttendanceByUsernameDto.userIds,
+        note: 'EventAttendees table updated/created, Attendance Service call bypassed, LMS lesson completion marked',
+      };
+
+      this.logger.log(`[${apiId}] Attendance marking completed successfully`);
+      this.logger.log(`[${apiId}] Final result: ${JSON.stringify(result)}`);
+
+      LoggerWinston.log(
+        `LMS lesson completion marked for ${markAttendanceByUsernameDto.userIds.length} users by userId (Attendance Service bypassed)`,
+        apiId,
+        loggedInUserId,
+      );
+
+      return response
+        .status(HttpStatus.CREATED)
+        .json(
+          APIResponse.success(
+            apiId,
+            result,
+            `LMS lesson completion marked successfully for ${markAttendanceByUsernameDto.userIds.length} users (Attendance Service bypassed)`,
+          ),
+        );
+    } catch (error) {
+      const processingTimeMs = Date.now() - startTime;
+      this.logger.error(`[${apiId}] Error occurred during attendance marking`, {
+        error: error.message,
+        stack: error.stack,
+        processingTimeMs,
+        eventRepetitionId: markAttendanceByUsernameDto.eventRepetitionId,
+        userIds: markAttendanceByUsernameDto.userIds,
+      });
+
+      throw error;
+    }
   }
+}
