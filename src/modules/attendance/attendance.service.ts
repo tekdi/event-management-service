@@ -103,6 +103,7 @@ export class AttendanceService implements OnModuleInit {
       participantIdentifiers.identifiers,
       markMeetingAttendanceDto.markAttendanceBy,
       authToken,
+      markMeetingAttendanceDto.tenantId,
     );
 
     // combine data from user service and meeting attendance
@@ -147,6 +148,7 @@ export class AttendanceService implements OnModuleInit {
     identifiers: string[],
     markAttendanceBy: string,
     authToken: string,
+    tenantId: string,
   ): Promise<UserDetails[]> {
     // get userIds for emails or usernames provided from user service
     try {
@@ -169,6 +171,7 @@ export class AttendanceService implements OnModuleInit {
             Accept: 'application/json',
             'Content-Type': 'application/json',
             Authorization: authToken,
+            tenantId: tenantId,
           },
         },
       );
