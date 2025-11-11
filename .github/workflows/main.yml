@@ -1,4 +1,4 @@
-name: QA-Server Event-Management-Service Deployment on Pratham
+name: DEV-Server Event-Management-Service Deployment on Pratham
 
 on:
   push:
