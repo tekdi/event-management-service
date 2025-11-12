@@ -2,6 +2,7 @@ import {
   BadRequestException,
   HttpStatus,
   Injectable,
+  Logger,
   NotImplementedException,
 } from '@nestjs/common';
 import { EventAttendeesDTO } from './dto/EventAttendance.dto';
@@ -24,6 +25,8 @@ import { Search_Event_AttendeesDto } from './dto/search-attendees.dto';
 
 @Injectable()
 export class AttendeesService {
+  private readonly logger = new Logger(AttendeesService.name);
+
   constructor(
     @InjectRepository(Events)
     private readonly eventRepository: Repository<Events>,
@@ -574,17 +577,77 @@ export class AttendeesService {
         last_name: lastName,
       };
 
-      // Enroll user to provider meeting
-      const providerResponse = await adapter.addRegistrantToMeeting(
-        meetingId,
-        attendeeData,
-        meetingType,
-      );
-
-      if (!providerResponse) {
-        throw new BadRequestException(
-          `Failed to enroll user to ${provider} meeting`,
+      // Check if user is already registered in Zoom before attempting enrollment
+      let existingZoomRegistrant = null;
+      try {
+        existingZoomRegistrant = await adapter.checkRegistrantByEmail(
+          meetingId,
+          userEmail,
+          meetingType,
         );
+      } catch (checkError) {
+        // Log but don't fail - we'll attempt enrollment and handle errors
+        this.logger.warn(
+          `Failed to check existing registrant in Zoom: ${checkError.message}`,
+        );
+      }
+
+      let providerResponse: any;
+      let isExistingRegistration = false;
+
+      if (existingZoomRegistrant) {
+        // User is already registered in Zoom - sync to local DB
+        // Zoom API returns 'id' when getting registrants, but 'registrant_id' when adding
+        isExistingRegistration = true;
+        providerResponse = {
+          registrant_id: existingZoomRegistrant.id || existingZoomRegistrant.registrant_id,
+          join_url: existingZoomRegistrant.join_url || null,
+        };
+      } else {
+        // User is not registered in Zoom - attempt enrollment
+        try {
+          providerResponse = await adapter.addRegistrantToMeeting(
+            meetingId,
+            attendeeData,
+            meetingType,
+          );
+
+          if (!providerResponse) {
+            throw new BadRequestException(
+              `Failed to enroll user to ${provider} meeting`,
+            );
+          }
+        } catch (enrollmentError: any) {
+          // Handle duplicate registration error (400) by checking Zoom and syncing
+          if (enrollmentError.isDuplicate || enrollmentError.response?.status === 400) {
+            try {
+              // User is already registered - fetch their registration details
+              existingZoomRegistrant = await adapter.checkRegistrantByEmail(
+                meetingId,
+                userEmail,
+                meetingType,
+              );
+
+              if (existingZoomRegistrant) {
+                isExistingRegistration = true;
+                // Zoom API returns 'id' when getting registrants, but 'registrant_id' when adding
+                providerResponse = {
+                  registrant_id: existingZoomRegistrant.id || existingZoomRegistrant.registrant_id,
+                  join_url: existingZoomRegistrant.join_url || null,
+                };
+              } else {
+                // Couldn't find in Zoom but got duplicate error - rethrow original error
+                throw enrollmentError;
+              }
+            } catch (syncError) {
+              // If we can't sync, rethrow the original enrollment error
+              throw enrollmentError;
+            }
+          } else {
+            // For other errors (429, etc.), rethrow
+            throw enrollmentError;
+          }
+        }
       }
 
       // Create attendee record in database
@@ -610,6 +673,10 @@ export class AttendeesService {
         userId,
       ]);
 
+      const successMessage = isExistingRegistration
+        ? `User was already registered in ${provider}. Enrollment synced to local database successfully.`
+        : `User enrolled to ${provider} meeting successfully`;
+
       return response.status(HttpStatus.CREATED).send(
         APIResponse.success(
           apiId,
@@ -618,8 +685,9 @@ export class AttendeesService {
             providerRegistrantId: providerResponse.registrant_id,
             joinUrl: providerResponse.join_url,
             provider: provider,
+            synced: isExistingRegistration,
           },
-          `User enrolled to ${provider} meeting successfully`,
+          successMessage,
         ),
       );
     } catch (e) {

@@ -678,11 +678,33 @@ export class ZoomService implements IOnlineMeetingLocator {
       this.logger.error(
         `Error adding registrant to ${meetingType}: ${error.message}`,
       );
+      
+      // Handle 400 error (already registered) - return a special error that can be handled upstream
       if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || error.message;
+        // Check if it's a duplicate registration error
+        if (
+          errorMessage.includes('already registered') ||
+          errorMessage.includes('already exists') ||
+          errorMessage.includes('duplicate')
+        ) {
+          // Return error with a flag indicating it's a duplicate
+          const duplicateError = new BadRequestException(
+            `User with email ${registrantData.email} is already registered for this ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}`,
+          );
+          (duplicateError as any).isDuplicate = true;
+          (duplicateError as any).email = registrantData.email;
+          throw duplicateError;
+        }
+      }
+      
+      // Handle 429 rate limit error
+      if (error.response?.status === 429) {
         throw new BadRequestException(
-          `User with email ${registrantData.email} is already registered for this ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}`,
+          `Rate limit exceeded while adding registrant to ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}. Please try again later.`,
         );
       }
+      
       throw new BadRequestException(
         `Failed to add registrant to ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}: ${error.message}`,
       );
@@ -765,6 +787,140 @@ export class ZoomService implements IOnlineMeetingLocator {
       throw new BadRequestException(
         `Failed to list ${meetingType}s: ${error.message}`,
       );
+    }
+  }
+
+  /**
+   * Get list of registrants for a Zoom meeting or webinar
+   * Endpoints:
+   * - Meetings: GET https://api.zoom.us/v2/meetings/{meetingId}/registrants
+   * - Webinars: GET https://api.zoom.us/v2/webinars/{webinarId}/registrants
+   */
+  async getRegistrants(
+    meetingId: string,
+    meetingType: MeetingType = MeetingType.meeting,
+    pageSize: number = 30,
+    nextPageToken?: string,
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+
+      // Use proper endpoints based on meeting type
+      const endpoint =
+        meetingType === MeetingType.webinar
+          ? `${this.apiBaseUrl}/webinars/${meetingId}/registrants` // https://api.zoom.us/v2/webinars/{webinarId}/registrants
+          : `${this.apiBaseUrl}/meetings/${meetingId}/registrants`; // https://api.zoom.us/v2/meetings/{meetingId}/registrants
+
+      const params: any = {
+        page_size: pageSize,
+      };
+
+      if (nextPageToken) {
+        params.next_page_token = nextPageToken;
+      }
+
+      this.logger.log(
+        `Getting registrants for ${meetingType} ${meetingId} with endpoint: ${endpoint}`,
+      );
+
+      const response = await axios.get(endpoint, {
+        headers,
+        params,
+      });
+
+      this.logger.log(`Successfully retrieved registrants for ${meetingType}`, {
+        meetingId,
+        count: response.data.registrants?.length || 0,
+      });
+
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get registrants for ${meetingType}: ${error.message}`,
+      );
+      // If meeting/webinar doesn't exist or has no registrants, return empty result
+      if (error.response?.status === 404) {
+        this.logger.warn(
+          `Meeting/webinar ${meetingId} not found or has no registrants`,
+        );
+        return { registrants: [], page_count: 0, page_size: 0, total_records: 0 };
+      }
+      throw new BadRequestException(
+        `Failed to get registrants for ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Check if a user with the given email is already registered in Zoom
+   * Returns the registrant data if found, null otherwise
+   */
+  async checkRegistrantByEmail(
+    meetingId: string,
+    email: string,
+    meetingType: MeetingType = MeetingType.meeting,
+  ): Promise<any | null> {
+    try {
+      let nextPageToken: string | undefined;
+      let pageNumber = 1;
+      const maxPages = 10; // Limit to prevent infinite loops
+
+      do {
+        const registrantsData = await this.getRegistrants(
+          meetingId,
+          meetingType,
+          30,
+          nextPageToken,
+        );
+
+        const registrants = registrantsData.registrants || [];
+        
+        // Check if email exists in current page
+        const foundRegistrant = registrants.find(
+          (registrant: any) =>
+            registrant.email?.toLowerCase() === email.toLowerCase(),
+        );
+
+        if (foundRegistrant) {
+          this.logger.log(
+            `Found existing registrant in Zoom for email ${email}`,
+            {
+              meetingId,
+              registrantId: foundRegistrant.id,
+            },
+          );
+          return foundRegistrant;
+        }
+
+        // Check if there are more pages
+        nextPageToken = registrantsData.next_page_token;
+        pageNumber++;
+
+        // Safety check to prevent infinite loops
+        if (pageNumber > maxPages) {
+          this.logger.warn(
+            `Reached max pages (${maxPages}) while searching for registrant with email ${email}`,
+          );
+          break;
+        }
+      } while (nextPageToken);
+
+      // Not found in any page
+      this.logger.log(
+        `Registrant with email ${email} not found in Zoom ${meetingType}`,
+        { meetingId },
+      );
+      return null;
+    } catch (error) {
+      this.logger.error(
+        `Error checking registrant by email for ${meetingType}: ${error.message}`,
+      );
+      // Return null on error to allow enrollment attempt to proceed
+      return null;
     }
   }
 

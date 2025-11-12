@@ -86,4 +86,15 @@ export interface IOnlineMeetingLocator {
     registrantId: string,
     meetingType?: MeetingType,
   ) => Promise<any>;
+  getRegistrants: (
+    meetingId: string,
+    meetingType?: MeetingType,
+    pageSize?: number,
+    nextPageToken?: string,
+  ) => Promise<any>;
+  checkRegistrantByEmail: (
+    meetingId: string,
+    email: string,
+    meetingType?: MeetingType,
+  ) => Promise<any | null>;
 }
