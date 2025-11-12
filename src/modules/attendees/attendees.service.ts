@@ -436,7 +436,7 @@ export class AttendeesService {
   ): Promise<Response> {
     const apiId = 'api.get.attendee';
     try {
-      if (eventId !==undefined && eventRepetitionId === undefined) {
+      if (eventId !== undefined && eventRepetitionId === undefined) {
         const eventRepetition = await this.eventRepetitionRepository.findOne({
           where: { eventId },
         });
@@ -469,7 +469,13 @@ export class AttendeesService {
 
       return response
         .status(HttpStatus.OK)
-        .send(APIResponse.success(apiId, attendee, 'Attendee details retrieved successfully'));
+        .send(
+          APIResponse.success(
+            apiId,
+            attendee,
+            'Attendee details retrieved successfully',
+          ),
+        );
     } catch (e) {
       return response
         .status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -495,23 +501,26 @@ export class AttendeesService {
 
       let eventRepetitionId = enrollmentDto.eventRepetitionId;
       // if both eventRepetitionId and eventId are not passed, throw an error
-      if (enrollmentDto.eventRepetitionId === undefined && eventId === undefined) {
+      if (
+        enrollmentDto.eventRepetitionId === undefined &&
+        eventId === undefined
+      ) {
         throw new BadRequestException(
           `Either eventRepetitionId or eventId must be passed`,
         );
       }
 
-      if (eventId !==undefined && enrollmentDto.eventRepetitionId === undefined) {
-       
+      if (
+        eventId !== undefined &&
+        enrollmentDto.eventRepetitionId === undefined
+      ) {
         const event = await this.eventRepository.findOne({
           where: { eventId: eventId },
           relations: ['eventDetail', 'eventRepetitions'],
         });
 
         if (!event || event.eventDetail.status === EventStatus.archived) {
-          throw new BadRequestException(
-            `Event not found for event ${eventId}`,
-          );
+          throw new BadRequestException(`Event not found for event ${eventId}`);
         }
         const eventRepetition = await this.eventRepetitionRepository.findOne({
           where: { eventId },
@@ -600,53 +609,22 @@ export class AttendeesService {
         // Zoom API returns 'id' when getting registrants, but 'registrant_id' when adding
         isExistingRegistration = true;
         providerResponse = {
-          registrant_id: existingZoomRegistrant.id || existingZoomRegistrant.registrant_id,
+          registrant_id:
+            existingZoomRegistrant.id || existingZoomRegistrant.registrant_id,
           join_url: existingZoomRegistrant.join_url || null,
         };
       } else {
         // User is not registered in Zoom - attempt enrollment
-        try {
-          providerResponse = await adapter.addRegistrantToMeeting(
-            meetingId,
-            attendeeData,
-            meetingType,
+        providerResponse = await adapter.addRegistrantToMeeting(
+          meetingId,
+          attendeeData,
+          meetingType,
+        );
+
+        if (!providerResponse) {
+          throw new BadRequestException(
+            `Failed to enroll user to ${provider} meeting`,
           );
-
-          if (!providerResponse) {
-            throw new BadRequestException(
-              `Failed to enroll user to ${provider} meeting`,
-            );
-          }
-        } catch (enrollmentError: any) {
-          // Handle duplicate registration error (400) by checking Zoom and syncing
-          if (enrollmentError.isDuplicate || enrollmentError.response?.status === 400) {
-            try {
-              // User is already registered - fetch their registration details
-              existingZoomRegistrant = await adapter.checkRegistrantByEmail(
-                meetingId,
-                userEmail,
-                meetingType,
-              );
-
-              if (existingZoomRegistrant) {
-                isExistingRegistration = true;
-                // Zoom API returns 'id' when getting registrants, but 'registrant_id' when adding
-                providerResponse = {
-                  registrant_id: existingZoomRegistrant.id || existingZoomRegistrant.registrant_id,
-                  join_url: existingZoomRegistrant.join_url || null,
-                };
-              } else {
-                // Couldn't find in Zoom but got duplicate error - rethrow original error
-                throw enrollmentError;
-              }
-            } catch (syncError) {
-              // If we can't sync, rethrow the original enrollment error
-              throw enrollmentError;
-            }
-          } else {
-            // For other errors (429, etc.), rethrow
-            throw enrollmentError;
-          }
         }
       }
 
@@ -673,10 +651,6 @@ export class AttendeesService {
         userId,
       ]);
 
-      const successMessage = isExistingRegistration
-        ? `User was already registered in ${provider}. Enrollment synced to local database successfully.`
-        : `User enrolled to ${provider} meeting successfully`;
-
       return response.status(HttpStatus.CREATED).send(
         APIResponse.success(
           apiId,
@@ -687,7 +661,7 @@ export class AttendeesService {
             provider: provider,
             synced: isExistingRegistration,
           },
-          successMessage,
+          `User enrolled to ${provider} meeting successfully`,
         ),
       );
     } catch (e) {
@@ -714,14 +688,19 @@ export class AttendeesService {
 
       let eventRepetitionId = deleteEnrollmentDto.eventRepetitionId;
       // if both eventRepetitionId and eventId are not passed, throw an error
-      if (deleteEnrollmentDto.eventRepetitionId === undefined && deleteEnrollmentDto.eventId === undefined) {
+      if (
+        deleteEnrollmentDto.eventRepetitionId === undefined &&
+        deleteEnrollmentDto.eventId === undefined
+      ) {
         throw new BadRequestException(
           `Either eventRepetitionId or eventId must be passed`,
         );
       }
 
-      if (deleteEnrollmentDto.eventId !==undefined && deleteEnrollmentDto.eventRepetitionId === undefined) {
-       
+      if (
+        deleteEnrollmentDto.eventId !== undefined &&
+        deleteEnrollmentDto.eventRepetitionId === undefined
+      ) {
         const event = await this.eventRepository.findOne({
           where: { eventId: deleteEnrollmentDto.eventId },
           relations: ['eventDetail', 'eventRepetitions'],
@@ -780,8 +759,11 @@ export class AttendeesService {
       // Check if there's a registrant ID and online meeting details
       if (enrollment.registrantId && eventRepetition.onlineDetails) {
         const meetingId = (eventRepetition.onlineDetails as any).id;
-        const provider = (eventRepetition.onlineDetails as any).provider || 'Zoom';
-        const meetingType = (eventRepetition.onlineDetails as any).meetingType || MeetingType.meeting;
+        const provider =
+          (eventRepetition.onlineDetails as any).provider || 'Zoom';
+        const meetingType =
+          (eventRepetition.onlineDetails as any).meetingType ||
+          MeetingType.meeting;
 
         if (meetingId) {
           try {
@@ -853,12 +835,7 @@ export class AttendeesService {
     response: Response,
   ) {
     const apiId = 'api.search.attendees';
-    const { 
-      userId, 
-      eventIds, 
-      offset = 0, 
-      limit = 10 
-    } = searchAttendeesDto;
+    const { userId, eventIds, offset = 0, limit = 10 } = searchAttendeesDto;
 
     try {
       // Validate that at least one filter is provided
@@ -890,10 +867,15 @@ export class AttendeesService {
         paramIndex++;
       }
 
-      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-      
+      const whereClause =
+        whereConditions.length > 0
+          ? `WHERE ${whereConditions.join(' AND ')}`
+          : '';
+
       // Build JOIN condition for userId
-      const userIdJoinCondition = userId ? ` AND ea."userId" = $${paramIndex}` : '';
+      const userIdJoinCondition = userId
+        ? ` AND ea."userId" = $${paramIndex}`
+        : '';
       if (userId) {
         queryParams.push(userId);
         paramIndex++;
@@ -911,7 +893,10 @@ export class AttendeesService {
           ${whereClause}
         `;
 
-        const countResult = await this.eventAttendeesRepository.query(countQuery, queryParams);
+        const countResult = await this.eventAttendeesRepository.query(
+          countQuery,
+          queryParams,
+        );
         totalCount = parseInt(countResult[0].total);
 
         // Main query - get events with their details and any attendees
@@ -946,7 +931,6 @@ export class AttendeesService {
           ORDER BY e."createdAt" DESC, ea."enrolledAt" DESC
           LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
-
       } else {
         // Original logic for userId search
         countQuery = `
@@ -957,7 +941,10 @@ export class AttendeesService {
           ${whereClause}
         `;
 
-        const countResult = await this.eventAttendeesRepository.query(countQuery, queryParams);
+        const countResult = await this.eventAttendeesRepository.query(
+          countQuery,
+          queryParams,
+        );
         totalCount = parseInt(countResult[0].total);
 
         // Main query - select attendee details and recordings
@@ -996,7 +983,10 @@ export class AttendeesService {
 
       queryParams.push(limit, skip);
 
-      const attendees = await this.eventAttendeesRepository.query(mainQuery, queryParams);
+      const attendees = await this.eventAttendeesRepository.query(
+        mainQuery,
+        queryParams,
+      );
 
       // Calculate pagination metadata
       const totalPages = Math.ceil(totalCount / limit);
@@ -1045,24 +1035,22 @@ export class AttendeesService {
       }
 
       // Return successful response
-      return response
-        .status(HttpStatus.OK)
-        .send(
-          APIResponse.success(
-            apiId,
-            {
-              attendees,
-              pagination: paginationMetadata,
-              searchType,
-              message,
-              filters: {
-                userId: userId || null,
-                eventIds: eventIds?.length ? eventIds : null,
-              },
+      return response.status(HttpStatus.OK).send(
+        APIResponse.success(
+          apiId,
+          {
+            attendees,
+            pagination: paginationMetadata,
+            searchType,
+            message,
+            filters: {
+              userId: userId || null,
+              eventIds: eventIds?.length ? eventIds : null,
             },
-            'Events retrieved successfully',
-          ),
-        );
+          },
+          'Events retrieved successfully',
+        ),
+      );
     } catch (e) {
       return response
         .status(HttpStatus.INTERNAL_SERVER_ERROR)
