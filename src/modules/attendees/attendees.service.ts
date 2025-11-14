@@ -436,54 +436,139 @@ export class AttendeesService {
   ): Promise<Response> {
     const apiId = 'api.get.attendee';
     try {
-      if (eventId !== undefined && eventRepetitionId === undefined) {
-        const eventRepetition = await this.eventRepetitionRepository.findOne({
-          where: { eventId },
-        });
-
-        if (!eventRepetition) {
-          throw new BadRequestException(
-            `Event repetition not found for event ${eventId}`,
-          );
-        }
-
-        eventRepetitionId = eventRepetition.eventRepetitionId;
+      // Validate required parameters
+      if (!eventId || !userId) {
+        throw new BadRequestException(
+          'eventId and userId are required parameters',
+        );
       }
-      const attendee = await this.eventAttendeesRepository.findOne({
-        where: { eventRepetitionId, userId },
+
+      // First, check if the event exists
+      const event = await this.eventRepository.findOne({
+        where: { eventId },
         relations: ['eventDetail'],
       });
 
-      if (!attendee) {
+      if (!event) {
         return response
           .status(HttpStatus.NOT_FOUND)
           .send(
             APIResponse.error(
               apiId,
-              `No attendee found for eventRepetitionId: ${eventRepetitionId} and userId: ${userId}`,
-              'Attendee not found',
+              `Event not found for eventId: ${eventId}`,
+              'Event not found',
               'NOT_FOUND',
             ),
           );
       }
+
+      // If eventRepetitionId is not provided, try to find it from eventId
+      if (eventRepetitionId === undefined) {
+        const eventRepetition = await this.eventRepetitionRepository.findOne({
+          where: { eventId },
+        });
+
+        if (eventRepetition) {
+          eventRepetitionId = eventRepetition.eventRepetitionId;
+        }
+      }
+
+      // Try to find attendee by eventRepetitionId if available
+      let attendee: EventAttendees | null = null;
+      if (eventRepetitionId) {
+        attendee = await this.eventAttendeesRepository.findOne({
+          where: { eventRepetitionId, userId },
+          relations: ['event', 'event.eventDetail'],
+        });
+      }
+
+      // If not found, try to find by eventId directly
+      if (!attendee && eventId) {
+        attendee = await this.eventAttendeesRepository.findOne({
+          where: { eventId, userId },
+          relations: ['event', 'event.eventDetail'],
+        });
+      }
+
+      // Prepare event details
+      const eventDetails = {
+        eventId: event.eventId,
+        isRecurring: event.isRecurring,
+        recurrencePattern: event.recurrencePattern,
+        autoEnroll: event.autoEnroll,
+        registrationStartDate: event.registrationStartDate,
+        registrationEndDate: event.registrationEndDate,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt,
+        createdBy: event.createdBy,
+        updatedBy: event.updatedBy,
+        platformIntegration: event.platformIntegration,
+        eventDetail: event.eventDetail,
+      };
+
+      // Prepare response - if user is not enrolled, attendee will be null/empty
+      const result = {
+        attendee: attendee
+          ? {
+              eventAttendeesId: attendee.eventAttendeesId,
+              userId: attendee.userId,
+              eventId: attendee.eventId,
+              eventRepetitionId: attendee.eventRepetitionId,
+              isAttended: attendee.isAttended,
+              joinedLeftHistory: attendee.joinedLeftHistory,
+              duration: attendee.duration,
+              status: attendee.status,
+              enrolledAt: attendee.enrolledAt,
+              enrolledBy: attendee.enrolledBy,
+              updatedAt: attendee.updatedAt,
+              updatedBy: attendee.updatedBy,
+              params: attendee.params,
+              registrantId: attendee.registrantId,
+            }
+          : null,
+        event: eventDetails,
+      };
+
+      const message = attendee
+        ? 'Attendee and event details retrieved successfully'
+        : 'Event details retrieved successfully. User is not enrolled in this event.';
 
       return response
         .status(HttpStatus.OK)
         .send(
           APIResponse.success(
             apiId,
-            attendee,
-            'Attendee details retrieved successfully',
+            result,
+            message,
           ),
         );
     } catch (e) {
+      // Handle BadRequestException with proper status code
+      if (e instanceof BadRequestException) {
+        return response
+          .status(HttpStatus.BAD_REQUEST)
+          .send(
+            APIResponse.error(
+              apiId,
+              e.message,
+              'Bad Request',
+              'BAD_REQUEST',
+            ),
+          );
+      }
+
+      // Log the error for debugging
+      this.logger.error(
+        `Error in getAttendeeByEventAndUser: ${JSON.stringify(e)}`,
+      );
+
       return response
         .status(HttpStatus.INTERNAL_SERVER_ERROR)
         .send(
           APIResponse.error(
             apiId,
             'Something went wrong',
-            JSON.stringify(e),
+            e instanceof Error ? e.message : JSON.stringify(e),
             'INTERNAL_SERVER_ERROR',
           ),
         );
