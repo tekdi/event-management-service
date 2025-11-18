@@ -443,13 +443,69 @@ export class AttendeesService {
         );
       }
 
-      // First, check if the event exists
-      const event = await this.eventRepository.findOne({
-        where: { eventId },
-        relations: ['eventDetail'],
-      });
+      // Optimized: Single query to get both event and attendee data in one database round trip
+      // This reduces latency from multiple sequential queries
+      const query = `
+        SELECT 
+          e."eventId",
+          e."isRecurring",
+          e."recurrencePattern",
+          e."autoEnroll",
+          e."registrationStartDate",
+          e."registrationEndDate",
+          e."createdAt",
+          e."updatedAt",
+          e."createdBy",
+          e."updatedBy",
+          e."platformIntegration",
+          ed."eventDetailId",
+          ed."title",
+          ed."shortDescription",
+          ed."eventType",
+          ed."isRestricted",
+          ed."location",
+          ed."longitude",
+          ed."latitude",
+          ed."onlineProvider",
+          ed."maxAttendees",
+          ed."recordings",
+          ed."status",
+          ed."description",
+          ed."attendees",
+          ed."createdAt" as "eventDetail_createdAt",
+          ed."updatedAt" as "eventDetail_updatedAt",
+          ed."createdBy" as "eventDetail_createdBy",
+          ed."updatedBy" as "eventDetail_updatedBy",
+          ed."idealTime",
+          ed."metadata",
+          ed."meetingDetails",
+          ea."eventAttendeesId",
+          ea."userId" as "attendee_userId",
+          ea."eventId" as "attendee_eventId",
+          ea."eventRepetitionId",
+          ea."isAttended",
+          ea."joinedLeftHistory",
+          ea."duration",
+          ea."status" as "attendee_status",
+          ea."enrolledAt",
+          ea."enrolledBy",
+          ea."updatedAt" as "attendee_updatedAt",
+          ea."updatedBy" as "attendee_updatedBy",
+          ea."params",
+          ea."registrantId"
+        FROM "Events" e
+        INNER JOIN "EventDetails" ed ON ed."eventDetailId" = e."eventDetailId"
+        LEFT JOIN "EventAttendees" ea ON ea."eventId" = e."eventId" AND ea."userId" = $2
+        WHERE e."eventId" = $1
+        LIMIT 1
+      `;
 
-      if (!event) {
+      const results = await this.eventAttendeesRepository.query(query, [
+        eventId,
+        userId,
+      ]);
+
+      if (!results || results.length === 0) {
         return response
           .status(HttpStatus.NOT_FOUND)
           .send(
@@ -462,70 +518,68 @@ export class AttendeesService {
           );
       }
 
-      // If eventRepetitionId is not provided, try to find it from eventId
-      if (eventRepetitionId === undefined) {
-        const eventRepetition = await this.eventRepetitionRepository.findOne({
-          where: { eventId },
-        });
-
-        if (eventRepetition) {
-          eventRepetitionId = eventRepetition.eventRepetitionId;
-        }
-      }
-
-      // Try to find attendee by eventRepetitionId if available
-      let attendee: EventAttendees | null = null;
-      if (eventRepetitionId) {
-        attendee = await this.eventAttendeesRepository.findOne({
-          where: { eventRepetitionId, userId },
-          relations: ['event', 'event.eventDetail'],
-        });
-      }
-
-      // If not found, try to find by eventId directly
-      if (!attendee && eventId) {
-        attendee = await this.eventAttendeesRepository.findOne({
-          where: { eventId, userId },
-          relations: ['event', 'event.eventDetail'],
-        });
-      }
+      const row = results[0];
 
       // Prepare event details
       const eventDetails = {
-        eventId: event.eventId,
-        isRecurring: event.isRecurring,
-        recurrencePattern: event.recurrencePattern,
-        autoEnroll: event.autoEnroll,
-        registrationStartDate: event.registrationStartDate,
-        registrationEndDate: event.registrationEndDate,
-        createdAt: event.createdAt,
-        updatedAt: event.updatedAt,
-        createdBy: event.createdBy,
-        updatedBy: event.updatedBy,
-        platformIntegration: event.platformIntegration,
-        eventDetail: event.eventDetail,
+        eventId: row.eventId,
+        isRecurring: row.isRecurring,
+        recurrencePattern: row.recurrencePattern,
+        autoEnroll: row.autoEnroll,
+        registrationStartDate: row.registrationStartDate,
+        registrationEndDate: row.registrationEndDate,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        createdBy: row.createdBy,
+        updatedBy: row.updatedBy,
+        platformIntegration: row.platformIntegration,
+        eventDetail: {
+          eventDetailId: row.eventDetailId,
+          title: row.title,
+          shortDescription: row.shortDescription,
+          eventType: row.eventType,
+          isRestricted: row.isRestricted,
+          location: row.location,
+          longitude: row.longitude,
+          latitude: row.latitude,
+          onlineProvider: row.onlineProvider,
+          maxAttendees: row.maxAttendees,
+          recordings: row.recordings,
+          status: row.status,
+          description: row.description,
+          attendees: row.attendees,
+          createdAt: row.eventDetail_createdAt,
+          updatedAt: row.eventDetail_updatedAt,
+          createdBy: row.eventDetail_createdBy,
+          updatedBy: row.eventDetail_updatedBy,
+          idealTime: row.idealTime,
+          metadata: row.metadata,
+          meetingDetails: row.meetingDetails,
+        },
       };
 
-      // Prepare response - if user is not enrolled, attendee will be null/empty
+      // Prepare attendee data (will be null if user is not enrolled)
+      const attendee = row.eventAttendeesId
+        ? {
+            eventAttendeesId: row.eventAttendeesId,
+            userId: row.attendee_userId,
+            eventId: row.attendee_eventId,
+            eventRepetitionId: row.eventRepetitionId,
+            isAttended: row.isAttended,
+            joinedLeftHistory: row.joinedLeftHistory,
+            duration: row.duration,
+            status: row.attendee_status,
+            enrolledAt: row.enrolledAt,
+            enrolledBy: row.enrolledBy,
+            updatedAt: row.attendee_updatedAt,
+            updatedBy: row.attendee_updatedBy,
+            params: row.params,
+            registrantId: row.registrantId,
+          }
+        : null;
+
       const result = {
-        attendee: attendee
-          ? {
-              eventAttendeesId: attendee.eventAttendeesId,
-              userId: attendee.userId,
-              eventId: attendee.eventId,
-              eventRepetitionId: attendee.eventRepetitionId,
-              isAttended: attendee.isAttended,
-              joinedLeftHistory: attendee.joinedLeftHistory,
-              duration: attendee.duration,
-              status: attendee.status,
-              enrolledAt: attendee.enrolledAt,
-              enrolledBy: attendee.enrolledBy,
-              updatedAt: attendee.updatedAt,
-              updatedBy: attendee.updatedBy,
-              params: attendee.params,
-              registrantId: attendee.registrantId,
-            }
-          : null,
+        attendee,
         event: eventDetails,
       };
 
@@ -535,25 +589,14 @@ export class AttendeesService {
 
       return response
         .status(HttpStatus.OK)
-        .send(
-          APIResponse.success(
-            apiId,
-            result,
-            message,
-          ),
-        );
+        .send(APIResponse.success(apiId, result, message));
     } catch (e) {
       // Handle BadRequestException with proper status code
       if (e instanceof BadRequestException) {
         return response
           .status(HttpStatus.BAD_REQUEST)
           .send(
-            APIResponse.error(
-              apiId,
-              e.message,
-              'Bad Request',
-              'BAD_REQUEST',
-            ),
+            APIResponse.error(apiId, e.message, 'Bad Request', 'BAD_REQUEST'),
           );
       }
 
