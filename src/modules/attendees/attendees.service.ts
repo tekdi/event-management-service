@@ -443,13 +443,38 @@ export class AttendeesService {
         );
       }
 
-      // First, check if the event exists
-      const event = await this.eventRepository.findOne({
-        where: { eventId },
-        relations: ['eventDetail'],
-      });
+      // Optimized: Parallel queries for better performance - avoids JOIN overhead
+      // Split into two independent queries that can run concurrently
+      const [eventResult, attendeeResult] = await Promise.all([
+        // Query 1: Get eventId and recordings (minimal fields)
+        this.eventAttendeesRepository.query(
+          `
+          SELECT 
+            e."eventId",
+            ed."recordings"
+          FROM "Events" e
+          INNER JOIN "EventDetails" ed ON ed."eventDetailId" = e."eventDetailId"
+          WHERE e."eventId" = $1
+          LIMIT 1
+        `,
+          [eventId],
+        ),
+        // Query 2: Get attendee params if exists (separate query, can use index efficiently)
+        this.eventAttendeesRepository.query(
+          `
+          SELECT 
+            "eventAttendeesId",
+            "params"
+          FROM "EventAttendees"
+          WHERE "eventId" = $1 AND "userId" = $2
+          LIMIT 1
+        `,
+          [eventId, userId],
+        ),
+      ]);
 
-      if (!event) {
+      // Check if event exists
+      if (!eventResult || eventResult.length === 0) {
         return response
           .status(HttpStatus.NOT_FOUND)
           .send(
@@ -462,68 +487,31 @@ export class AttendeesService {
           );
       }
 
-      // If eventRepetitionId is not provided, try to find it from eventId
-      if (eventRepetitionId === undefined) {
-        const eventRepetition = await this.eventRepetitionRepository.findOne({
-          where: { eventId },
-        });
+      const eventRow = eventResult[0];
+      const attendeeRow = attendeeResult?.[0] || null;
 
-        if (eventRepetition) {
-          eventRepetitionId = eventRepetition.eventRepetitionId;
-        }
-      }
-
-      // Try to find attendee by eventRepetitionId if available
-      let attendee: EventAttendees | null = null;
-      if (eventRepetitionId) {
-        attendee = await this.eventAttendeesRepository.findOne({
-          where: { eventRepetitionId, userId },
-          relations: ['event', 'event.eventDetail'],
-        });
-      }
-
-      // If not found, try to find by eventId directly
-      if (!attendee && eventId) {
-        attendee = await this.eventAttendeesRepository.findOne({
-          where: { eventId, userId },
-          relations: ['event', 'event.eventDetail'],
-        });
-      }
-
-      // Prepare event details
+      // Prepare event details with only selected fields
       const eventDetails = {
-        eventId: event.eventId,
-        isRecurring: event.isRecurring,
-        recurrencePattern: event.recurrencePattern,
-        autoEnroll: event.autoEnroll,
-        registrationStartDate: event.registrationStartDate,
-        registrationEndDate: event.registrationEndDate,
-        createdAt: event.createdAt,
-        updatedAt: event.updatedAt,
-        createdBy: event.createdBy,
-        updatedBy: event.updatedBy,
-        platformIntegration: event.platformIntegration,
-        eventDetail: event.eventDetail,
+        eventId: eventRow.eventId,
+        eventDetail: {
+          recordings: eventRow.recordings,
+        },
       };
 
-      // Prepare response - if user is not enrolled, attendee will be null/empty
+      // Prepare attendee data (will be null if user is not enrolled)
+      // Only include params field as per optimization requirements
+      const attendee = attendeeRow?.eventAttendeesId
+        ? {
+            params: attendeeRow.params ?? null,
+          }
+        : null;
+
       const result = {
         attendee: attendee
           ? {
-              eventAttendeesId: attendee.eventAttendeesId,
-              userId: attendee.userId,
-              eventId: attendee.eventId,
-              eventRepetitionId: attendee.eventRepetitionId,
-              isAttended: attendee.isAttended,
-              joinedLeftHistory: attendee.joinedLeftHistory,
-              duration: attendee.duration,
-              status: attendee.status,
-              enrolledAt: attendee.enrolledAt,
-              enrolledBy: attendee.enrolledBy,
-              updatedAt: attendee.updatedAt,
-              updatedBy: attendee.updatedBy,
+              
               params: attendee.params,
-              registrantId: attendee.registrantId,
+             
             }
           : null,
         event: eventDetails,
@@ -535,25 +523,14 @@ export class AttendeesService {
 
       return response
         .status(HttpStatus.OK)
-        .send(
-          APIResponse.success(
-            apiId,
-            result,
-            message,
-          ),
-        );
+        .send(APIResponse.success(apiId, result, message));
     } catch (e) {
       // Handle BadRequestException with proper status code
       if (e instanceof BadRequestException) {
         return response
           .status(HttpStatus.BAD_REQUEST)
           .send(
-            APIResponse.error(
-              apiId,
-              e.message,
-              'Bad Request',
-              'BAD_REQUEST',
-            ),
+            APIResponse.error(apiId, e.message, 'Bad Request', 'BAD_REQUEST'),
           );
       }
 
