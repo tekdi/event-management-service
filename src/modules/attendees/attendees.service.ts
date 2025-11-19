@@ -507,7 +507,13 @@ export class AttendeesService {
         : null;
 
       const result = {
-        attendee,
+        attendee: attendee
+          ? {
+              
+              params: attendee.params,
+             
+            }
+          : null,
         event: eventDetails,
       };
 
