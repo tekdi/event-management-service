@@ -156,7 +156,7 @@ export class EventService {
     }
 
     // Set default limit and offset if not provided
-    const limit = requestBody.limit ? requestBody.limit : 200;
+    const limit = requestBody.limit ? requestBody.limit : 1000;
     const offset = requestBody.offset ? requestBody.offset : 0;
 
     // Append LIMIT and OFFSET to the query
@@ -1716,37 +1716,43 @@ export class EventService {
   ): Promise<void> {
     try {
       let eventAllDetails: any = {};
-      
+
       if (eventType === 'deleted') {
         eventAllDetails = {
           eventId,
-          deletedAt: new Date().toISOString()
+          deletedAt: new Date().toISOString(),
         };
       } else {
         try {
           const eventData = await this.eventRepository.findOne({
-            where: { eventId }
-          });
-  
-          const eventDetailsData = await this.eventDetailRepository.findOne({
-            where: { "eventDetailId": eventData.eventDetailId }
-          });
-  
-          const eventRepetitionData = await this.eventRepetitionRepository.find({
-            where: { "eventDetailId": eventData.eventDetailId }
+            where: { eventId },
           });
 
+          const eventDetailsData = await this.eventDetailRepository.findOne({
+            where: { eventDetailId: eventData.eventDetailId },
+          });
+
+          const eventRepetitionData = await this.eventRepetitionRepository.find(
+            {
+              where: { eventDetailId: eventData.eventDetailId },
+            },
+          );
+
           eventAllDetails = {
-            "eventData": eventData,
-            "eventDetailsData": eventDetailsData,
-            "eventRepetitionData": eventRepetitionData
+            eventData: eventData,
+            eventDetailsData: eventDetailsData,
+            eventRepetitionData: eventRepetitionData,
           };
         } catch (error) {
           eventAllDetails = { eventId };
         }
       }
-            
-      await this.kafkaService.publishTrackingEvent(eventType, eventAllDetails, eventId);
+
+      await this.kafkaService.publishTrackingEvent(
+        eventType,
+        eventAllDetails,
+        eventId,
+      );
     } catch (error) {
       // Handle/log error silently
     }
