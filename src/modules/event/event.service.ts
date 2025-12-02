@@ -1230,6 +1230,48 @@ export class EventService {
     return updateResult;
   }
 
+  /**
+   * Helper method to update event details with minAttendanceDurationMinutes handling
+   * This reduces code duplication across different update paths
+   */
+  private async updateEventDetailWithMinAttendance(
+    existingEventDetails: EventDetail,
+    updateBody: any,
+    shouldClearEventDetailId: boolean = false,
+  ): Promise<EventDetail> {
+    // Copy all fields from updateBody (excluding eventRepetitionId which is not a property of EventDetail)
+    const { eventRepetitionId: _, ...updateFields } = updateBody;
+    Object.assign(existingEventDetails, updateFields);
+    
+    // Explicitly handle minAttendanceDurationMinutes if provided
+    if (updateBody.minAttendanceDurationMinutes !== undefined) {
+      existingEventDetails.minAttendanceDurationMinutes =
+        updateBody.minAttendanceDurationMinutes;
+    }
+    
+    if (shouldClearEventDetailId) {
+      existingEventDetails.eventDetailId = undefined;
+    }
+    
+    const result = await this.eventDetailRepository.save(existingEventDetails);
+    
+    // Explicitly update minAttendanceDurationMinutes using direct update to ensure it's saved
+    if (
+      updateBody.minAttendanceDurationMinutes !== undefined &&
+      updateBody.minAttendanceDurationMinutes !== null
+    ) {
+      await this.eventDetailRepository.update(
+        { eventDetailId: result.eventDetailId },
+        {
+          minAttendanceDurationMinutes:
+            updateBody.minAttendanceDurationMinutes,
+        },
+      );
+    }
+    
+    return result;
+  }
+
   async handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition) {
     let updateResult: UpdateResult = {};
     if (updateBody?.startDatetime && updateBody?.endDatetime) {
@@ -1266,32 +1308,11 @@ export class EventService {
 
       if (event.eventDetailId === existingEventDetails.eventDetailId) {
         // as we are updating event from set of events we will make its details separate
-        // Copy all fields from updateBody (excluding eventRepetitionId which is not a property of EventDetail)
-        const { eventRepetitionId: _, ...updateFields } = updateBody;
-        Object.assign(existingEventDetails, updateFields);
-        // Explicitly handle minAttendanceDurationMinutes if provided (after Object.assign to ensure it's set)
-        if (updateBody.minAttendanceDurationMinutes !== undefined) {
-          existingEventDetails.minAttendanceDurationMinutes =
-            updateBody.minAttendanceDurationMinutes;
-        }
-        existingEventDetails.eventDetailId = undefined;
-
-        const result =
-          await this.eventDetailRepository.save(existingEventDetails);
-
-        // Explicitly update minAttendanceDurationMinutes using direct update to ensure it's saved
-        if (
-          updateBody.minAttendanceDurationMinutes !== undefined &&
-          updateBody.minAttendanceDurationMinutes !== null
-        ) {
-          await this.eventDetailRepository.update(
-            { eventDetailId: result.eventDetailId },
-            {
-              minAttendanceDurationMinutes:
-                updateBody.minAttendanceDurationMinutes,
-            },
-          );
-        }
+        const result = await this.updateEventDetailWithMinAttendance(
+          existingEventDetails,
+          updateBody,
+          true, // shouldClearEventDetailId = true
+        );
 
         // result contains separated event details which are new and then assign it to the repetition event
         eventRepetition.eventDetailId = result.eventDetailId;
@@ -1306,59 +1327,20 @@ export class EventService {
           );
 
         if (numberOfEntryInEventRepetitionTable.length === 1) {
-          // Copy all fields from updateBody (excluding eventRepetitionId which is not a property of EventDetail)
-          const { eventRepetitionId: _, ...updateFields } = updateBody;
-          Object.assign(existingEventDetails, updateFields);
-          // Explicitly handle minAttendanceDurationMinutes if provided
-          if (updateBody.minAttendanceDurationMinutes !== undefined) {
-            existingEventDetails.minAttendanceDurationMinutes =
-              updateBody.minAttendanceDurationMinutes;
-          }
-          const result =
-            await this.eventDetailRepository.save(existingEventDetails);
-
-          // Explicitly update minAttendanceDurationMinutes using direct update to ensure it's saved
-          if (
-            updateBody.minAttendanceDurationMinutes !== undefined &&
-            updateBody.minAttendanceDurationMinutes !== null
-          ) {
-            await this.eventDetailRepository.update(
-              { eventDetailId: result.eventDetailId },
-              {
-                minAttendanceDurationMinutes:
-                  updateBody.minAttendanceDurationMinutes,
-              },
-            );
-          }
+          const result = await this.updateEventDetailWithMinAttendance(
+            existingEventDetails,
+            updateBody,
+            false, // shouldClearEventDetailId = false
+          );
 
           updateResult.eventDetails = result;
         } else {
           // if greater than then create new entry in eventDetail Table
-          // Copy all fields from updateBody (excluding eventRepetitionId which is not a property of EventDetail)
-          const { eventRepetitionId: _, ...updateFields } = updateBody;
-          Object.assign(existingEventDetails, updateFields);
-          // Explicitly handle minAttendanceDurationMinutes if provided
-          if (updateBody.minAttendanceDurationMinutes !== undefined) {
-            existingEventDetails.minAttendanceDurationMinutes =
-              updateBody.minAttendanceDurationMinutes;
-          }
-          existingEventDetails.eventDetailId = undefined;
-          const result =
-            await this.eventDetailRepository.save(existingEventDetails);
-
-          // Explicitly update minAttendanceDurationMinutes using direct update to ensure it's saved
-          if (
-            updateBody.minAttendanceDurationMinutes !== undefined &&
-            updateBody.minAttendanceDurationMinutes !== null
-          ) {
-            await this.eventDetailRepository.update(
-              { eventDetailId: result.eventDetailId },
-              {
-                minAttendanceDurationMinutes:
-                  updateBody.minAttendanceDurationMinutes,
-              },
-            );
-          }
+          const result = await this.updateEventDetailWithMinAttendance(
+            existingEventDetails,
+            updateBody,
+            true, // shouldClearEventDetailId = true
+          );
 
           eventRepetition.eventDetailId = result.eventDetailId;
           eventRepetition.updatedAt = new Date();

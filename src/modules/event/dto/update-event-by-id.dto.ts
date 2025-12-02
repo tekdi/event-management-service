@@ -288,7 +288,7 @@ export class UpdateEventByIdDto {
     type: Number,
     description: 'Minimum attendance duration in minutes to mark as attended',
     example: 10,
-    default: 10,
+    default: 0,
   })
   @IsInt()
   @Min(0)
@@ -328,7 +328,8 @@ export class UpdateEventByIdDto {
 
   @ApiProperty({
     type: Boolean,
-    description: 'isMainEvent - true to update all recurring events, false to update specific event',
+    description:
+      'isMainEvent - true to update all recurring events, false to update specific event',
     example: true,
   })
   @IsBoolean()

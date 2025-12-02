@@ -255,7 +255,7 @@ export class UpdateEventDto {
     type: Number,
     description: 'Minimum attendance duration in minutes to mark as attended',
     example: 10,
-    default: 10,
+    default: 0,
   })
   @IsOptional()
   minAttendanceDurationMinutes?: number;
