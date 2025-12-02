@@ -78,6 +78,9 @@ export class EventDetail {
   @Column({ type: 'int', nullable: true })
   idealTime: number;
 
+  @Column({ type: 'int', nullable: true })
+  minAttendanceDurationMinutes: number;
+
   @Column({ type: 'jsonb', nullable: true })
   metadata: object;
 

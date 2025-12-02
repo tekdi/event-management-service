@@ -285,6 +285,17 @@ export class UpdateEventByIdDto {
   idealTime?: number;
 
   @ApiProperty({
+    type: Number,
+    description: 'Minimum attendance duration in minutes to mark as attended',
+    example: 10,
+    default: 0,
+  })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  minAttendanceDurationMinutes?: number;
+
+  @ApiProperty({
     type: String,
     description: 'Registration Start Date',
     example: '2024-03-18T10:00:00Z',
@@ -317,7 +328,8 @@ export class UpdateEventByIdDto {
 
   @ApiProperty({
     type: Boolean,
-    description: 'isMainEvent - true to update all recurring events, false to update specific event',
+    description:
+      'isMainEvent - true to update all recurring events, false to update specific event',
     example: true,
   })
   @IsBoolean()
