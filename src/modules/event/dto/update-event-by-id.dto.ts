@@ -285,6 +285,17 @@ export class UpdateEventByIdDto {
   idealTime?: number;
 
   @ApiProperty({
+    type: Number,
+    description: 'Minimum attendance duration in minutes to mark as attended',
+    example: 30,
+    default: 30,
+  })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  minAttendanceDurationMinutes?: number;
+
+  @ApiProperty({
     type: String,
     description: 'Registration Start Date',
     example: '2024-03-18T10:00:00Z',

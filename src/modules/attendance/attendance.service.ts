@@ -27,6 +27,7 @@ import {
 } from 'src/common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
 import { EventAttendees } from '../attendees/entity/attendees.entity';
+import { EventDetail } from '../event/entities/eventDetail.entity';
 import { In, Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LoggerWinston } from 'src/common/logger/logger.util';
@@ -382,10 +383,44 @@ export class AttendanceService implements OnModuleInit {
         }
 
         // Process the event with checkpoint support
-        const result = await this.processEventWithSimpleCheckpoint(
-          eventInfo,
-          authToken,
-        );
+        let result;
+        try {
+          result = await this.processEventWithSimpleCheckpoint(
+            eventInfo,
+            authToken,
+          );
+        } catch (error) {
+          // Handle 404 errors - mark event as processed to skip in future
+          if (error.message && error.message.includes('404')) {
+            this.logger.warn(
+              `Zoom meeting not found (404) for event ${eventInfo.eventRepetitionId}, marking as processed to skip`,
+            );
+            await this.markEventAttendanceCompleted(
+              eventInfo.eventRepetitionId,
+              0,
+            );
+            eventResults.push({
+              eventRepetitionId: eventInfo.eventRepetitionId,
+              eventTitle:
+                event.eventDetail?.title || 'Unknown Event',
+              zoomId: eventInfo.zoomId,
+              meetingType: eventInfo.meetingType,
+              totalParticipants: 0,
+              participantsProcessed: 0,
+              participantsAttended: 0,
+              participantsNotAttended: 0,
+              newAttendeeRecords: 0,
+              updatedAttendeeRecords: 0,
+              status: 'skipped',
+              errorMessage: 'Zoom meeting not found (404)',
+              processingTimeMs: 0,
+            });
+            totalEventsProcessed++;
+            continue;
+          }
+          // Re-throw other errors
+          throw error;
+        }
 
         // Only mark as completed if all participants processed AND no more pages
         const isFullyCompleted =
@@ -394,7 +429,7 @@ export class AttendanceService implements OnModuleInit {
 
         eventResults.push({
           eventRepetitionId: eventInfo.eventRepetitionId,
-          eventTitle: (event.eventDetail as any)?.eventTitle || 'Unknown Event',
+          eventTitle: event.eventDetail?.title || 'Unknown Event',
           zoomId: eventInfo.zoomId,
           meetingType: eventInfo.meetingType,
           totalParticipants: result.totalParticipants,
@@ -432,7 +467,7 @@ export class AttendanceService implements OnModuleInit {
 
         eventResults.push({
           eventRepetitionId: event.eventRepetitionId,
-          eventTitle: (event.eventDetail as any)?.eventTitle || 'Unknown Event',
+          eventTitle: event.eventDetail?.title || 'Unknown Event',
           zoomId: (event.onlineDetails as any)?.id || '',
           meetingType: (event.onlineDetails as any)?.meetingType || 'meeting',
           totalParticipants: 0,
@@ -568,9 +603,16 @@ export class AttendanceService implements OnModuleInit {
     let currentPage = checkpoint.currentPage;
 
     try {
-      // Get initial participant data if not resuming from checkpoint
+      // Get initial participant data if starting fresh or if checkpoint is inconsistent
       let initialResponse: any = null;
-      if (totalParticipants === 0) {
+      // Process first page if: no total participants OR resuming but haven't processed first page yet
+      // Also fetch if checkpoint seems wrong (very low totalParticipants but expecting more)
+      const shouldFetchFirstPage =
+        totalParticipants === 0 ||
+        (currentPage === 1 && participantsProcessed === 0 && !nextPageToken) ||
+        (totalParticipants > 0 && totalParticipants < 10 && currentPage === 1); // Suspiciously low count
+
+      if (shouldFetchFirstPage) {
         try {
           initialResponse = await this.onlineMeetingAdapter
             .getAdapter()
@@ -584,8 +626,36 @@ export class AttendanceService implements OnModuleInit {
 
           totalParticipants = initialResponse.total_records;
 
-          nextPageToken = initialResponse.next_page_token;
+          // Warn if total_records doesn't match participants count (possible pagination)
+          if (
+            initialResponse.total_records > initialResponse.participants?.length
+          ) {
+            const missing =
+              initialResponse.total_records -
+              (initialResponse.participants?.length || 0);
+            this.logger.warn(
+              `⚠️ PAGINATION DETECTED: Zoom API reports ${initialResponse.total_records} total participants, but only ${initialResponse.participants?.length || 0} in first page. ${missing} participant(s) are on next page(s). next_page_token: ${initialResponse.next_page_token ? 'exists' : 'null'}`,
+            );
+          }
+
+          // Warn if total_records seems suspiciously low
+          if (
+            initialResponse.total_records > 0 &&
+            initialResponse.total_records < 10
+          ) {
+            this.logger.warn(
+              `⚠️ WARNING: Zoom API returned only ${initialResponse.total_records} total participants. This seems low. Expected 12-13 pages (3600-3900 participants). Check Zoom API response or meeting settings.`,
+            );
+          }
+
+          // Convert empty string to null for nextPageToken
+          nextPageToken =
+            initialResponse.next_page_token &&
+            initialResponse.next_page_token.trim() !== ''
+              ? initialResponse.next_page_token
+              : null;
           currentPage = 1;
+
           // Update checkpoint with total participants count
           checkpoint.totalParticipants = totalParticipants;
           checkpoint.nextPageToken = nextPageToken;
@@ -596,9 +666,28 @@ export class AttendanceService implements OnModuleInit {
             `Failed to get initial participant list for event ${eventInfo.eventRepetitionId}`,
             error,
           );
+          // Check if it's a 404 error
+          if (error.message && error.message.includes('404')) {
+            throw new Error(
+              `Zoom meeting not found (404) for event ${eventInfo.eventRepetitionId}. The meeting may have been deleted.`,
+            );
+          }
           throw new Error(
             `Failed to fetch participants for event ${eventInfo.eventRepetitionId}: ${error.message}`,
           );
+        }
+
+        // Log summary of Zoom API response
+        if (initialResponse.participants && initialResponse.participants.length > 0) {
+          const participantsWithoutRegistrantId =
+            initialResponse.participants.filter(
+              (p: any) => !p.registrant_id || p.registrant_id.trim() === '',
+            );
+          if (participantsWithoutRegistrantId.length > 0) {
+            this.logger.warn(
+              `Zoom API returned ${initialResponse.participants.length} participants, ${participantsWithoutRegistrantId.length} without registrant_id (will be skipped)`,
+            );
+          }
         }
 
         // Process participants from the initial response
@@ -613,11 +702,20 @@ export class AttendanceService implements OnModuleInit {
         participantsNotAttended += result.participantsNotAttended;
         newAttendeeRecords += result.newAttendeeRecords;
         updatedAttendeeRecords += result.updatedAttendeeRecords;
+
+        // Update checkpoint after processing first page
+        checkpoint.participantsProcessed = participantsProcessed;
+        checkpoint.nextPageToken = nextPageToken;
+        checkpoint.currentPage = currentPage;
+        await this.checkpointService.updateCheckpoint(checkpoint);
+
       }
 
-      // Process remaining pages
-      while (nextPageToken) {
+
+      // Continue processing while there's a valid nextPageToken (not null, not empty string)
+      while (nextPageToken && nextPageToken.trim() !== '') {
         try {
+
           const participantResponse = await this.onlineMeetingAdapter
             .getAdapter()
             .getMeetingParticipantList(
@@ -627,6 +725,22 @@ export class AttendanceService implements OnModuleInit {
               meetingType,
               `&next_page_token=${nextPageToken}`,
             );
+
+          // Log summary for paginated pages
+          if (
+            participantResponse.participants &&
+            participantResponse.participants.length > 0
+          ) {
+            const participantsWithoutRegistrantId =
+              participantResponse.participants.filter(
+                (p: any) => !p.registrant_id || p.registrant_id.trim() === '',
+              );
+            if (participantsWithoutRegistrantId.length > 0) {
+              this.logger.warn(
+                `Page ${currentPage + 1}: ${participantResponse.participants.length} participants, ${participantsWithoutRegistrantId.length} without registrant_id (will be skipped)`,
+              );
+            }
+          }
 
           const result = await this.processParticipantBatch(
             participantResponse.participants,
@@ -640,16 +754,22 @@ export class AttendanceService implements OnModuleInit {
           newAttendeeRecords += result.newAttendeeRecords;
           updatedAttendeeRecords += result.updatedAttendeeRecords;
 
-          // Update pagination state
-          nextPageToken = participantResponse.next_page_token;
+          // Update pagination state - convert empty string to null
+          nextPageToken =
+            participantResponse.next_page_token &&
+            participantResponse.next_page_token.trim() !== ''
+              ? participantResponse.next_page_token
+              : null;
           currentPage++;
+
+
           // Update checkpoint after each page
           checkpoint.nextPageToken = nextPageToken;
           checkpoint.currentPage = currentPage;
           checkpoint.participantsProcessed = participantsProcessed;
           await this.checkpointService.updateCheckpoint(checkpoint);
 
-          break;
+          // Continue loop if there are more pages (nextPageToken will be checked in while condition)
         } catch (error) {
           this.logger.error(
             `Failed to process page ${currentPage} for event ${eventInfo.eventRepetitionId}`,
@@ -659,6 +779,7 @@ export class AttendanceService implements OnModuleInit {
           break;
         }
       }
+
       return {
         totalParticipants,
         participantsProcessed,
@@ -684,10 +805,10 @@ export class AttendanceService implements OnModuleInit {
 
   /**
    * Processes a batch of participants with optimized batch database operations
+   * Aggregates duration across all sessions for the same user and checks threshold
    *
    * @param participants - Array of participants to process
    * @param eventInfo - Information about the event being processed
-   * @param dto - The attendance marking request data
    * @param authToken - Authentication token for API calls
    * @returns Promise resolving to batch processing result
    */
@@ -708,11 +829,33 @@ export class AttendanceService implements OnModuleInit {
     let newAttendeeRecords = 0;
     let updatedAttendeeRecords = 0;
 
-    const registrantIds = participants
-      .map((p) => p.registrant_id)
-      .filter(Boolean);
+    // Filter out participants without registrant_id
+    const participantsWithoutRegistrantId = participants.filter(
+      (p) => !p.registrant_id || p.registrant_id.trim() === '',
+    );
+    const validParticipants = participants.filter(
+      (p) => p.registrant_id && p.registrant_id.trim() !== '',
+    );
 
-    if (!registrantIds.length) {
+    if (participantsWithoutRegistrantId.length > 0) {
+      this.logger.warn(
+        `Found ${participantsWithoutRegistrantId.length} participants WITHOUT registrant_id (will be skipped): ${JSON.stringify(
+          participantsWithoutRegistrantId.map((p: any) => ({
+            id: p.id,
+            email: p.user_email,
+            name: p.name,
+            duration: p.duration,
+            join_time: p.join_time,
+            leave_time: p.leave_time,
+          })),
+        )}`,
+      );
+    }
+
+    if (!validParticipants.length) {
+      this.logger.warn(
+        `No valid participants with registrant_id in batch for event ${eventInfo.eventRepetitionId}. Total participants: ${participants.length}, Without registrant_id: ${participantsWithoutRegistrantId.length}`,
+      );
       return {
         participantsProcessed: 0,
         participantsAttended: 0,
@@ -722,54 +865,196 @@ export class AttendanceService implements OnModuleInit {
       };
     }
 
+
+    // Step 1: Group participants by registrantId
+    const participantsByRegistrantId = new Map<string, any[]>();
+
+    for (const participant of validParticipants) {
+      const registrantId = participant.registrant_id;
+      // validParticipants already filtered, so registrantId should exist
+      if (!participantsByRegistrantId.has(registrantId)) {
+        participantsByRegistrantId.set(registrantId, []);
+      }
+      participantsByRegistrantId.get(registrantId)!.push(participant);
+    }
+
+    const uniqueRegistrantIds = Array.from(participantsByRegistrantId.keys());
+
+    // Step 2: Load event detail to get minAttendanceDurationMinutes
+    const eventRepetition = await this.eventRepetitionRepository.findOne({
+      where: { eventRepetitionId: eventInfo.eventRepetitionId },
+      relations: ['eventDetail'],
+    });
+
+    if (!eventRepetition || !eventRepetition.eventDetail) {
+      this.logger.error(
+        `EventDetail not found for eventRepetitionId: ${eventInfo.eventRepetitionId}`,
+      );
+      throw new Error(
+        `EventDetail not found for eventRepetitionId: ${eventInfo.eventRepetitionId}`,
+      );
+    }
+
+    // Check if minAttendanceDurationMinutes is set in database
+    const dbValue = eventRepetition.eventDetail.minAttendanceDurationMinutes;
+
+    // If minAttendanceDurationMinutes is NULL, undefined, or 0, skip processing
+    if (dbValue === null || dbValue === undefined || dbValue === 0) {
+      this.logger.warn(
+        `⚠️ Skipping attendance processing for event ${eventInfo.eventRepetitionId}: minAttendanceDurationMinutes is ${dbValue === null ? 'NULL' : dbValue === undefined ? 'undefined' : '0'}. Please set minAttendanceDurationMinutes in EventDetails table before processing attendance.`,
+      );
+      throw new BadRequestException(
+        `Cannot process attendance for event ${eventInfo.eventRepetitionId}: minAttendanceDurationMinutes is not configured. Please set minAttendanceDurationMinutes in EventDetails table (must be > 0).`,
+      );
+    }
+
+    const minAttendanceDurationMinutes = dbValue;
+    const minAttendanceDurationSeconds = minAttendanceDurationMinutes * 60;
+
+    // Step 3: Load existing attendees for all registrantIds in batch (single DB query)
     const existingAttendees = await this.eventAttendeesRepository.findBy({
       eventRepetitionId: eventInfo.eventRepetitionId,
-      registrantId: In(registrantIds),
+      registrantId: In(uniqueRegistrantIds),
     });
 
     const attendeeMap = new Map(
       existingAttendees.map((att) => [att.registrantId, att]),
     );
 
+    const matchingRegistrantIds = uniqueRegistrantIds.filter((id) =>
+      attendeeMap.has(id),
+    );
+    const missingRegistrantIds = uniqueRegistrantIds.filter(
+      (id) => !attendeeMap.has(id),
+    );
+
+    if (missingRegistrantIds.length > 0) {
+      this.logger.warn(
+        `Found ${missingRegistrantIds.length} registrantIds from Zoom not enrolled in event (will be skipped)`,
+      );
+    }
+
+    // Step 4: Process each unique registrantId
     const attendeesToPersist: EventAttendees[] = [];
     const now = new Date().toISOString();
     const lmsServiceCalls: Promise<any>[] = [];
     const LMS_BATCH_SIZE = 50;
 
-    for (const participant of participants) {
+    for (const [
+      registrantId,
+      participantSessions,
+    ] of participantsByRegistrantId) {
       try {
-        const identifier = participant.registrant_id;
-        if (!identifier) {
+        let eventAttendee = attendeeMap.get(registrantId);
+
+        if (!eventAttendee) {
+          // Skip if attendee doesn't exist in DB
           this.logger.warn(
-            `Participant ${participant.id} missing registrant_id, skipping`,
+            `EventAttendee not found for registrantId: ${registrantId}, skipping ${participantSessions.length} participant sessions. This user may not be enrolled in the event.`,
           );
+          participantsProcessed += participantSessions.length;
+          participantsNotAttended += participantSessions.length;
           continue;
         }
 
-        let eventAttendee = attendeeMap.get(identifier);
 
-        if (!eventAttendee) {
-          continue;
-        } else {
-          updatedAttendeeRecords++;
-          eventAttendee.isAttended = true;
-          eventAttendee.duration = participant.duration || 0;
-          eventAttendee.joinedLeftHistory = {
+        // Step 4a: Aggregate all sessions in current batch for this user
+        const batchSessions: any[] = [];
+        let batchTotalDuration = 0;
+
+        for (const participant of participantSessions) {
+          const sessionDuration = participant.duration || 0;
+          batchTotalDuration += sessionDuration;
+
+          const session = {
             joinTime: participant.join_time,
             leaveTime: participant.leave_time,
-            duration: participant.duration,
+            duration: sessionDuration,
             status: participant.status,
-            zoomParticipantId: participant.id,
+            zoomParticipantId: participant.id || participant.user_id || null, // Use user_id as fallback
             lastUpdated: now,
           };
 
-          attendeesToPersist.push(eventAttendee);
+          batchSessions.push(session);
+        }
 
-          // Call LMS service for lesson completion if participant attended
+        // Step 4b: Load existing joinedLeftHistory and convert to array format if needed
+        let existingSessions: any[] = [];
+        if (eventAttendee.joinedLeftHistory) {
+          existingSessions = this.normalizeJoinedLeftHistory(
+            eventAttendee.joinedLeftHistory,
+          );
+        }
+
+        // Step 4c: Merge new sessions with existing (avoid duplicates)
+        // Use multiple methods to detect duplicates since zoomParticipantId might be empty
+        const existingSessionKeys = new Set<string>();
+
+        // Create unique keys for existing sessions
+        for (const existingSession of existingSessions) {
+          if (existingSession.zoomParticipantId) {
+            existingSessionKeys.add(`id:${existingSession.zoomParticipantId}`);
+          }
+          // Also use joinTime + leaveTime + duration as fallback key
+          if (existingSession.joinTime && existingSession.leaveTime) {
+            existingSessionKeys.add(
+              `time:${existingSession.joinTime}:${existingSession.leaveTime}:${existingSession.duration || 0}`,
+            );
+          }
+        }
+
+        // Filter out duplicates from new sessions
+        const newSessions = batchSessions.filter((session) => {
+          // Check by zoomParticipantId if available
+          if (session.zoomParticipantId) {
+            const idKey = `id:${session.zoomParticipantId}`;
+            if (existingSessionKeys.has(idKey)) {
+              return false; // Duplicate by ID
+            }
+          }
+
+          // Check by time combination (joinTime + leaveTime + duration)
+          if (session.joinTime && session.leaveTime) {
+            const timeKey = `time:${session.joinTime}:${session.leaveTime}:${session.duration || 0}`;
+            if (existingSessionKeys.has(timeKey)) {
+              return false; // Duplicate by time
+            }
+          }
+
+          return true; // New session
+        });
+
+        // Step 4d: Calculate total duration = existing duration + new batch duration
+        const existingDuration = eventAttendee.duration || 0;
+        const newBatchDuration = batchTotalDuration;
+        const totalDuration = existingDuration + newBatchDuration;
+
+        // Step 4e: Check if total duration >= minAttendanceDurationMinutes * 60
+        const shouldMarkAttended =
+          totalDuration >= minAttendanceDurationSeconds;
+
+        // Step 4f: Update eventAttendee
+        eventAttendee.duration = totalDuration;
+        eventAttendee.joinedLeftHistory = [...existingSessions, ...newSessions];
+        eventAttendee.isAttended = shouldMarkAttended;
+
+        attendeesToPersist.push(eventAttendee);
+        updatedAttendeeRecords++;
+
+        // Update statistics
+        participantsProcessed += participantSessions.length;
+        if (shouldMarkAttended) {
+          participantsAttended += participantSessions.length;
+        } else {
+          participantsNotAttended += participantSessions.length;
+        }
+
+        // Call LMS service for lesson completion if participant attended
+        if (shouldMarkAttended && eventAttendee.userId) {
           const lmsCall = this.callLmsLessonCompletion(
             eventInfo.eventId,
             eventAttendee.userId,
-            participant.duration || 0,
+            totalDuration,
             authToken,
           ).catch((error) => {
             this.logger.error(
@@ -786,21 +1071,17 @@ export class AttendanceService implements OnModuleInit {
             lmsServiceCalls.length = 0; // Clear array to release memory
           }
         }
-
-        participantsProcessed++;
-        eventAttendee.isAttended
-          ? participantsAttended++
-          : participantsNotAttended++;
       } catch (error) {
         this.logger.error(
-          `Failed to process participant ${participant.id}`,
+          `Failed to process registrantId ${registrantId}`,
           error,
         );
-        participantsProcessed++;
-        participantsNotAttended++;
+        participantsProcessed += participantSessions.length;
+        participantsNotAttended += participantSessions.length;
       }
     }
 
+    // Step 5: Batch save all updates (single transaction)
     if (attendeesToPersist.length > 0) {
       await this.eventAttendeesRepository.save(attendeesToPersist);
     }
@@ -813,7 +1094,7 @@ export class AttendanceService implements OnModuleInit {
 
     // Clear large arrays to help garbage collection
     attendeesToPersist.length = 0;
-    registrantIds.length = 0;
+    uniqueRegistrantIds.length = 0;
 
     return {
       participantsProcessed,
@@ -822,6 +1103,39 @@ export class AttendanceService implements OnModuleInit {
       newAttendeeRecords,
       updatedAttendeeRecords,
     };
+  }
+
+  /**
+   * Normalizes joinedLeftHistory to array format
+   * Handles both old format (single object) and new format (array)
+   *
+   * @param joinedLeftHistory - The joinedLeftHistory from database (can be object or array)
+   * @returns Array of session objects
+   */
+  private normalizeJoinedLeftHistory(joinedLeftHistory: any): any[] {
+    if (!joinedLeftHistory) {
+      return [];
+    }
+
+    // If it's already an array, return it
+    if (Array.isArray(joinedLeftHistory)) {
+      return joinedLeftHistory;
+    }
+
+    // If it's an object (old format), convert to array
+    if (typeof joinedLeftHistory === 'object') {
+      // Check if it has properties that indicate it's a session object
+      if (
+        joinedLeftHistory.joinTime ||
+        joinedLeftHistory.leaveTime ||
+        joinedLeftHistory.duration !== undefined
+      ) {
+        return [joinedLeftHistory];
+      }
+    }
+
+    // Fallback: return empty array
+    return [];
   }
 
   private async markEventAttendanceCompleted(
@@ -841,18 +1155,65 @@ export class AttendanceService implements OnModuleInit {
   private async getEndedEventsForAttendanceMarking(): Promise<
     EventRepetition[]
   > {
+    // Add 15-minute delay buffer to allow Zoom API to process participant data
+    // Zoom API typically takes 5-15 minutes after meeting ends to make participant data available
+    const ZOOM_API_PROCESSING_DELAY_MINUTES = 15;
+    const cutoffTime = new Date(
+      Date.now() - ZOOM_API_PROCESSING_DELAY_MINUTES * 60 * 1000,
+    );
+
+    this.logger.log(
+      `Querying ended events: Processing meetings that ended at least ${ZOOM_API_PROCESSING_DELAY_MINUTES} minutes ago (cutoff: ${cutoffTime.toISOString()})`,
+    );
+
     const queryBuilder = this.eventRepetitionRepository
       .createQueryBuilder('er')
       .leftJoinAndSelect('er.eventDetail', 'ed')
       .leftJoinAndSelect('er.event', 'e')
-      .where('er.endDateTime < :currentTime', { currentTime: new Date() })
+      .where('er.endDateTime < :cutoffTime', { cutoffTime })
       .andWhere('ed.eventType = :eventType', { eventType: 'online' })
       .andWhere('er.attendanceMarked = :attendanceMarked', {
         attendanceMarked: false,
       })
-      .andWhere('er.onlineDetails IS NOT NULL');
+      .andWhere('er.onlineDetails IS NOT NULL')
+      // Only process events where minAttendanceDurationMinutes is set and > 0
+      .andWhere('ed.minAttendanceDurationMinutes IS NOT NULL')
+      .andWhere('ed.minAttendanceDurationMinutes > 0');
 
-    return queryBuilder.getMany();
+    const events = await queryBuilder.getMany();
+
+    this.logger.log(
+      `Found ${events.length} events ready for processing (ended ${ZOOM_API_PROCESSING_DELAY_MINUTES}+ minutes ago with minAttendanceDurationMinutes configured)`,
+    );
+
+    // Log events that were skipped due to missing minAttendanceDurationMinutes
+    const allEndedEvents = await this.eventRepetitionRepository
+      .createQueryBuilder('er')
+      .leftJoinAndSelect('er.eventDetail', 'ed')
+      .where('er.endDateTime < :cutoffTime', { cutoffTime })
+      .andWhere('ed.eventType = :eventType', { eventType: 'online' })
+      .andWhere('er.attendanceMarked = :attendanceMarked', {
+        attendanceMarked: false,
+      })
+      .andWhere('er.onlineDetails IS NOT NULL')
+      .getMany();
+
+    const skippedEvents = allEndedEvents.filter(
+      (event) =>
+        !event.eventDetail?.minAttendanceDurationMinutes ||
+        event.eventDetail.minAttendanceDurationMinutes === 0,
+    );
+
+    if (skippedEvents.length > 0) {
+      this.logger.warn(
+        `⚠️ Skipped ${skippedEvents.length} event(s) due to missing or invalid minAttendanceDurationMinutes. Event IDs: ${skippedEvents.map((e) => e.eventRepetitionId).join(', ')}`,
+      );
+      this.logger.warn(
+        `Please set minAttendanceDurationMinutes > 0 in EventDetails table for these events to enable attendance processing.`,
+      );
+    }
+
+    return events;
   }
 
   private async delay(ms: number): Promise<void> {
@@ -988,7 +1349,7 @@ export class AttendanceService implements OnModuleInit {
       // Step 1: Get media by source (eventId)
       // Note: Media API might not support source filter, so we'll get all event format media and filter client-side
       let mediaList: any[] = [];
-      
+
       try {
         // Get media with event format filter (to reduce results)
         const mediaResponse = await this.httpService.axiosRef.get(
@@ -1009,18 +1370,12 @@ export class AttendanceService implements OnModuleInit {
 
         // Handle different response structures
         let rawResult = mediaResponse.data?.result;
-        
-        this.logger.log(
-          `Raw media API result type: ${Array.isArray(rawResult) ? 'array' : typeof rawResult}, length: ${Array.isArray(rawResult) ? rawResult.length : 'N/A'}`,
-        );
-        
+
+
         if (Array.isArray(rawResult)) {
           // Check if it's an array of arrays (nested structure)
           if (rawResult.length > 0 && Array.isArray(rawResult[0])) {
             // Flatten nested arrays
-            this.logger.log(
-              `Detected nested array structure, flattening...`,
-            );
             mediaList = rawResult.flat();
           } else {
             // It's an array of objects
@@ -1033,38 +1388,16 @@ export class AttendanceService implements OnModuleInit {
         } else if (Array.isArray(mediaResponse.data)) {
           mediaList = mediaResponse.data;
         }
-        
+
         // Ensure all items are objects, not arrays - flatten recursively if needed
         mediaList = this.flattenArray(mediaList);
 
-        this.logger.log(
-          `Retrieved ${mediaList.length} media items from LMS API (format: event)`,
-        );
-        
-        // Log response structure for debugging
-        if (mediaList.length === 0) {
-          this.logger.warn(
-            `Media API response structure (first 500 chars): ${JSON.stringify(mediaResponse.data).substring(0, 500)}`,
-          );
-        } else {
-          // Log first media item structure for debugging
-          this.logger.log(
-            `Sample media item structure: ${JSON.stringify(mediaList[0]).substring(0, 500)}`,
-          );
-          // Log all sources for debugging
-          const allSources = mediaList.map((m: any) => m.source || 'N/A');
-          this.logger.log(
-            `All media sources in array: ${JSON.stringify(allSources)}`,
-          );
-        }
+
       } catch (error) {
-        this.logger.error(
-          `Error calling media API: ${error.message}`,
-          {
-            status: error.response?.status,
-            data: error.response?.data,
-          },
-        );
+        this.logger.error(`Error calling media API: ${error.message}`, {
+          status: error.response?.status,
+          data: error.response?.data,
+        });
         return null;
       }
 
@@ -1074,29 +1407,14 @@ export class AttendanceService implements OnModuleInit {
         const searchEventId = String(eventId).trim();
         return mediaSource === searchEventId;
       });
-      
+
       if (!media) {
         this.logger.warn(
           `No media found with source ${eventId} in ${mediaList.length} media items`,
         );
-        // Log all media sources for debugging
-        if (mediaList.length > 0) {
-          const sourcesList = mediaList.map((m: any) => ({
-            source: m.source || 'N/A',
-            mediaId: m.mediaId || m.media_id || m.id || 'N/A',
-            format: m.format || 'N/A'
-          }));
-          this.logger.log(
-            `All media sources: ${JSON.stringify(sourcesList)}`,
-          );
-        }
         return null;
       }
 
-      // Log the found media object for debugging
-      this.logger.log(
-        `Found media object for source ${eventId}: ${JSON.stringify(media).substring(0, 400)}`,
-      );
 
       // Extract mediaId - handle different property names
       const mediaId = media.mediaId || media.media_id || media.id;
@@ -1107,13 +1425,10 @@ export class AttendanceService implements OnModuleInit {
         return null;
       }
 
-      this.logger.log(
-        `Found media with mediaId ${mediaId} for source ${eventId}`,
-      );
 
       // Step 2: Get lesson by mediaId
       let lessons: any[] = [];
-      
+
       try {
         const lessonsResponse = await this.httpService.axiosRef.get(
           `${lmsServiceUrl}/v1/lessons`,
@@ -1133,24 +1448,27 @@ export class AttendanceService implements OnModuleInit {
 
         // Handle different response structures
         let rawLessonsResult = lessonsResponse.data?.result;
-        
-        if (rawLessonsResult?.lessons && Array.isArray(rawLessonsResult.lessons)) {
+
+        if (
+          rawLessonsResult?.lessons &&
+          Array.isArray(rawLessonsResult.lessons)
+        ) {
           lessons = rawLessonsResult.lessons;
         } else if (Array.isArray(rawLessonsResult)) {
           lessons = rawLessonsResult;
-        } else if (rawLessonsResult?.items && Array.isArray(rawLessonsResult.items)) {
+        } else if (
+          rawLessonsResult?.items &&
+          Array.isArray(rawLessonsResult.items)
+        ) {
           lessons = rawLessonsResult.items;
         } else if (Array.isArray(lessonsResponse.data)) {
           lessons = lessonsResponse.data;
         }
-        
+
         // Flatten recursively if needed (same as media)
         lessons = this.flattenArray(lessons);
 
-        this.logger.log(
-          `Retrieved ${lessons.length} lessons from LMS API (status: published)`,
-        );
-        
+
         // Log response structure for debugging if no lessons found
         if (lessons.length === 0) {
           this.logger.warn(
@@ -1158,21 +1476,20 @@ export class AttendanceService implements OnModuleInit {
           );
         }
       } catch (error) {
-        this.logger.error(
-          `Error calling lessons API: ${error.message}`,
-          {
-            status: error.response?.status,
-            data: error.response?.data,
-          },
-        );
+        this.logger.error(`Error calling lessons API: ${error.message}`, {
+          status: error.response?.status,
+          data: error.response?.data,
+        });
         return null;
       }
 
       // Find lesson with matching mediaId
-      const lesson = lessons.find((l: any) => 
-        l.mediaId === mediaId || 
-        l.media_id === mediaId || 
-        (l.media && (l.media.mediaId === mediaId || l.media.media_id === mediaId))
+      const lesson = lessons.find(
+        (l: any) =>
+          l.mediaId === mediaId ||
+          l.media_id === mediaId ||
+          (l.media &&
+            (l.media.mediaId === mediaId || l.media.media_id === mediaId)),
       );
 
       if (!lesson) {
@@ -1180,21 +1497,9 @@ export class AttendanceService implements OnModuleInit {
           `No lesson found for mediaId ${mediaId} in ${lessons.length} lessons`,
         );
         // Log sample lesson mediaIds for debugging
-        if (lessons.length > 0) {
-          this.logger.log(
-            `Sample lesson mediaIds: ${lessons.slice(0, 5).map((l: any) => ({ 
-              lessonId: l.lessonId || l.lesson_id || l.id || 'N/A',
-              mediaId: l.mediaId || l.media_id || (l.media && (l.media.mediaId || l.media.media_id)) || 'N/A'
-            }))}`,
-          );
-        }
         return null;
       }
 
-      // Log the found lesson object for debugging
-      this.logger.log(
-        `Found lesson object for mediaId ${mediaId}: ${JSON.stringify(lesson).substring(0, 400)}`,
-      );
 
       // Extract lessonId - handle different property names
       const lessonId = lesson.lessonId || lesson.lesson_id || lesson.id;
@@ -1205,19 +1510,13 @@ export class AttendanceService implements OnModuleInit {
         return null;
       }
 
-      this.logger.log(
-        `Successfully retrieved lessonId ${lessonId} from eventId ${eventId}`,
-      );
       return lessonId;
     } catch (error) {
-      this.logger.error(
-        `Error getting lessonId from eventId ${eventId}`,
-        {
-          error: error.message,
-          status: error.response?.status,
-          data: error.response?.data,
-        },
-      );
+      this.logger.error(`Error getting lessonId from eventId ${eventId}`, {
+        error: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
       return null;
     }
   }
@@ -1294,29 +1593,39 @@ export class AttendanceService implements OnModuleInit {
     authToken: string,
   ): Promise<any> {
     const apiId = API_ID.MARK_ATTENDANCE_BY_USERNAME;
-    
+
     try {
       // First, try to mark completion
-      return await this.callLmsLessonCompletion(eventId, userId, timeSpent, authToken);
+      return await this.callLmsLessonCompletion(
+        eventId,
+        userId,
+        timeSpent,
+        authToken,
+      );
     } catch (error) {
       // Check if error is 404 (Tracking not found)
       const errorStatus = error.response?.status;
       const errorData = error.response?.data;
-      const errorMessage = errorData?.params?.errmsg || errorData?.message || error.message;
+      const errorMessage =
+        errorData?.params?.errmsg || errorData?.message || error.message;
 
-      if (errorStatus === 404 && 
-          (errorMessage.includes('Tracking not found') || 
-           errorMessage.includes('TRACKING_NOT_FOUND') ||
-           errorMessage.includes('Lesson track'))) {
-        
+      if (
+        errorStatus === 404 &&
+        (errorMessage.includes('Tracking not found') ||
+          errorMessage.includes('TRACKING_NOT_FOUND') ||
+          errorMessage.includes('Lesson track'))
+      ) {
         this.logger.log(
           `[${apiId}] Lesson track not found for eventId ${eventId}, userId ${userId}. Attempting to create lesson track entry...`,
         );
 
         try {
           // Step 1: Get lessonId from eventId
-          const lessonId = await this.getLessonIdFromEventId(eventId, authToken);
-          
+          const lessonId = await this.getLessonIdFromEventId(
+            eventId,
+            authToken,
+          );
+
           if (!lessonId) {
             this.logger.warn(
               `[${apiId}] Cannot create lesson track - could not get lessonId from eventId ${eventId}`,
@@ -1337,12 +1646,17 @@ export class AttendanceService implements OnModuleInit {
           );
 
           // Step 3: Retry the completion call
-          const retryResult = await this.callLmsLessonCompletion(eventId, userId, timeSpent, authToken);
-          
+          const retryResult = await this.callLmsLessonCompletion(
+            eventId,
+            userId,
+            timeSpent,
+            authToken,
+          );
+
           this.logger.log(
             `[${apiId}] Successfully marked lesson completion after creating lesson track entry for eventId ${eventId}, userId ${userId}`,
           );
-          
+
           return retryResult;
         } catch (createError) {
           this.logger.error(
