@@ -2216,10 +2216,7 @@ export class EventService {
       }
 
       // Determine if this is a main event update (affects all recurring events)
-      const isMainEventUpdate =
-        updateEventByIdDto.isMainEvent !== undefined
-          ? updateEventByIdDto.isMainEvent
-          : true;
+      const isMainEventUpdate = updateEventByIdDto.isMainEvent ?? true;
 
       // console.log('event.eventType', event); // Removed for production
       if (eventDetail.eventType === EventTypes.offline) {
@@ -2345,7 +2342,7 @@ export class EventService {
       });
 
       // Replace the eventDetail in the result with the reloaded one to ensure correct values
-      if (eventResult && eventResult.eventDetail && reloadedEventDetail) {
+      if (eventResult?.eventDetail && reloadedEventDetail) {
         eventResult.eventDetail = reloadedEventDetail;
       }
 
@@ -2396,10 +2393,7 @@ export class EventService {
       description: updateEventByIdDto.description,
       updateAt: new Date(),
       isRecurring: updateEventByIdDto.isRecurring,
-      isMainEvent:
-        updateEventByIdDto.isMainEvent !== undefined
-          ? updateEventByIdDto.isMainEvent
-          : true, // Default to true for comprehensive updates
+      isMainEvent: updateEventByIdDto.isMainEvent ?? true, // Default to true for comprehensive updates
       status: updateEventByIdDto.status,
     };
 
@@ -2426,32 +2420,18 @@ export class EventService {
       description: updateEventByIdDto.description || eventDetail.description,
       eventType: updateEventByIdDto.eventType || eventDetail.eventType,
       isRestricted:
-        updateEventByIdDto.isRestricted !== undefined
-          ? updateEventByIdDto.isRestricted
-          : eventDetail.isRestricted,
-      autoEnroll:
-        updateEventByIdDto.autoEnroll !== undefined
-          ? updateEventByIdDto.autoEnroll
-          : eventDetail.autoEnroll,
+        updateEventByIdDto.isRestricted ?? eventDetail.isRestricted,
+      autoEnroll: updateEventByIdDto.autoEnroll ?? eventDetail.autoEnroll,
       startDatetime:
         updateEventByIdDto.startDatetime || eventDetail.startDatetime,
       endDatetime: updateEventByIdDto.endDatetime || eventDetail.endDatetime,
       location: updateEventByIdDto.location || eventDetail.location,
-      longitude:
-        updateEventByIdDto.longitude !== undefined
-          ? updateEventByIdDto.longitude
-          : eventDetail.longitude,
-      latitude:
-        updateEventByIdDto.latitude !== undefined
-          ? updateEventByIdDto.latitude
-          : eventDetail.latitude,
+      longitude: updateEventByIdDto.longitude ?? eventDetail.longitude,
+      latitude: updateEventByIdDto.latitude ?? eventDetail.latitude,
       onlineProvider:
         updateEventByIdDto.onlineProvider || eventDetail.onlineProvider,
       meetingType: updateEventByIdDto.meetingType || eventDetail.meetingType,
-      approvalType:
-        updateEventByIdDto.approvalType !== undefined
-          ? updateEventByIdDto.approvalType
-          : eventDetail.approvalType,
+      approvalType: updateEventByIdDto.approvalType ?? eventDetail.approvalType,
       timezone: updateEventByIdDto.timezone || eventDetail.timezone,
       platformIntegration:
         updateEventByIdDto.platformIntegration ??
@@ -2475,10 +2455,7 @@ export class EventService {
       registrationEndDate:
         updateEventByIdDto.registrationEndDate ||
         eventDetail.registrationEndDate,
-      isRecurring:
-        updateEventByIdDto.isRecurring !== undefined
-          ? updateEventByIdDto.isRecurring
-          : eventDetail.isRecurring,
+      isRecurring: updateEventByIdDto.isRecurring ?? eventDetail.isRecurring,
       recurrencePattern:
         updateEventByIdDto.recurrencePattern || eventDetail.recurrencePattern,
       metaData: updateEventByIdDto.metaData || eventDetail.metaData,
