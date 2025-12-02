@@ -899,12 +899,14 @@ export class AttendanceService implements OnModuleInit {
 
     // If minAttendanceDurationMinutes is NULL, undefined, or 0, skip processing
     if (dbValue === null || dbValue === undefined || dbValue === 0) {
-      const dbValueDescription =
-        dbValue === null
-          ? 'NULL'
-          : dbValue === undefined
-            ? 'undefined'
-            : '0';
+      let dbValueDescription: string;
+      if (dbValue === null) {
+        dbValueDescription = 'NULL';
+      } else if (dbValue === undefined) {
+        dbValueDescription = 'undefined';
+      } else {
+        dbValueDescription = '0';
+      }
       this.logger.warn(
         `⚠️ Skipping attendance processing for event ${eventInfo.eventRepetitionId}: minAttendanceDurationMinutes is ${dbValueDescription}. Please set minAttendanceDurationMinutes in EventDetails table before processing attendance.`,
       );
