@@ -78,7 +78,7 @@ export class EventDetail {
   @Column({ type: 'int', nullable: true })
   idealTime: number;
 
-  @Column({ type: 'int', nullable: true, default: 30 })
+  @Column({ type: 'int', nullable: true })
   minAttendanceDurationMinutes: number;
 
   @Column({ type: 'jsonb', nullable: true })

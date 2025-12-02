@@ -1028,7 +1028,8 @@ export class EventService {
       updateBody.onlineDetails ||
       updateBody.metadata ||
       updateBody.recordings ||
-      updateBody.description
+      updateBody.description ||
+      updateBody.minAttendanceDurationMinutes !== undefined
     ) {
       updateResult.updatedEventDetails =
         await this.updateEventDetailsForRecurringEvents(
@@ -1069,12 +1070,39 @@ export class EventService {
 
     if (firstEvent.eventRepetitionId === eventRepetition.eventRepetitionId) {
       // Always true in case of non recurring
-      Object.assign(existingEventDetails, updateBody, {
-        eventRepetitionId: eventRepetition.eventRepetitionId,
-      });
+      // Copy only valid EventDetail properties from updateBody
+      // Exclude properties that don't belong to EventDetail entity
+      const {
+        eventRepetitionId: _,
+        isRecurring: __,
+        updatedBy: ___,
+        updateAt: ____,
+        isMainEvent: _____,
+        startDatetime: ______,
+        endDatetime: _______,
+        onlineDetails: ________,
+        ...eventDetailFields
+      } = updateBody;
+      Object.assign(existingEventDetails, eventDetailFields);
+      // Explicitly set minAttendanceDurationMinutes before save to ensure it's included
+      if (updateBody.minAttendanceDurationMinutes !== undefined) {
+        existingEventDetails.minAttendanceDurationMinutes =
+          updateBody.minAttendanceDurationMinutes;
+      }
       existingEventDetails.updatedAt = new Date();
       const updatedEventDetails =
         await this.eventDetailRepository.save(existingEventDetails);
+
+      // Explicitly update minAttendanceDurationMinutes using direct update to ensure it's saved
+      if (updateBody.minAttendanceDurationMinutes !== undefined) {
+        await this.eventDetailRepository.update(
+          { eventDetailId: updatedEventDetails.eventDetailId },
+          {
+            minAttendanceDurationMinutes:
+              updateBody.minAttendanceDurationMinutes,
+          },
+        );
+      }
       // below code run for update of recurring event
       if (recurrenceRecords.length > 0) {
         const updatedEventRepetition = await this.updateEventRepetition(
@@ -1097,9 +1125,28 @@ export class EventService {
       // create new entry for new updated record which connect all upcoming and this event
       if (eventRepetition.eventDetailId === event.eventDetailId) {
         Object.assign(existingEventDetails, updateBody);
+        // Explicitly handle minAttendanceDurationMinutes if provided
+        if (updateBody.minAttendanceDurationMinutes !== undefined) {
+          existingEventDetails.minAttendanceDurationMinutes =
+            updateBody.minAttendanceDurationMinutes;
+        }
         existingEventDetails.eventDetailId = undefined;
         const saveNewEntry =
           await this.eventDetailRepository.save(existingEventDetails);
+
+        // Explicitly update minAttendanceDurationMinutes using direct update to ensure it's saved
+        if (
+          updateBody.minAttendanceDurationMinutes !== undefined &&
+          updateBody.minAttendanceDurationMinutes !== null
+        ) {
+          await this.eventDetailRepository.update(
+            { eventDetailId: saveNewEntry.eventDetailId },
+            {
+              minAttendanceDurationMinutes:
+                updateBody.minAttendanceDurationMinutes,
+            },
+          );
+        }
 
         // update eventDetail id in all places which are greater than and equal to curreitn repetation startDate in repetation table
         if (recurrenceRecords.length > 0) {
@@ -1132,20 +1179,44 @@ export class EventService {
 
         // onlineDetails updates are now handled in EventRepetition, not EventDetail
         if (numberOfEntryInEventRepetitionTable.length === 1) {
-          Object.assign(repetationeventDetailexistingResult, updateBody, {
-            eventRepetitionId: eventRepetition.eventRepetitionId,
-          });
+          // Copy all fields from updateBody (excluding eventRepetitionId which is not a property of EventDetail)
+          const { eventRepetitionId: _, ...updateFields } = updateBody;
+          Object.assign(repetationeventDetailexistingResult, updateFields);
+          // Explicitly handle minAttendanceDurationMinutes if provided
+          if (updateBody.minAttendanceDurationMinutes !== undefined) {
+            repetationeventDetailexistingResult.minAttendanceDurationMinutes =
+              updateBody.minAttendanceDurationMinutes;
+          }
 
           const result = await this.eventDetailRepository.save(
             repetationeventDetailexistingResult,
           );
+
+          // Explicitly update minAttendanceDurationMinutes using direct update to ensure it's saved
+          if (
+            updateBody.minAttendanceDurationMinutes !== undefined &&
+            updateBody.minAttendanceDurationMinutes !== null
+          ) {
+            await this.eventDetailRepository.update(
+              { eventDetailId: result.eventDetailId },
+              {
+                minAttendanceDurationMinutes:
+                  updateBody.minAttendanceDurationMinutes,
+              },
+            );
+          }
           neweventDetailsId = result.eventDetailId;
           updateResult['eventDetails'] = result;
         } else {
           // if greater than then create new entry in eventDetail Table
-          Object.assign(repetationeventDetailexistingResult, updateBody, {
-            eventRepetitionId: eventRepetition.eventRepetitionId,
-          });
+          // Copy all fields from updateBody (excluding eventRepetitionId which is not a property of EventDetail)
+          const { eventRepetitionId: _, ...updateFields } = updateBody;
+          Object.assign(repetationeventDetailexistingResult, updateFields);
+          // Explicitly handle minAttendanceDurationMinutes if provided
+          if (updateBody.minAttendanceDurationMinutes !== undefined) {
+            repetationeventDetailexistingResult.minAttendanceDurationMinutes =
+              updateBody.minAttendanceDurationMinutes;
+          }
           repetationeventDetailexistingResult.eventDetailId = undefined;
           const result = await this.eventDetailRepository.save(
             repetationeventDetailexistingResult,
@@ -1157,6 +1228,47 @@ export class EventService {
     }
 
     return updateResult;
+  }
+
+  /**
+   * Helper method to update event details with minAttendanceDurationMinutes handling
+   * This reduces code duplication across different update paths
+   */
+  private async updateEventDetailWithMinAttendance(
+    existingEventDetails: EventDetail,
+    updateBody: any,
+    shouldClearEventDetailId: boolean = false,
+  ): Promise<EventDetail> {
+    // Copy all fields from updateBody (excluding eventRepetitionId which is not a property of EventDetail)
+    const { eventRepetitionId: _, ...updateFields } = updateBody;
+    Object.assign(existingEventDetails, updateFields);
+
+    // Explicitly handle minAttendanceDurationMinutes if provided
+    if (updateBody.minAttendanceDurationMinutes !== undefined) {
+      existingEventDetails.minAttendanceDurationMinutes =
+        updateBody.minAttendanceDurationMinutes;
+    }
+
+    if (shouldClearEventDetailId) {
+      existingEventDetails.eventDetailId = undefined;
+    }
+
+    const result = await this.eventDetailRepository.save(existingEventDetails);
+
+    // Explicitly update minAttendanceDurationMinutes using direct update to ensure it's saved
+    if (
+      updateBody.minAttendanceDurationMinutes !== undefined &&
+      updateBody.minAttendanceDurationMinutes !== null
+    ) {
+      await this.eventDetailRepository.update(
+        { eventDetailId: result.eventDetailId },
+        {
+          minAttendanceDurationMinutes: updateBody.minAttendanceDurationMinutes,
+        },
+      );
+    }
+
+    return result;
   }
 
   async handleSpecificRecurrenceUpdate(updateBody, event, eventRepetition) {
@@ -1183,7 +1295,8 @@ export class EventService {
       updateBody.onlineDetails ||
       updateBody.metadata ||
       updateBody.recordings ||
-      updateBody.description
+      updateBody.description ||
+      updateBody.minAttendanceDurationMinutes !== undefined
     ) {
       if (updateBody.onlineDetails) {
         Object.assign(
@@ -1194,13 +1307,12 @@ export class EventService {
 
       if (event.eventDetailId === existingEventDetails.eventDetailId) {
         // as we are updating event from set of events we will make its details separate
-        Object.assign(existingEventDetails, updateBody, {
-          eventRepetitionId: eventRepetition.eventRepetitionId,
-        });
-        existingEventDetails.eventDetailId = undefined;
+        const result = await this.updateEventDetailWithMinAttendance(
+          existingEventDetails,
+          updateBody,
+          true, // shouldClearEventDetailId = true
+        );
 
-        const result =
-          await this.eventDetailRepository.save(existingEventDetails);
         // result contains separated event details which are new and then assign it to the repetition event
         eventRepetition.eventDetailId = result.eventDetailId;
         eventRepetition.updatedAt = new Date();
@@ -1214,20 +1326,21 @@ export class EventService {
           );
 
         if (numberOfEntryInEventRepetitionTable.length === 1) {
-          Object.assign(existingEventDetails, updateBody, {
-            eventRepetitionId: eventRepetition.eventRepetitionId,
-          });
-          const result =
-            await this.eventDetailRepository.save(existingEventDetails);
+          const result = await this.updateEventDetailWithMinAttendance(
+            existingEventDetails,
+            updateBody,
+            false, // shouldClearEventDetailId = false
+          );
+
           updateResult.eventDetails = result;
         } else {
           // if greater than then create new entry in eventDetail Table
-          Object.assign(existingEventDetails, updateBody, {
-            eventRepetitionId: eventRepetition.eventRepetitionId,
-          });
-          existingEventDetails.eventDetailId = undefined;
-          const result =
-            await this.eventDetailRepository.save(existingEventDetails);
+          const result = await this.updateEventDetailWithMinAttendance(
+            existingEventDetails,
+            updateBody,
+            true, // shouldClearEventDetailId = true
+          );
+
           eventRepetition.eventDetailId = result.eventDetailId;
           eventRepetition.updatedAt = new Date();
           await this.eventRepetitionRepository.save(eventRepetition);
@@ -1310,17 +1423,32 @@ export class EventService {
     eventDetail.idealTime = createEventDto?.idealTime
       ? createEventDto.idealTime
       : null;
+    // Set minAttendanceDurationMinutes: use provided value, or null if not provided
     eventDetail.minAttendanceDurationMinutes =
-      createEventDto?.minAttendanceDurationMinutes !== undefined
-        ? createEventDto.minAttendanceDurationMinutes
-        : 10; // Default to 30 minutes
+      createEventDto?.minAttendanceDurationMinutes ?? null;
     eventDetail.metadata = createEventDto?.metaData ?? {};
     eventDetail.createdBy = createEventDto.createdBy;
     eventDetail.updatedBy = createEventDto.updatedBy;
     eventDetail.createdAt = new Date();
     eventDetail.updatedAt = new Date();
 
-    return this.eventDetailRepository.save(eventDetail);
+    const savedEventDetail = await this.eventDetailRepository.save(eventDetail);
+
+    // Ensure minAttendanceDurationMinutes is saved correctly (use direct update as fallback)
+    const valueToSave = createEventDto?.minAttendanceDurationMinutes ?? null;
+
+    // Always use direct update to ensure the value is persisted correctly
+    await this.eventDetailRepository.update(
+      { eventDetailId: savedEventDetail.eventDetailId },
+      { minAttendanceDurationMinutes: valueToSave },
+    );
+
+    // Reload to get the updated value
+    const reloadedEventDetail = await this.eventDetailRepository.findOne({
+      where: { eventDetailId: savedEventDetail.eventDetailId },
+    });
+
+    return reloadedEventDetail || savedEventDetail;
   }
 
   async createEventDB(
@@ -1358,10 +1486,7 @@ export class EventService {
       : null;
     event.createdBy = createEventDto.createdBy;
     event.updatedBy = createEventDto.updatedBy;
-    event.platformIntegration =
-      createEventDto.platformIntegration !== undefined
-        ? createEventDto.platformIntegration
-        : true; // Default to true for new events
+    event.platformIntegration = createEventDto.platformIntegration ?? true; // Default to true for new events
     event.eventDetail = eventDetail;
 
     return this.eventRepository.save(event);
@@ -2088,10 +2213,7 @@ export class EventService {
       }
 
       // Determine if this is a main event update (affects all recurring events)
-      const isMainEventUpdate =
-        updateEventByIdDto.isMainEvent !== undefined
-          ? updateEventByIdDto.isMainEvent
-          : true;
+      const isMainEventUpdate = updateEventByIdDto.isMainEvent ?? true;
 
       // console.log('event.eventType', event); // Removed for production
       if (eventDetail.eventType === EventTypes.offline) {
@@ -2176,11 +2298,50 @@ export class EventService {
         );
       }
 
-      // return events along with event details
+      // Get the correct eventDetailId - it might have changed if a new eventDetail was created
+      // Priority: 1) result.updatedEventDetails, 2) reload event to get current eventDetailId
+      let targetEventDetailId = eventDetail.eventDetailId;
+      if (result?.updatedEventDetails?.eventDetailId) {
+        targetEventDetailId = result.updatedEventDetails.eventDetailId;
+      } else {
+        // Reload event to get the current eventDetailId (in case it changed)
+        const currentEvent = await this.eventRepository.findOne({
+          where: { eventId: eventId },
+          relations: ['eventDetail'],
+        });
+        if (currentEvent?.eventDetail?.eventDetailId) {
+          targetEventDetailId = currentEvent.eventDetail.eventDetailId;
+        }
+      }
+
+      // Ensure minAttendanceDurationMinutes is saved (always update, even if null)
+      // This is a final safeguard to ensure the value is persisted
+      // Use the correct eventDetailId (which might be a new one if created during update)
+      if (updateEventByIdDto.minAttendanceDurationMinutes !== undefined) {
+        await this.eventDetailRepository.update(
+          { eventDetailId: targetEventDetailId },
+          {
+            minAttendanceDurationMinutes:
+              updateEventByIdDto.minAttendanceDurationMinutes,
+          },
+        );
+      }
+
+      // return events along with event details (reload to get updated values)
+      // IMPORTANT: Reload eventDetail FIRST to ensure we get the latest minAttendanceDurationMinutes
+      const reloadedEventDetail = await this.eventDetailRepository.findOne({
+        where: { eventDetailId: targetEventDetailId },
+      });
+
       const eventResult = await this.eventRepository.findOne({
         where: { eventId: eventId },
         relations: ['eventDetail', 'eventRepetitions'],
       });
+
+      // Replace the eventDetail in the result with the reloaded one to ensure correct values
+      if (eventResult?.eventDetail && reloadedEventDetail) {
+        eventResult.eventDetail = reloadedEventDetail;
+      }
 
       LoggerWinston.log(
         `${SUCCESS_MESSAGES.EVENT_UPDATED_LOG} - Event ID: ${eventId}`,
@@ -2208,7 +2369,7 @@ export class EventService {
   private convertUpdateEventByIdDtoToUpdateEventDto(
     updateEventByIdDto: UpdateEventByIdDto,
   ): UpdateEventDto {
-    return {
+    const updateEventDto: UpdateEventDto = {
       title: updateEventByIdDto.title,
       startDatetime: updateEventByIdDto.startDatetime,
       endDatetime: updateEventByIdDto.endDatetime,
@@ -2229,12 +2390,17 @@ export class EventService {
       description: updateEventByIdDto.description,
       updateAt: new Date(),
       isRecurring: updateEventByIdDto.isRecurring,
-      isMainEvent:
-        updateEventByIdDto.isMainEvent !== undefined
-          ? updateEventByIdDto.isMainEvent
-          : true, // Default to true for comprehensive updates
+      isMainEvent: updateEventByIdDto.isMainEvent ?? true, // Default to true for comprehensive updates
       status: updateEventByIdDto.status,
-    } as UpdateEventDto;
+    };
+
+    // Explicitly add minAttendanceDurationMinutes if provided
+    if (updateEventByIdDto.minAttendanceDurationMinutes !== undefined) {
+      updateEventDto.minAttendanceDurationMinutes =
+        updateEventByIdDto.minAttendanceDurationMinutes;
+    }
+
+    return updateEventDto;
   }
 
   /**
@@ -2250,69 +2416,40 @@ export class EventService {
         updateEventByIdDto.shortDescription || eventDetail.shortDescription,
       description: updateEventByIdDto.description || eventDetail.description,
       eventType: updateEventByIdDto.eventType || eventDetail.eventType,
-      isRestricted:
-        updateEventByIdDto.isRestricted !== undefined
-          ? updateEventByIdDto.isRestricted
-          : eventDetail.isRestricted,
-      autoEnroll:
-        updateEventByIdDto.autoEnroll !== undefined
-          ? updateEventByIdDto.autoEnroll
-          : eventDetail.autoEnroll,
+      isRestricted: updateEventByIdDto.isRestricted ?? eventDetail.isRestricted,
+      autoEnroll: updateEventByIdDto.autoEnroll ?? eventDetail.autoEnroll,
       startDatetime:
         updateEventByIdDto.startDatetime || eventDetail.startDatetime,
       endDatetime: updateEventByIdDto.endDatetime || eventDetail.endDatetime,
       location: updateEventByIdDto.location || eventDetail.location,
-      longitude:
-        updateEventByIdDto.longitude !== undefined
-          ? updateEventByIdDto.longitude
-          : eventDetail.longitude,
-      latitude:
-        updateEventByIdDto.latitude !== undefined
-          ? updateEventByIdDto.latitude
-          : eventDetail.latitude,
+      longitude: updateEventByIdDto.longitude ?? eventDetail.longitude,
+      latitude: updateEventByIdDto.latitude ?? eventDetail.latitude,
       onlineProvider:
         updateEventByIdDto.onlineProvider || eventDetail.onlineProvider,
       meetingType: updateEventByIdDto.meetingType || eventDetail.meetingType,
-      approvalType:
-        updateEventByIdDto.approvalType !== undefined
-          ? updateEventByIdDto.approvalType
-          : eventDetail.approvalType,
+      approvalType: updateEventByIdDto.approvalType ?? eventDetail.approvalType,
       timezone: updateEventByIdDto.timezone || eventDetail.timezone,
       platformIntegration:
-        updateEventByIdDto.platformIntegration !== undefined
-          ? updateEventByIdDto.platformIntegration
-          : eventDetail.platformIntegration,
-      isMeetingNew:
-        updateEventByIdDto.isMeetingNew !== undefined
-          ? updateEventByIdDto.isMeetingNew
-          : eventDetail.isMeetingNew,
+        updateEventByIdDto.platformIntegration ??
+        eventDetail.platformIntegration,
+      isMeetingNew: updateEventByIdDto.isMeetingNew ?? eventDetail.isMeetingNew,
       meetingDetails:
         updateEventByIdDto.meetingDetails || eventDetail.meetingDetails,
-      maxAttendees:
-        updateEventByIdDto.maxAttendees !== undefined
-          ? updateEventByIdDto.maxAttendees
-          : eventDetail.maxAttendees,
+      maxAttendees: updateEventByIdDto.maxAttendees ?? eventDetail.maxAttendees,
       attendees: updateEventByIdDto.attendees || eventDetail.attendees,
       recordings: updateEventByIdDto.recordings || eventDetail.recordings,
       status: updateEventByIdDto.status || eventDetail.status,
-      idealTime:
-        updateEventByIdDto.idealTime !== undefined
-          ? updateEventByIdDto.idealTime
-          : eventDetail.idealTime,
+      idealTime: updateEventByIdDto.idealTime ?? eventDetail.idealTime,
       minAttendanceDurationMinutes:
-        updateEventByIdDto.minAttendanceDurationMinutes !== undefined
-          ? updateEventByIdDto.minAttendanceDurationMinutes
-          : eventDetail.minAttendanceDurationMinutes,
+        updateEventByIdDto.minAttendanceDurationMinutes ??
+        eventDetail.minAttendanceDurationMinutes,
       registrationStartDate:
         updateEventByIdDto.registrationStartDate ||
         eventDetail.registrationStartDate,
       registrationEndDate:
         updateEventByIdDto.registrationEndDate ||
         eventDetail.registrationEndDate,
-      isRecurring:
-        updateEventByIdDto.isRecurring !== undefined
-          ? updateEventByIdDto.isRecurring
-          : eventDetail.isRecurring,
+      isRecurring: updateEventByIdDto.isRecurring ?? eventDetail.isRecurring,
       recurrencePattern:
         updateEventByIdDto.recurrencePattern || eventDetail.recurrencePattern,
       metaData: updateEventByIdDto.metaData || eventDetail.metaData,

@@ -432,12 +432,12 @@ export class CreateEventDto {
   @ApiProperty({
     type: Number,
     description: 'Minimum attendance duration in minutes to mark as attended',
-    example: 30,
-    default: 30,
+    example: 10,
+    default: 0,
   })
-  @IsOptional()
   @IsInt()
   @Min(0)
+  @IsOptional()
   minAttendanceDurationMinutes?: number;
 
   @ApiProperty({

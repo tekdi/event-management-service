@@ -251,6 +251,15 @@ export class UpdateEventDto {
   @IsOptional()
   recordings?: any;
 
+  @ApiProperty({
+    type: Number,
+    description: 'Minimum attendance duration in minutes to mark as attended',
+    example: 10,
+    default: 0,
+  })
+  @IsOptional()
+  minAttendanceDurationMinutes?: number;
+
   updatedBy: string;
 
   @IsOptional()
