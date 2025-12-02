@@ -27,7 +27,6 @@ import {
 } from 'src/common/utils/types';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
 import { EventAttendees } from '../attendees/entity/attendees.entity';
-import { EventDetail } from '../event/entities/eventDetail.entity';
 import { In, Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LoggerWinston } from 'src/common/logger/logger.util';
@@ -391,7 +390,7 @@ export class AttendanceService implements OnModuleInit {
           );
         } catch (error) {
           // Handle 404 errors - mark event as processed to skip in future
-          if (error.message && error.message.includes('404')) {
+          if (error.message?.includes('404')) {
             this.logger.warn(
               `Zoom meeting not found (404) for event ${eventInfo.eventRepetitionId}, marking as processed to skip`,
             );
@@ -667,7 +666,7 @@ export class AttendanceService implements OnModuleInit {
             error,
           );
           // Check if it's a 404 error
-          if (error.message && error.message.includes('404')) {
+          if (error.message?.includes('404')) {
             throw new Error(
               `Zoom meeting not found (404) for event ${eventInfo.eventRepetitionId}. The meeting may have been deleted.`,
             );
@@ -875,7 +874,7 @@ export class AttendanceService implements OnModuleInit {
       if (!participantsByRegistrantId.has(registrantId)) {
         participantsByRegistrantId.set(registrantId, []);
       }
-      participantsByRegistrantId.get(registrantId)!.push(participant);
+      participantsByRegistrantId.get(registrantId)?.push(participant);
     }
 
     const uniqueRegistrantIds = Array.from(participantsByRegistrantId.keys());
@@ -886,7 +885,7 @@ export class AttendanceService implements OnModuleInit {
       relations: ['eventDetail'],
     });
 
-    if (!eventRepetition || !eventRepetition.eventDetail) {
+    if (!eventRepetition?.eventDetail) {
       this.logger.error(
         `EventDetail not found for eventRepetitionId: ${eventInfo.eventRepetitionId}`,
       );
@@ -900,8 +899,14 @@ export class AttendanceService implements OnModuleInit {
 
     // If minAttendanceDurationMinutes is NULL, undefined, or 0, skip processing
     if (dbValue === null || dbValue === undefined || dbValue === 0) {
+      const dbValueDescription =
+        dbValue === null
+          ? 'NULL'
+          : dbValue === undefined
+            ? 'undefined'
+            : '0';
       this.logger.warn(
-        `⚠️ Skipping attendance processing for event ${eventInfo.eventRepetitionId}: minAttendanceDurationMinutes is ${dbValue === null ? 'NULL' : dbValue === undefined ? 'undefined' : '0'}. Please set minAttendanceDurationMinutes in EventDetails table before processing attendance.`,
+        `⚠️ Skipping attendance processing for event ${eventInfo.eventRepetitionId}: minAttendanceDurationMinutes is ${dbValueDescription}. Please set minAttendanceDurationMinutes in EventDetails table before processing attendance.`,
       );
       throw new BadRequestException(
         `Cannot process attendance for event ${eventInfo.eventRepetitionId}: minAttendanceDurationMinutes is not configured. Please set minAttendanceDurationMinutes in EventDetails table (must be > 0).`,
@@ -921,9 +926,6 @@ export class AttendanceService implements OnModuleInit {
       existingAttendees.map((att) => [att.registrantId, att]),
     );
 
-    const matchingRegistrantIds = uniqueRegistrantIds.filter((id) =>
-      attendeeMap.has(id),
-    );
     const missingRegistrantIds = uniqueRegistrantIds.filter(
       (id) => !attendeeMap.has(id),
     );
