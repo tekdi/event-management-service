@@ -1426,9 +1426,7 @@ export class EventService {
       : null;
     // Set minAttendanceDurationMinutes: use provided value, or null if not provided
     eventDetail.minAttendanceDurationMinutes =
-      createEventDto?.minAttendanceDurationMinutes !== undefined
-        ? createEventDto.minAttendanceDurationMinutes
-        : null;
+      createEventDto?.minAttendanceDurationMinutes ?? null;
     eventDetail.metadata = createEventDto?.metaData ?? {};
     eventDetail.createdBy = createEventDto.createdBy;
     eventDetail.updatedBy = createEventDto.updatedBy;
@@ -1439,9 +1437,7 @@ export class EventService {
 
     // Ensure minAttendanceDurationMinutes is saved correctly (use direct update as fallback)
     const valueToSave =
-      createEventDto?.minAttendanceDurationMinutes !== undefined
-        ? createEventDto.minAttendanceDurationMinutes
-        : null;
+      createEventDto?.minAttendanceDurationMinutes ?? null;
 
     // Always use direct update to ensure the value is persisted correctly
     await this.eventDetailRepository.update(
@@ -1493,9 +1489,7 @@ export class EventService {
     event.createdBy = createEventDto.createdBy;
     event.updatedBy = createEventDto.updatedBy;
     event.platformIntegration =
-      createEventDto.platformIntegration !== undefined
-        ? createEventDto.platformIntegration
-        : true; // Default to true for new events
+      createEventDto.platformIntegration ?? true; // Default to true for new events
     event.eventDetail = eventDetail;
 
     return this.eventRepository.save(event);
@@ -2460,30 +2454,21 @@ export class EventService {
           : eventDetail.approvalType,
       timezone: updateEventByIdDto.timezone || eventDetail.timezone,
       platformIntegration:
-        updateEventByIdDto.platformIntegration !== undefined
-          ? updateEventByIdDto.platformIntegration
-          : eventDetail.platformIntegration,
+        updateEventByIdDto.platformIntegration ??
+          eventDetail.platformIntegration,
       isMeetingNew:
-        updateEventByIdDto.isMeetingNew !== undefined
-          ? updateEventByIdDto.isMeetingNew
-          : eventDetail.isMeetingNew,
+        updateEventByIdDto.isMeetingNew ?? eventDetail.isMeetingNew,
       meetingDetails:
         updateEventByIdDto.meetingDetails || eventDetail.meetingDetails,
       maxAttendees:
-        updateEventByIdDto.maxAttendees !== undefined
-          ? updateEventByIdDto.maxAttendees
-          : eventDetail.maxAttendees,
+        updateEventByIdDto.maxAttendees ?? eventDetail.maxAttendees,
       attendees: updateEventByIdDto.attendees || eventDetail.attendees,
       recordings: updateEventByIdDto.recordings || eventDetail.recordings,
       status: updateEventByIdDto.status || eventDetail.status,
-      idealTime:
-        updateEventByIdDto.idealTime !== undefined
-          ? updateEventByIdDto.idealTime
-          : eventDetail.idealTime,
+      idealTime: updateEventByIdDto.idealTime ?? eventDetail.idealTime,
       minAttendanceDurationMinutes:
-        updateEventByIdDto.minAttendanceDurationMinutes !== undefined
-          ? updateEventByIdDto.minAttendanceDurationMinutes
-          : eventDetail.minAttendanceDurationMinutes,
+        updateEventByIdDto.minAttendanceDurationMinutes ??
+          eventDetail.minAttendanceDurationMinutes,
       registrationStartDate:
         updateEventByIdDto.registrationStartDate ||
         eventDetail.registrationStartDate,
