@@ -1242,19 +1242,19 @@ export class EventService {
     // Copy all fields from updateBody (excluding eventRepetitionId which is not a property of EventDetail)
     const { eventRepetitionId: _, ...updateFields } = updateBody;
     Object.assign(existingEventDetails, updateFields);
-    
+
     // Explicitly handle minAttendanceDurationMinutes if provided
     if (updateBody.minAttendanceDurationMinutes !== undefined) {
       existingEventDetails.minAttendanceDurationMinutes =
         updateBody.minAttendanceDurationMinutes;
     }
-    
+
     if (shouldClearEventDetailId) {
       existingEventDetails.eventDetailId = undefined;
     }
-    
+
     const result = await this.eventDetailRepository.save(existingEventDetails);
-    
+
     // Explicitly update minAttendanceDurationMinutes using direct update to ensure it's saved
     if (
       updateBody.minAttendanceDurationMinutes !== undefined &&
@@ -1263,12 +1263,11 @@ export class EventService {
       await this.eventDetailRepository.update(
         { eventDetailId: result.eventDetailId },
         {
-          minAttendanceDurationMinutes:
-            updateBody.minAttendanceDurationMinutes,
+          minAttendanceDurationMinutes: updateBody.minAttendanceDurationMinutes,
         },
       );
     }
-    
+
     return result;
   }
 
@@ -1436,8 +1435,7 @@ export class EventService {
     const savedEventDetail = await this.eventDetailRepository.save(eventDetail);
 
     // Ensure minAttendanceDurationMinutes is saved correctly (use direct update as fallback)
-    const valueToSave =
-      createEventDto?.minAttendanceDurationMinutes ?? null;
+    const valueToSave = createEventDto?.minAttendanceDurationMinutes ?? null;
 
     // Always use direct update to ensure the value is persisted correctly
     await this.eventDetailRepository.update(
@@ -1488,8 +1486,7 @@ export class EventService {
       : null;
     event.createdBy = createEventDto.createdBy;
     event.updatedBy = createEventDto.updatedBy;
-    event.platformIntegration =
-      createEventDto.platformIntegration ?? true; // Default to true for new events
+    event.platformIntegration = createEventDto.platformIntegration ?? true; // Default to true for new events
     event.eventDetail = eventDetail;
 
     return this.eventRepository.save(event);
@@ -2419,8 +2416,7 @@ export class EventService {
         updateEventByIdDto.shortDescription || eventDetail.shortDescription,
       description: updateEventByIdDto.description || eventDetail.description,
       eventType: updateEventByIdDto.eventType || eventDetail.eventType,
-      isRestricted:
-        updateEventByIdDto.isRestricted ?? eventDetail.isRestricted,
+      isRestricted: updateEventByIdDto.isRestricted ?? eventDetail.isRestricted,
       autoEnroll: updateEventByIdDto.autoEnroll ?? eventDetail.autoEnroll,
       startDatetime:
         updateEventByIdDto.startDatetime || eventDetail.startDatetime,
@@ -2435,20 +2431,18 @@ export class EventService {
       timezone: updateEventByIdDto.timezone || eventDetail.timezone,
       platformIntegration:
         updateEventByIdDto.platformIntegration ??
-          eventDetail.platformIntegration,
-      isMeetingNew:
-        updateEventByIdDto.isMeetingNew ?? eventDetail.isMeetingNew,
+        eventDetail.platformIntegration,
+      isMeetingNew: updateEventByIdDto.isMeetingNew ?? eventDetail.isMeetingNew,
       meetingDetails:
         updateEventByIdDto.meetingDetails || eventDetail.meetingDetails,
-      maxAttendees:
-        updateEventByIdDto.maxAttendees ?? eventDetail.maxAttendees,
+      maxAttendees: updateEventByIdDto.maxAttendees ?? eventDetail.maxAttendees,
       attendees: updateEventByIdDto.attendees || eventDetail.attendees,
       recordings: updateEventByIdDto.recordings || eventDetail.recordings,
       status: updateEventByIdDto.status || eventDetail.status,
       idealTime: updateEventByIdDto.idealTime ?? eventDetail.idealTime,
       minAttendanceDurationMinutes:
         updateEventByIdDto.minAttendanceDurationMinutes ??
-          eventDetail.minAttendanceDurationMinutes,
+        eventDetail.minAttendanceDurationMinutes,
       registrationStartDate:
         updateEventByIdDto.registrationStartDate ||
         eventDetail.registrationStartDate,
