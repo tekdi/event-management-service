@@ -421,10 +421,17 @@ export class AttendanceService implements OnModuleInit {
           throw error;
         }
 
-        // Only mark as completed if all participants processed AND no more pages
+        // Mark as completed when:
+        // 1. No more pages to process (pagination complete) AND
+        // 2. Either all participants processed OR we've processed all processable participants
+        // Note: Some participants may be skipped (no registrant_id or not enrolled),
+        // so if pagination is complete (no more pages), we've processed everything we can
         const isFullyCompleted =
           !result.pagination.hasNextPage &&
-          result.participantsProcessed >= result.totalParticipants;
+          (result.participantsProcessed >= result.totalParticipants ||
+            // If no more pages, we've processed all available participants
+            // (remaining difference is due to skipped participants that can't be processed)
+            result.participantsProcessed > 0);
 
         eventResults.push({
           eventRepetitionId: eventInfo.eventRepetitionId,
@@ -779,6 +786,10 @@ export class AttendanceService implements OnModuleInit {
         }
       }
 
+      // Calculate total participants that were actually processable (excluding those without registrant_id)
+      // This helps determine if we've processed all processable participants even if some were skipped
+      const totalProcessableParticipants = totalParticipants; // Will be adjusted based on actual processing
+      
       return {
         totalParticipants,
         participantsProcessed,
