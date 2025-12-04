@@ -1789,101 +1789,78 @@ export class AttendanceService implements OnModuleInit {
       );
 
       // Step 3: Update EventAttendees table to mark users as attended
+      // IMPORTANT: Only update records that match eventId + eventRepetitionId + userId exactly
+      // Do NOT create new entries if no match is found
       this.logger.log(
-        `[${apiId}] Step 3: Updating EventAttendees table to mark users as attended...`,
+        `[${apiId}] Step 3: Updating EventAttendees table (only updating existing records matching eventId + eventRepetitionId + userId)...`,
       );
 
-      // Try to find existing attendees by eventRepetitionId and userId
+      // Find existing attendees that match ALL THREE: eventId + eventRepetitionId + userId
       const existingAttendees = await this.eventAttendeesRepository.find({
         where: {
+          eventId: markAttendanceByUsernameDto.eventId,
           eventRepetitionId: markAttendanceByUsernameDto.eventRepetitionId,
           userId: In(markAttendanceByUsernameDto.userIds),
         },
       });
 
       this.logger.log(
-        `[${apiId}] Found ${existingAttendees.length} existing attendee records for ${markAttendanceByUsernameDto.userIds.length} userIds`,
+        `[${apiId}] Found ${existingAttendees.length} existing attendee records matching eventId + eventRepetitionId + userId for ${markAttendanceByUsernameDto.userIds.length} userIds`,
       );
 
-      // If not found, try to find by eventId and userId (in case eventRepetitionId is different)
-      let allExistingAttendees = existingAttendees;
-      if (existingAttendees.length === 0) {
-        this.logger.log(
-          `[${apiId}] No attendees found by eventRepetitionId, trying to find by eventId...`,
-        );
-        const attendeesByEventId = await this.eventAttendeesRepository.find({
-          where: {
-            eventId: markAttendanceByUsernameDto.eventId,
-            userId: In(markAttendanceByUsernameDto.userIds),
-          },
-        });
-        this.logger.log(
-          `[${apiId}] Found ${attendeesByEventId.length} attendee records by eventId`,
-        );
-        allExistingAttendees = attendeesByEventId;
-      }
-
       const attendeesToUpdate: EventAttendees[] = [];
-      const attendeesToCreate: EventAttendees[] = [];
       let updatedAttendeeRecords = 0;
-      let createdAttendeeRecords = 0;
+      let skippedRecords = 0;
 
       for (const userId of markAttendanceByUsernameDto.userIds) {
-        let eventAttendee = allExistingAttendees.find(
-          (att) => att.userId === userId,
+        // Find existing record that matches ALL THREE criteria: eventId + eventRepetitionId + userId
+        const eventAttendee = existingAttendees.find(
+          (att) => 
+            att.userId === userId &&
+            att.eventId === markAttendanceByUsernameDto.eventId &&
+            att.eventRepetitionId === markAttendanceByUsernameDto.eventRepetitionId,
         );
 
         if (eventAttendee) {
-          // Update existing record
+          // Update existing record that matches all three criteria
           this.logger.log(
-            `[${apiId}] Updating existing EventAttendee record for userId: ${userId}`,
+            `[${apiId}] Updating existing EventAttendee record for userId: ${userId}, eventAttendeesId: ${eventAttendee.eventAttendeesId}`,
           );
           eventAttendee.isAttended = true;
           eventAttendee.duration = timeSpent;
-          eventAttendee.eventRepetitionId =
-            markAttendanceByUsernameDto.eventRepetitionId; // Ensure eventRepetitionId is set
-          eventAttendee.eventId = markAttendanceByUsernameDto.eventId; // Ensure eventId is set
-          eventAttendee.joinedLeftHistory = {
+          
+          // Handle joinedLeftHistory - convert to array format if needed
+          let existingHistory = eventAttendee.joinedLeftHistory;
+          if (!Array.isArray(existingHistory)) {
+            // Convert old object format to array
+            existingHistory = existingHistory ? [existingHistory] : [];
+          }
+          
+          // Add new session to history
+          const newSession = {
             joinTime: now,
             leaveTime: now,
             duration: timeSpent,
             status: 'attended',
             lastUpdated: now,
           };
+          existingHistory.push(newSession);
+          eventAttendee.joinedLeftHistory = existingHistory;
+          
           eventAttendee.updatedAt = new Date();
           eventAttendee.updatedBy = loggedInUserId;
           attendeesToUpdate.push(eventAttendee);
           updatedAttendeeRecords++;
         } else {
-          // Create new record if it doesn't exist
+          // Skip if no exact match found - do NOT create new entry
           this.logger.log(
-            `[${apiId}] Creating new EventAttendee record for userId: ${userId}`,
+            `[${apiId}] Skipping userId: ${userId} - No existing record found matching eventId (${markAttendanceByUsernameDto.eventId}) + eventRepetitionId (${markAttendanceByUsernameDto.eventRepetitionId}) + userId (${userId})`,
           );
-          const newEventAttendee = new EventAttendees();
-          newEventAttendee.userId = userId;
-          newEventAttendee.eventId = markAttendanceByUsernameDto.eventId;
-          newEventAttendee.eventRepetitionId =
-            markAttendanceByUsernameDto.eventRepetitionId;
-          newEventAttendee.isAttended = true;
-          newEventAttendee.duration = timeSpent;
-          newEventAttendee.joinedLeftHistory = {
-            joinTime: now,
-            leaveTime: now,
-            duration: timeSpent,
-            status: 'attended',
-            lastUpdated: now,
-          };
-          newEventAttendee.enrolledAt = new Date();
-          newEventAttendee.enrolledBy = loggedInUserId;
-          newEventAttendee.updatedAt = new Date();
-          newEventAttendee.updatedBy = loggedInUserId;
-          newEventAttendee.status = AttendeesStatus.active;
-          attendeesToCreate.push(newEventAttendee);
-          createdAttendeeRecords++;
+          skippedRecords++;
         }
       }
 
-      // Save updates and creates
+      // Save updates only (no new entries created)
       if (attendeesToUpdate.length > 0) {
         await this.eventAttendeesRepository.save(attendeesToUpdate);
         this.logger.log(
@@ -1891,18 +1868,14 @@ export class AttendanceService implements OnModuleInit {
         );
       }
 
-      if (attendeesToCreate.length > 0) {
-        await this.eventAttendeesRepository.save(attendeesToCreate);
-        this.logger.log(
-          `[${apiId}] Successfully created ${createdAttendeeRecords} new EventAttendee records in database`,
-        );
-      }
-
-      const totalAttendeesProcessed =
-        updatedAttendeeRecords + createdAttendeeRecords;
+      const totalAttendeesProcessed = updatedAttendeeRecords;
       if (totalAttendeesProcessed === 0) {
         this.logger.warn(
-          `[${apiId}] No EventAttendee records were updated or created.`,
+          `[${apiId}] No EventAttendee records were updated. ${skippedRecords} userIds were skipped (no matching records found).`,
+        );
+      } else if (skippedRecords > 0) {
+        this.logger.log(
+          `[${apiId}] Updated ${updatedAttendeeRecords} records, skipped ${skippedRecords} userIds (no matching records found).`,
         );
       }
 
@@ -1914,13 +1887,13 @@ export class AttendanceService implements OnModuleInit {
         `[${apiId}] Attendance marking in Attendance Service is bypassed for this API`,
       );
 
-      // Step 5: Mark lesson completion in LMS Service (only for users whose EventAttendees were updated/created)
+      // Step 5: Mark lesson completion in LMS Service (only for users whose EventAttendees were updated)
       // Same logic as markAttendance API - only call LMS for users who were successfully marked as attended
-      const processedUserIds = [...attendeesToUpdate, ...attendeesToCreate].map(
+      const processedUserIds = attendeesToUpdate.map(
         (att) => att.userId,
       );
       this.logger.log(
-        `[${apiId}] Step 5: Marking lesson completion in LMS Service for ${processedUserIds.length} users (only for users with EventAttendees updated/created)...`,
+        `[${apiId}] Step 5: Marking lesson completion in LMS Service for ${processedUserIds.length} users (only for users with EventAttendees updated)...`,
       );
 
       const lmsServiceCalls: Promise<any>[] = [];
@@ -1928,11 +1901,8 @@ export class AttendanceService implements OnModuleInit {
       let lmsSuccessCount = 0;
       let lmsFailureCount = 0;
 
-      // Only call LMS for users whose EventAttendees were successfully updated/created (same as markAttendance API)
-      for (const eventAttendee of [
-        ...attendeesToUpdate,
-        ...attendeesToCreate,
-      ]) {
+      // Only call LMS for users whose EventAttendees were successfully updated (no new entries created)
+      for (const eventAttendee of attendeesToUpdate) {
         if (!eventAttendee.isAttended) {
           this.logger.log(
             `[${apiId}] Skipping LMS call for userId: ${eventAttendee.userId} - not marked as attended`,
@@ -2008,18 +1978,17 @@ export class AttendanceService implements OnModuleInit {
         eventId: markAttendanceByUsernameDto.eventId,
         totalUsersProcessed: markAttendanceByUsernameDto.userIds.length,
         eventAttendeesUpdated: updatedAttendeeRecords,
-        eventAttendeesCreated: createdAttendeeRecords,
-        totalEventAttendeesProcessed:
-          updatedAttendeeRecords + createdAttendeeRecords,
+        eventAttendeesSkipped: skippedRecords,
+        totalEventAttendeesProcessed: updatedAttendeeRecords,
         attendanceMarked: 'bypassed', // Attendance Service call is bypassed
         lmsLessonCompletion: {
-          total: markAttendanceByUsernameDto.userIds.length,
+          total: updatedAttendeeRecords, // Only count successfully updated records
           success: lmsSuccessCount,
           failed: lmsFailureCount,
         },
         processingTimeMs,
         userIds: markAttendanceByUsernameDto.userIds,
-        note: 'EventAttendees table updated/created, Attendance Service call bypassed, LMS lesson completion marked',
+        note: 'EventAttendees table updated (only existing records matching eventId + eventRepetitionId + userId), Attendance Service call bypassed, LMS lesson completion marked',
       };
 
       this.logger.log(`[${apiId}] Attendance marking completed successfully`);
