@@ -1262,26 +1262,8 @@ export class AttendanceService implements OnModuleInit {
       };
     }
 
-    // Get initial total participants count for progress calculation
-    let totalParticipants = 0;
-    try {
-      const initialResponse = await this.onlineMeetingAdapter
-        .getAdapter()
-        .getMeetingParticipantList(
-          await this.onlineMeetingAdapter.getAdapter().getToken(),
-          [],
-          eventInfo.zoomId,
-          eventInfo.meetingType as MeetingType,
-          '',
-        );
-      totalParticipants = initialResponse.total_records || 0;
-    } catch (error) {
-      this.logger.warn(
-        `Could not get initial participant count for progress tracking: ${error.message}`,
-      );
-    }
-
     // Process the event with checkpoint support
+    // Note: totalParticipants will be obtained from the API response during processing
     let result: ProcessingResult;
     try {
       result = await this.processEventWithSimpleCheckpoint(

@@ -36,7 +36,12 @@ export class AttendanceProcessor extends WorkerHost implements OnModuleInit {
     job: Job<AttendanceJobData>,
   ): Promise<AttendanceJobResult> {
     const { eventRepetitionId, authToken, userId } = job.data;
-    const jobId = job.id!;
+    
+    if (!job.id) {
+      throw new Error('Job ID is missing');
+    }
+    
+    const jobId = job.id;
 
     this.logger.log(
       `Processing attendance job ${jobId} for event ${eventRepetitionId}`,

@@ -14,6 +14,7 @@ import {
   NotFoundException,
   InternalServerErrorException,
   HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import {
@@ -36,7 +37,6 @@ import { API_ID } from 'src/common/utils/constants.util';
 import { GetUserId } from 'src/common/decorators/userId.decorator';
 import APIResponse from 'src/common/utils/response';
 import { AttendanceJobStatus } from './entities/attendance-job.entity';
-import { Logger } from '@nestjs/common';
 
 @Controller('attendance/v1')
 @ApiTags('Event-Attendance')
@@ -111,8 +111,14 @@ export class EventAttendance {
           userId,
         });
 
-        await this.jobStatusService.createJob(job.id!, dto.eventRepetitionId);
-        jobIds = [job.id!];
+        if (!job.id) {
+          throw new InternalServerErrorException(
+            'Failed to create job: job ID is missing',
+          );
+        }
+
+        await this.jobStatusService.createJob(job.id, dto.eventRepetitionId);
+        jobIds = [job.id];
 
         this.logger.log(
           `Created attendance job ${job.id} for event ${dto.eventRepetitionId}`,
@@ -128,11 +134,18 @@ export class EventAttendance {
             authToken,
           });
 
+          if (!job.id) {
+            this.logger.error(
+              `Failed to create job for event ${event.eventRepetitionId}: job ID is missing`,
+            );
+            continue; // Skip this event and continue with others
+          }
+
           await this.jobStatusService.createJob(
-            job.id!,
+            job.id,
             event.eventRepetitionId,
           );
-          jobIds.push(job.id!);
+          jobIds.push(job.id);
         }
 
         this.logger.log(
@@ -263,7 +276,7 @@ export class EventAttendance {
    * Mark attendance by userId directly (without Zoom API)
    * This API is designed for Postman runner testing and manual attendance marking
    * It skips Zoom API calls and User Service lookup, directly processes userIds to mark attendance
-   * 
+   *
    * @param markAttendanceByUsernameDto - DTO containing userIds and event details
    * @param response - Response object
    * @param request - Request object
