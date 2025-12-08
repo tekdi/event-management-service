@@ -438,6 +438,7 @@ export class ZoomService implements IOnlineMeetingLocator {
     url: string = '',
     pageSize: number = 300,
   ): Promise<ZoomParticipantResponseDto> {
+    // Original Zoom API call
     const headers = {
       headers: {
         'Content-Type': 'application/json',
