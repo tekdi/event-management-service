@@ -69,7 +69,24 @@ export class MarkMeetingAttendanceDto {
   pageSize: number;
 }
 
+/**
+ * DTO for marking attendance via background job queue
+ * Supports both single event and bulk processing
+ */
 export class MarkAttendanceDto {
+  @ApiProperty({
+    type: String,
+    description:
+      'Event Repetition ID (optional - if not provided, processes all ended events)',
+    example: 'abc-123-def',
+    required: false,
+  })
+  @IsUUID()
+  @IsOptional()
+  eventRepetitionId?: string;
+}
+
+export class MarkAttendanceDtoOld {
   @ApiProperty({
     description: 'Event repetition ID to mark attendance for (optional - if not provided, will process all ended events)',
     example: 'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9',

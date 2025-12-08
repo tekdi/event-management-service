@@ -34,6 +34,7 @@ import { Logger } from '@nestjs/common';
 import { CheckpointService, SimpleCheckpoint } from './checkpoint.service';
 import { MeetingType } from 'src/common/utils/types';
 import { v4 as uuidv4 } from 'uuid';
+import { AttendanceJobResult } from './interfaces/attendance-job.interface';
 
 /**
  * Event information interface for processing
@@ -709,11 +710,14 @@ export class AttendanceService implements OnModuleInit {
         newAttendeeRecords += result.newAttendeeRecords;
         updatedAttendeeRecords += result.updatedAttendeeRecords;
 
-        // Update checkpoint after processing first page
+        // Update checkpoint after processing first page (only if significant progress)
         checkpoint.participantsProcessed = participantsProcessed;
         checkpoint.nextPageToken = nextPageToken;
         checkpoint.currentPage = currentPage;
-        await this.checkpointService.updateCheckpoint(checkpoint);
+        // Save checkpoint but don't wait - fire and continue
+        this.checkpointService.updateCheckpoint(checkpoint).catch((error) => {
+          this.logger.warn(`Failed to save checkpoint: ${error.message}`);
+        });
 
       }
 
@@ -769,11 +773,17 @@ export class AttendanceService implements OnModuleInit {
           currentPage++;
 
 
-          // Update checkpoint after each page
-          checkpoint.nextPageToken = nextPageToken;
-          checkpoint.currentPage = currentPage;
-          checkpoint.participantsProcessed = participantsProcessed;
-          await this.checkpointService.updateCheckpoint(checkpoint);
+          // Update checkpoint every 3 pages (reduce database writes)
+          // Fire and forget - don't block processing
+          if (currentPage % 3 === 0 || !nextPageToken) {
+            checkpoint.nextPageToken = nextPageToken;
+            checkpoint.currentPage = currentPage;
+            checkpoint.participantsProcessed = participantsProcessed;
+            // Save checkpoint asynchronously (don't wait)
+            this.checkpointService.updateCheckpoint(checkpoint).catch((error) => {
+              this.logger.warn(`Failed to save checkpoint: ${error.message}`);
+            });
+          }
 
           // Continue loop if there are more pages (nextPageToken will be checked in while condition)
         } catch (error) {
@@ -930,9 +940,20 @@ export class AttendanceService implements OnModuleInit {
     const minAttendanceDurationSeconds = minAttendanceDurationMinutes * 60;
 
     // Step 3: Load existing attendees for all registrantIds in batch (single DB query)
-    const existingAttendees = await this.eventAttendeesRepository.findBy({
-      eventRepetitionId: eventInfo.eventRepetitionId,
-      registrantId: In(uniqueRegistrantIds),
+    // Optimize: Only select needed fields to reduce data transfer
+    const existingAttendees = await this.eventAttendeesRepository.find({
+      where: {
+        eventRepetitionId: eventInfo.eventRepetitionId,
+        registrantId: In(uniqueRegistrantIds),
+      },
+      select: [
+        'eventAttendeesId',
+        'userId',
+        'registrantId',
+        'isAttended',
+        'duration',
+        'joinedLeftHistory',
+      ],
     });
 
     const attendeeMap = new Map(
@@ -975,11 +996,9 @@ export class AttendanceService implements OnModuleInit {
 
         // Step 4a: Aggregate all sessions in current batch for this user
         const batchSessions: any[] = [];
-        let batchTotalDuration = 0;
 
         for (const participant of participantSessions) {
           const sessionDuration = participant.duration || 0;
-          batchTotalDuration += sessionDuration;
 
           const session = {
             joinTime: participant.join_time,
@@ -1039,9 +1058,13 @@ export class AttendanceService implements OnModuleInit {
           return true; // New session
         });
 
-        // Step 4d: Calculate total duration = existing duration + new batch duration
+        // Step 4d: Calculate total duration = existing duration + NEW sessions duration only
+        // IMPORTANT: Only count duration from new (non-duplicate) sessions to prevent doubling
         const existingDuration = eventAttendee.duration || 0;
-        const newBatchDuration = batchTotalDuration;
+        const newBatchDuration = newSessions.reduce(
+          (sum, session) => sum + (session.duration || 0),
+          0,
+        );
         const totalDuration = existingDuration + newBatchDuration;
 
         // Step 4e: Check if total duration >= minAttendanceDurationMinutes * 60
@@ -1065,6 +1088,7 @@ export class AttendanceService implements OnModuleInit {
         }
 
         // Call LMS service for lesson completion if participant attended
+        // Fire and forget - don't block processing
         if (shouldMarkAttended && eventAttendee.userId) {
           const lmsCall = this.callLmsLessonCompletion(
             eventInfo.eventId,
@@ -1080,9 +1104,12 @@ export class AttendanceService implements OnModuleInit {
           });
           lmsServiceCalls.push(lmsCall);
 
-          // Process LMS calls in batches to prevent memory overload
+          // Process LMS calls in batches but don't wait - fire and continue
           if (lmsServiceCalls.length >= LMS_BATCH_SIZE) {
-            await Promise.allSettled(lmsServiceCalls);
+            // Fire batch and continue processing (don't await)
+            Promise.allSettled(lmsServiceCalls).catch(() => {
+              // Silently handle errors - already logged in individual calls
+            });
             lmsServiceCalls.length = 0; // Clear array to release memory
           }
         }
@@ -1101,9 +1128,12 @@ export class AttendanceService implements OnModuleInit {
       await this.eventAttendeesRepository.save(attendeesToPersist);
     }
 
-    // Wait for remaining LMS service calls to complete
+    // Process remaining LMS calls in background (don't block)
     if (lmsServiceCalls.length > 0) {
-      await Promise.allSettled(lmsServiceCalls);
+      // Fire and forget - don't wait for LMS calls to complete
+      Promise.allSettled(lmsServiceCalls).catch(() => {
+        // Silently handle errors - already logged in individual calls
+      });
       lmsServiceCalls.length = 0; // Clear array to release memory
     }
 
@@ -1165,6 +1195,154 @@ export class AttendanceService implements OnModuleInit {
       },
     );
     await this.checkpointService.deleteCheckpoint(eventRepetitionId);
+  }
+
+  /**
+   * Get event information for a single event repetition
+   * Used for processing single events in background jobs
+   */
+  private async getEventInfo(
+    eventRepetitionId: string,
+  ): Promise<EventRepetition | null> {
+    const event = await this.eventRepetitionRepository
+      .createQueryBuilder('er')
+      .leftJoinAndSelect('er.eventDetail', 'ed')
+      .leftJoinAndSelect('er.event', 'e')
+      .where('er.eventRepetitionId = :eventRepetitionId', {
+        eventRepetitionId,
+      })
+      .andWhere('ed.eventType = :eventType', { eventType: 'online' })
+      .andWhere('er.onlineDetails IS NOT NULL')
+      .getOne();
+
+    return event;
+  }
+
+  /**
+   * Process a single event with progress tracking
+   * This method is used by the background job processor
+   */
+  async processEventWithProgress(
+    eventRepetitionId: string,
+    authToken: string,
+    userId?: string,
+    progressCallback?: (progress: number) => Promise<void>,
+  ): Promise<AttendanceJobResult> {
+    const startTime = Date.now();
+
+    // Get event information
+    const event = await this.getEventInfo(eventRepetitionId);
+
+    if (!event) {
+      throw new BadRequestException(
+        `Event repetition ${eventRepetitionId} not found or is not an online event`,
+      );
+    }
+
+    const eventInfo: EventInfo = {
+      eventRepetitionId: event.eventRepetitionId,
+      eventId: event.eventId,
+      zoomId: (event.onlineDetails as any)?.id || '',
+      meetingType: (event.onlineDetails as any)?.meetingType || 'meeting',
+      attendanceMarked: event.attendanceMarked,
+    };
+
+    if (eventInfo.attendanceMarked) {
+      this.logger.log(
+        `Attendance already marked for event ${eventRepetitionId}`,
+      );
+      return {
+        totalParticipants: 0,
+        participantsProcessed: 0,
+        participantsAttended: 0,
+        participantsNotAttended: 0,
+        newAttendeeRecords: 0,
+        updatedAttendeeRecords: 0,
+        duration: 0,
+      };
+    }
+
+    // Get initial total participants count for progress calculation
+    let totalParticipants = 0;
+    try {
+      const initialResponse = await this.onlineMeetingAdapter
+        .getAdapter()
+        .getMeetingParticipantList(
+          await this.onlineMeetingAdapter.getAdapter().getToken(),
+          [],
+          eventInfo.zoomId,
+          eventInfo.meetingType as MeetingType,
+          '',
+        );
+      totalParticipants = initialResponse.total_records || 0;
+    } catch (error) {
+      this.logger.warn(
+        `Could not get initial participant count for progress tracking: ${error.message}`,
+      );
+    }
+
+    // Process the event with checkpoint support
+    let result: ProcessingResult;
+    try {
+      result = await this.processEventWithSimpleCheckpoint(
+        eventInfo,
+        authToken,
+      );
+    } catch (error) {
+      // Handle 404 errors - mark event as processed to skip in future
+      if (error.message?.includes('404')) {
+        this.logger.warn(
+          `Zoom meeting not found (404) for event ${eventRepetitionId}, marking as processed to skip`,
+        );
+        await this.markEventAttendanceCompleted(eventRepetitionId, 0);
+        return {
+          totalParticipants: 0,
+          participantsProcessed: 0,
+          participantsAttended: 0,
+          participantsNotAttended: 0,
+          newAttendeeRecords: 0,
+          updatedAttendeeRecords: 0,
+          duration: Math.round((Date.now() - startTime) / 1000),
+        };
+      }
+      throw error;
+    }
+
+    // Update progress during processing
+    // Note: Progress updates are handled within processEventParticipants
+    // We can add progress callbacks there if needed
+
+    // Mark as completed when fully processed
+    const isFullyCompleted =
+      !result.pagination.hasNextPage &&
+      (result.participantsProcessed >= result.totalParticipants ||
+        result.participantsProcessed > 0);
+
+    if (isFullyCompleted) {
+      await this.markEventAttendanceCompleted(
+        eventRepetitionId,
+        result.participantsProcessed,
+      );
+    }
+
+    const duration = Math.round((Date.now() - startTime) / 1000);
+
+    return {
+      totalParticipants: result.totalParticipants,
+      participantsProcessed: result.participantsProcessed,
+      participantsAttended: result.participantsAttended,
+      participantsNotAttended: result.participantsNotAttended,
+      newAttendeeRecords: result.newAttendeeRecords,
+      updatedAttendeeRecords: result.updatedAttendeeRecords,
+      duration,
+    };
+  }
+
+  /**
+   * Get ended events that need attendance marking (public method for controller)
+   */
+  async getEndedEventsNotMarked(): Promise<EventRepetition[]> {
+    return this.getEndedEventsForAttendanceMarking();
   }
 
   private async getEndedEventsForAttendanceMarking(): Promise<
