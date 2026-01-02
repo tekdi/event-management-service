@@ -2,10 +2,18 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
+import { RequestMethod } from '@nestjs/common';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors();
-  app.setGlobalPrefix('event-service');
+  app.setGlobalPrefix('event-service', {
+    exclude: [
+      { path: 'health', method: RequestMethod.GET },
+      { path: 'health/live', method: RequestMethod.GET },
+      { path: 'health/ready', method: RequestMethod.GET },
+    ],
+  });
   const options = new DocumentBuilder()
     .setTitle('Event Management')
     .setDescription('CRUD API')
