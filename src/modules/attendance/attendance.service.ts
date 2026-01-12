@@ -111,7 +111,7 @@ export class AttendanceService implements OnModuleInit {
   ) {
     const apiId = API_ID.MARK_EVENT_ATTENDANCE;
 
-    // check event exists
+    // check event exists and get meeting type
     const eventRepetition = await this.eventRepetitionRepository.findOne({
       where: {
         eventRepetitionId: markMeetingAttendanceDto.eventRepetitionId,
@@ -137,13 +137,17 @@ export class AttendanceService implements OnModuleInit {
       throw new BadRequestException(ERROR_MESSAGES.EVENT_DOES_NOT_EXIST);
     }
 
-    // get meeting participants
+    // Determine meeting type from event data (supports both meetings and webinars)
+    // Access onlineDetails directly with type assertion to avoid TypeORM select type issues
+    const meetingType = (eventRepetition.onlineDetails as any)?.meetingType || MeetingType.meeting;
+
+    // get meeting participants (supports both meetings and webinars)
     const participantIdentifiers = await this.onlineMeetingAdapter
       .getAdapter()
       .getMeetingParticipantsIdentifiers(
         markMeetingAttendanceDto.meetingId,
         markMeetingAttendanceDto.markAttendanceBy,
-        MeetingType.meeting,
+        meetingType as MeetingType,
         markMeetingAttendanceDto.pageSize,
       );
 
