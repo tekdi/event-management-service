@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { IOnlineMeetingLocator } from './onlineMeeting.locator';
 import { ZoomService } from './zoom/zoom.adapter';
+import { MockZoomService } from './mock/mock-zoom.adapter';
 import { ConfigService } from '@nestjs/config';
 
 export interface ProviderConfig {
@@ -16,16 +17,36 @@ export class OnlineMeetingAdapter {
 
   constructor(
     private readonly zoomProvider: ZoomService,
+    private readonly mockZoomProvider: MockZoomService,
     private readonly configService: ConfigService,
   ) {
     this.initializeProviderRegistry();
   }
 
   private initializeProviderRegistry(): void {
-    // Register Zoom provider
+    // Check if mock mode is enabled
+    const useMockMode = this.configService.get<string>('USE_MOCK_ZOOM_ADAPTER') === 'true';
+    
+    // Register Zoom provider (real or mock based on config)
+    if (useMockMode) {
+      this.logger.log('Using Mock Zoom Adapter for testing');
+      this.registerProvider('zoom', {
+        name: 'Zoom (Mock)',
+        adapter: this.mockZoomProvider,
+        enabled: true,
+      });
+    } else {
     this.registerProvider('zoom', {
       name: 'Zoom',
       adapter: this.zoomProvider,
+        enabled: true,
+      });
+    }
+
+    // Also register mock as a separate provider option
+    this.registerProvider('mock', {
+      name: 'Mock Zoom',
+      adapter: this.mockZoomProvider,
       enabled: true,
     });
 
@@ -74,6 +95,23 @@ export class OnlineMeetingAdapter {
   getAdapter(): IOnlineMeetingLocator {
     const source = this.configService.get('ONLINE_MEETING_ADAPTER');
     return this.getProvider(source);
+  }
+
+  /**
+   * Get adapter with optional mock data file
+   * If useMockData is true and mockDataFile is provided, returns mock adapter with file
+   * Otherwise returns the configured adapter
+   */
+  getAdapterWithMockData(
+    useMockData?: boolean,
+    mockDataFile?: string,
+  ): IOnlineMeetingLocator {
+    if (useMockData && mockDataFile) {
+      // Set the mock data file in the mock provider
+      this.mockZoomProvider.setMockDataFile(mockDataFile);
+      return this.mockZoomProvider;
+    }
+    return this.getAdapter();
   }
 
   getAvailableProviders(): string[] {

@@ -69,6 +69,8 @@ export class AttendanceProcessor extends WorkerHost implements OnModuleInit {
           );
           await job.updateProgress(progress);
         },
+        job.data.useMockData,
+        job.data.mockDataFile,
       );
 
       // Mark job as completed

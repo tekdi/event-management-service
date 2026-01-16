@@ -15,15 +15,22 @@ import {
   InternalServerErrorException,
   HttpStatus,
   Logger,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBasicAuth,
   ApiBody,
   ApiTags,
   ApiParam,
   ApiQuery,
+  ApiConsumes,
 } from '@nestjs/swagger';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AttendanceService } from './attendance.service';
 import { AttendanceQueueService } from './attendance-queue.service';
 import { AttendanceJobStatusService } from './attendance-job-status.service';
@@ -84,10 +91,13 @@ export class EventAttendance {
    */
   @UseFilters(new AllExceptionsFilter(API_ID.MARK_ATTENDANCE))
   @Post('/mark-attendance')
+  @UseInterceptors(FileInterceptor('mockDataFile'))
+  @ApiConsumes('multipart/form-data', 'application/json')
   @ApiBody({ type: MarkAttendanceDto })
-  @UsePipes(new ValidationPipe({ transform: true }))
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async markAttendance(
     @Body() dto: MarkAttendanceDto,
+    @UploadedFile() file: Express.Multer.File,
     @Res() response: Response,
     @Req() request: Request,
     @GetUserId() userId: string,
@@ -101,6 +111,43 @@ export class EventAttendance {
       '';
 
     try {
+      // Handle file upload for mock data
+      let finalMockDataFile: string | undefined = dto.mockDataFile;
+      let finalUseMockData: boolean = dto.useMockData || false;
+
+      if (file) {
+        // File was uploaded - save it and use it
+        if (!file.originalname.endsWith('.json')) {
+          throw new BadRequestException(
+            'Uploaded file must be a JSON file (.json extension)',
+          );
+        }
+
+        // Create mock-json directory if it doesn't exist
+        const mockJsonDir = path.join(process.cwd(), 'data', 'mock-json');
+        if (!fs.existsSync(mockJsonDir)) {
+          fs.mkdirSync(mockJsonDir, { recursive: true });
+        }
+
+        // Generate unique filename to avoid conflicts
+        const timestamp = Date.now();
+        const sanitizedFileName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const savedFileName = `${timestamp}_${sanitizedFileName}`;
+        const filePath = path.join(mockJsonDir, savedFileName);
+
+        // Save uploaded file
+        fs.writeFileSync(filePath, file.buffer, 'utf-8');
+        this.logger.log(`Saved uploaded mock data file: ${savedFileName}`);
+
+        // Use the uploaded file
+        finalMockDataFile = savedFileName;
+        finalUseMockData = true;
+      } else if (dto.useMockData && dto.mockDataFile) {
+        // Use existing file from mock-json directory
+        finalMockDataFile = dto.mockDataFile;
+        finalUseMockData = true;
+      }
+
       let jobIds: string[] = [];
 
       if (dto.eventRepetitionId) {
@@ -109,6 +156,8 @@ export class EventAttendance {
           eventRepetitionId: dto.eventRepetitionId,
           authToken,
           userId,
+          useMockData: finalUseMockData,
+          mockDataFile: finalMockDataFile,
         });
 
         if (!job.id) {
@@ -132,6 +181,8 @@ export class EventAttendance {
           const job = await this.attendanceQueueService.createJob({
             eventRepetitionId: event.eventRepetitionId,
             authToken,
+            useMockData: finalUseMockData,
+            mockDataFile: finalMockDataFile,
           });
 
           if (!job.id) {

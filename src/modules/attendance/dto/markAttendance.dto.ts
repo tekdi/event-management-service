@@ -84,6 +84,37 @@ export class MarkAttendanceDto {
   @IsUUID()
   @IsOptional()
   eventRepetitionId?: string;
+
+  @ApiProperty({
+    type: Boolean,
+    description:
+      'Use mock data instead of real Zoom API (for testing). If true, mockDataFile must be provided.',
+    example: false,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  useMockData?: boolean;
+
+  @ApiProperty({
+    type: String,
+    description:
+      'JSON file name in data/mock-json/ directory to use for mock data. Required if useMockData is true and no file is uploaded.',
+    example: 'webinar-participants.json',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  mockDataFile?: string;
+
+  @ApiProperty({
+    type: 'string',
+    format: 'binary',
+    description:
+      'Upload JSON file for mock data. If provided, this file will be saved and used instead of mockDataFile parameter.',
+    required: false,
+  })
+  mockDataFileUpload?: any; // For Swagger documentation only
 }
 
 export class MarkAttendanceDtoOld {

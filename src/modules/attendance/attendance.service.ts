@@ -518,6 +518,8 @@ export class AttendanceService implements OnModuleInit {
   private async processEventWithSimpleCheckpoint(
     eventInfo: EventInfo,
     authToken: string,
+    useMockData?: boolean,
+    mockDataFile?: string,
   ): Promise<ProcessingResult> {
     // Check if checkpoint exists
     let checkpoint = await this.checkpointService.loadCheckpoint(
@@ -532,6 +534,8 @@ export class AttendanceService implements OnModuleInit {
         eventInfo,
         authToken,
         checkpoint,
+        useMockData,
+        mockDataFile,
       );
     }
 
@@ -547,6 +551,8 @@ export class AttendanceService implements OnModuleInit {
       eventInfo,
       authToken,
       checkpoint,
+      useMockData,
+      mockDataFile,
     );
 
     // Only clean up checkpoint if event is fully completed
@@ -576,6 +582,8 @@ export class AttendanceService implements OnModuleInit {
     eventInfo: EventInfo,
     authToken: string,
     checkpoint: SimpleCheckpoint,
+    useMockData?: boolean,
+    mockDataFile?: string,
   ): Promise<ProcessingResult> {
     this.logger.log(
       `Resuming event ${eventInfo.eventRepetitionId} from page ${checkpoint.currentPage}`,
@@ -584,6 +592,8 @@ export class AttendanceService implements OnModuleInit {
       eventInfo,
       authToken,
       checkpoint,
+      useMockData,
+      mockDataFile,
     );
   }
 
@@ -600,6 +610,8 @@ export class AttendanceService implements OnModuleInit {
     eventInfo: EventInfo,
     authToken: string,
     checkpoint: SimpleCheckpoint,
+    useMockData?: boolean,
+    mockDataFile?: string,
   ): Promise<ProcessingResult> {
     const zoomId = eventInfo.zoomId;
     const meetingType = eventInfo.meetingType as MeetingType;
@@ -729,16 +741,18 @@ export class AttendanceService implements OnModuleInit {
       // Continue processing while there's a valid nextPageToken (not null, not empty string)
       while (nextPageToken && nextPageToken.trim() !== '') {
         try {
+          // Get adapter (mock or real based on parameters)
+          const adapter = useMockData && mockDataFile
+            ? this.onlineMeetingAdapter.getAdapterWithMockData(useMockData, mockDataFile)
+            : this.onlineMeetingAdapter.getAdapter();
 
-          const participantResponse = await this.onlineMeetingAdapter
-            .getAdapter()
-            .getMeetingParticipantList(
-              await this.onlineMeetingAdapter.getAdapter().getToken(),
-              [],
-              zoomId,
-              meetingType,
-              `&next_page_token=${nextPageToken}`,
-            );
+          const participantResponse = await adapter.getMeetingParticipantList(
+            await adapter.getToken(),
+            [],
+            zoomId,
+            meetingType,
+            `&next_page_token=${nextPageToken}`,
+          );
 
           // Log summary for paginated pages
           if (
@@ -1231,6 +1245,8 @@ export class AttendanceService implements OnModuleInit {
     authToken: string,
     userId?: string,
     progressCallback?: (progress: number) => Promise<void>,
+    useMockData?: boolean,
+    mockDataFile?: string,
   ): Promise<AttendanceJobResult> {
     const startTime = Date.now();
 
