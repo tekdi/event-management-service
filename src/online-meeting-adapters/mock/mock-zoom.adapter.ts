@@ -310,14 +310,20 @@ export class MockZoomService implements IOnlineMeetingLocator {
     request: CreateMeetingRequest,
     meetingType: MeetingType,
   ): Promise<any> {
-    return {
+    const response: any = {
       id: `mock-${Date.now()}`,
       join_url: 'https://mock-zoom.us/j/mock-meeting',
       start_url: 'https://mock-zoom.us/s/mock-meeting',
       registration_url: 'https://mock-zoom.us/r/mock-meeting',
-      password: 'mock123',
       meetingType,
     };
+
+    // Only include password if provided in request (optional field)
+    if (request.password) {
+      response.password = request.password;
+    }
+
+    return response;
   }
 
   async updateMeeting(
