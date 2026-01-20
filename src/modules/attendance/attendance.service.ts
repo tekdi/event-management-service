@@ -341,6 +341,8 @@ export class AttendanceService implements OnModuleInit {
     authToken: string,
     startTime: number,
     userId: string,
+    useMockData?: boolean,
+    mockDataFile?: string,
   ): Promise<any> {
     const errors: string[] = [];
     const eventResults: any[] = [];
@@ -392,6 +394,8 @@ export class AttendanceService implements OnModuleInit {
           result = await this.processEventWithSimpleCheckpoint(
             eventInfo,
             authToken,
+            useMockData,
+            mockDataFile,
           );
         } catch (error) {
           // Handle 404 errors - mark event as processed to skip in future
@@ -637,15 +641,33 @@ export class AttendanceService implements OnModuleInit {
 
       if (shouldFetchFirstPage) {
         try {
-          initialResponse = await this.onlineMeetingAdapter
-            .getAdapter()
-            .getMeetingParticipantList(
-              await this.onlineMeetingAdapter.getAdapter().getToken(),
-              [],
-              zoomId,
-              meetingType,
-              '',
+          // Get adapter (mock or real based on parameters)
+          // Log parameters for debugging
+          this.logger.debug(
+            `Adapter selection: useMockData=${useMockData}, mockDataFile=${mockDataFile}`,
+          );
+          
+          const adapter = useMockData && mockDataFile
+            ? this.onlineMeetingAdapter.getAdapterWithMockData(useMockData, mockDataFile)
+            : this.onlineMeetingAdapter.getAdapter();
+          
+          if (useMockData && mockDataFile) {
+            this.logger.log(
+              `🎭 Using MOCK adapter with file: ${mockDataFile} for initial page fetch`,
             );
+          } else {
+            this.logger.log(
+              `🌐 Using REAL Zoom API adapter for initial page fetch (useMockData=${useMockData}, mockDataFile=${mockDataFile})`,
+            );
+          }
+          
+          initialResponse = await adapter.getMeetingParticipantList(
+            await adapter.getToken(),
+            [],
+            zoomId,
+            meetingType,
+            '',
+          );
 
           totalParticipants = initialResponse.total_records;
 
@@ -745,6 +767,12 @@ export class AttendanceService implements OnModuleInit {
           const adapter = useMockData && mockDataFile
             ? this.onlineMeetingAdapter.getAdapterWithMockData(useMockData, mockDataFile)
             : this.onlineMeetingAdapter.getAdapter();
+
+          if (useMockData && mockDataFile) {
+            this.logger.log(
+              `🎭 Using MOCK adapter with file: ${mockDataFile} for page ${currentPage + 1}`,
+            );
+          }
 
           const participantResponse = await adapter.getMeetingParticipantList(
             await adapter.getToken(),
@@ -917,6 +945,11 @@ export class AttendanceService implements OnModuleInit {
     }
 
     const uniqueRegistrantIds = Array.from(participantsByRegistrantId.keys());
+    
+    // Log all unique registrantIds found in this batch for debugging
+    this.logger.log(
+      `📋 Batch contains ${uniqueRegistrantIds.length} unique registrantIds: ${uniqueRegistrantIds.slice(0, 10).join(', ')}${uniqueRegistrantIds.length > 10 ? `... (showing first 10 of ${uniqueRegistrantIds.length})` : ''}`,
+    );
 
     // Step 2: Load event detail to get minAttendanceDurationMinutes
     const eventRepetition = await this.eventRepetitionRepository.findOne({
@@ -956,9 +989,19 @@ export class AttendanceService implements OnModuleInit {
 
     const minAttendanceDurationMinutes = dbValue;
     const minAttendanceDurationSeconds = minAttendanceDurationMinutes * 60;
+    
+    this.logger.log(
+      `📊 Attendance threshold for event ${eventInfo.eventRepetitionId}: ` +
+      `minAttendanceDurationMinutes=${minAttendanceDurationMinutes} min ` +
+      `(${minAttendanceDurationSeconds} seconds)`,
+    );
 
     // Step 3: Load existing attendees for all registrantIds in batch (single DB query)
     // Optimize: Only select needed fields to reduce data transfer
+    this.logger.log(
+      `🔍 Looking up ${uniqueRegistrantIds.length} unique registrantIds for event ${eventInfo.eventRepetitionId}`,
+    );
+    
     const existingAttendees = await this.eventAttendeesRepository.find({
       where: {
         eventRepetitionId: eventInfo.eventRepetitionId,
@@ -974,6 +1017,10 @@ export class AttendanceService implements OnModuleInit {
       ],
     });
 
+    this.logger.log(
+      `✅ Found ${existingAttendees.length} existing EventAttendee records matching ${uniqueRegistrantIds.length} registrantIds`,
+    );
+
     const attendeeMap = new Map(
       existingAttendees.map((att) => [att.registrantId, att]),
     );
@@ -984,8 +1031,15 @@ export class AttendanceService implements OnModuleInit {
 
     if (missingRegistrantIds.length > 0) {
       this.logger.warn(
-        `Found ${missingRegistrantIds.length} registrantIds from Zoom not enrolled in event (will be skipped)`,
+        `⚠️ Found ${missingRegistrantIds.length} registrantIds from Zoom not enrolled in event (will be skipped): ${missingRegistrantIds.slice(0, 5).join(', ')}${missingRegistrantIds.length > 5 ? '...' : ''}`,
       );
+      
+      // Log sample of what we're looking for vs what exists
+      if (existingAttendees.length > 0) {
+        this.logger.debug(
+          `Sample existing registrantIds: ${existingAttendees.slice(0, 5).map(a => a.registrantId).join(', ')}`,
+        );
+      }
     }
 
     // Step 4: Process each unique registrantId
@@ -1005,6 +1059,10 @@ export class AttendanceService implements OnModuleInit {
           // Skip if attendee doesn't exist in DB
           this.logger.warn(
             `EventAttendee not found for registrantId: ${registrantId}, skipping ${participantSessions.length} participant sessions. This user may not be enrolled in the event.`,
+          );
+          // Log available registrantIds for debugging
+          this.logger.debug(
+            `Available registrantIds in attendeeMap: ${Array.from(attendeeMap.keys()).slice(0, 10).join(', ')}${attendeeMap.size > 10 ? '...' : ''} (total: ${attendeeMap.size})`,
           );
           participantsProcessed += participantSessions.length;
           participantsNotAttended += participantSessions.length;
@@ -1089,10 +1147,34 @@ export class AttendanceService implements OnModuleInit {
         const shouldMarkAttended =
           totalDuration >= minAttendanceDurationSeconds;
 
+        // Log duration comparison for debugging
+        if (this.logger) {
+          const wasAttended = eventAttendee.isAttended;
+          this.logger.debug(
+            `Duration check for registrantId ${registrantId}: ` +
+            `totalDuration=${totalDuration}s, ` +
+            `minRequired=${minAttendanceDurationSeconds}s (${minAttendanceDurationMinutes} min), ` +
+            `shouldMarkAttended=${shouldMarkAttended}, ` +
+            `wasAttended=${wasAttended}, ` +
+            `isAttended updated to ${shouldMarkAttended}`,
+          );
+        }
+
         // Step 4f: Update eventAttendee
+        const previousIsAttended = eventAttendee.isAttended;
+        const previousDuration = eventAttendee.duration || 0;
+        const previousHistoryCount = existingSessions.length;
+        
         eventAttendee.duration = totalDuration;
         eventAttendee.joinedLeftHistory = [...existingSessions, ...newSessions];
         eventAttendee.isAttended = shouldMarkAttended;
+
+        this.logger.log(
+          `📝 Updating EventAttendee for registrantId ${registrantId}: ` +
+          `duration ${previousDuration}s → ${totalDuration}s, ` +
+          `isAttended ${previousIsAttended} → ${shouldMarkAttended}, ` +
+          `sessions ${previousHistoryCount} → ${existingSessions.length + newSessions.length}`,
+        );
 
         attendeesToPersist.push(eventAttendee);
         updatedAttendeeRecords++;
@@ -1289,6 +1371,8 @@ export class AttendanceService implements OnModuleInit {
       result = await this.processEventWithSimpleCheckpoint(
         eventInfo,
         authToken,
+        useMockData,
+        mockDataFile,
       );
     } catch (error) {
       // Handle 404 errors - mark event as processed to skip in future

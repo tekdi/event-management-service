@@ -35,7 +35,7 @@ export class AttendanceProcessor extends WorkerHost implements OnModuleInit {
   async process(
     job: Job<AttendanceJobData>,
   ): Promise<AttendanceJobResult> {
-    const { eventRepetitionId, authToken, userId } = job.data;
+    const { eventRepetitionId, authToken, userId, useMockData, mockDataFile } = job.data;
     
     if (!job.id) {
       throw new Error('Job ID is missing');
@@ -46,6 +46,14 @@ export class AttendanceProcessor extends WorkerHost implements OnModuleInit {
     this.logger.log(
       `Processing attendance job ${jobId} for event ${eventRepetitionId}`,
     );
+    
+    if (useMockData && mockDataFile) {
+      this.logger.log(
+        `🎭 Job configured with MOCK data: file=${mockDataFile}`,
+      );
+    } else {
+      this.logger.log(`🌐 Job configured with REAL Zoom API`);
+    }
 
     try {
       // Update job status to processing

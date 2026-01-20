@@ -148,10 +148,16 @@ export class EventAttendance {
         // Use the uploaded file
         finalMockDataFile = savedFileName;
         finalUseMockData = true;
+        this.logger.log(
+          `✅ Mock data enabled: Using uploaded file ${savedFileName} for event ${dto.eventRepetitionId}`,
+        );
       } else if (dto.useMockData && dto.mockDataFile) {
         // Use existing file from mock-json directory
         finalMockDataFile = dto.mockDataFile;
         finalUseMockData = true;
+        this.logger.log(
+          `✅ Mock data enabled: Using existing file ${dto.mockDataFile} for event ${dto.eventRepetitionId}`,
+        );
       }
 
       let jobIds: string[] = [];
