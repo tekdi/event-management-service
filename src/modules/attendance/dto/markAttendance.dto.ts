@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, IsBoolean, Min, Max, IsDateString, IsArray, ArrayMinSize } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class MarkMeetingAttendanceDto {
   @ApiProperty({
@@ -81,6 +82,13 @@ export class MarkAttendanceDto {
     example: 'abc-123-def',
     required: false,
   })
+  @Transform(({ value }) => {
+    // Remove quotes if present (form-data sometimes includes quotes)
+    if (typeof value === 'string') {
+      return value.replace(/^"|"$/g, '').trim();
+    }
+    return value;
+  })
   @IsUUID()
   @IsOptional()
   eventRepetitionId?: string;
@@ -88,9 +96,19 @@ export class MarkAttendanceDto {
   @ApiProperty({
     type: Boolean,
     description:
-      'Use mock data instead of real Zoom API (for testing). If true, mockDataFile must be provided.',
+      'Use mock data instead of real Zoom API (for testing). If true, mockDataFile must be provided. Accepts boolean or string "true"/"false".',
     example: false,
     required: false,
+  })
+  @Transform(({ value }) => {
+    // Convert string "true"/"false" to boolean (form-data sends strings)
+    if (value === 'true' || value === true || value === '1' || value === 1) {
+      return true;
+    }
+    if (value === 'false' || value === false || value === '0' || value === 0 || value === '') {
+      return false;
+    }
+    return value;
   })
   @IsBoolean()
   @IsOptional()

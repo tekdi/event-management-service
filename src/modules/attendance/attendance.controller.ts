@@ -91,7 +91,13 @@ export class EventAttendance {
    */
   @UseFilters(new AllExceptionsFilter(API_ID.MARK_ATTENDANCE))
   @Post('/mark-attendance')
-  @UseInterceptors(FileInterceptor('mockDataFile'))
+  @UseInterceptors(
+    FileInterceptor('mockDataFile', {
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10 MB limit for JSON files
+      },
+    }),
+  )
   @ApiConsumes('multipart/form-data', 'application/json')
   @ApiBody({ type: MarkAttendanceDto })
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
