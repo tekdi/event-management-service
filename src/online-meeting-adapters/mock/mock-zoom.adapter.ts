@@ -206,8 +206,13 @@ export class MockZoomService implements IOnlineMeetingLocator {
         internal_user: p.internal_user || false,
       }));
 
+      // Extract unique registrantIds for logging
+      const uniqueRegistrantIds = [...new Set(this.participantsData.map(p => p.registrant_id).filter(id => id))];
       this.logger.log(
         `Loaded ${this.participantsData.length} participants from JSON file: ${jsonFilePath}`,
+      );
+      this.logger.log(
+        `📊 Found ${uniqueRegistrantIds.length} unique registrantIds in loaded data. First 10: ${uniqueRegistrantIds.slice(0, 10).join(', ')}`,
       );
     } catch (error) {
       this.logger.error(`Failed to load JSON file: ${error.message}`);
@@ -391,8 +396,14 @@ export class MockZoomService implements IOnlineMeetingLocator {
     const totalPages = Math.ceil(totalRecords / pageSize);
     const nextPageToken = this.generatePageToken(currentPage);
 
+    // Extract unique registrantIds from this page for debugging
+    const pageRegistrantIds = [...new Set(pageParticipants.map(p => p.registrant_id).filter(id => id && id.trim() !== ''))];
+    
     this.logger.log(
       `Mock API: Returning page ${currentPage}/${totalPages} with ${pageParticipants.length} participants (total: ${totalRecords})`,
+    );
+    this.logger.debug(
+      `📄 Page ${currentPage} contains ${pageRegistrantIds.length} unique registrantIds: ${pageRegistrantIds.slice(0, 10).join(', ')}${pageRegistrantIds.length > 10 ? '...' : ''}`,
     );
 
     return {

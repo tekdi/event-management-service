@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
@@ -8,6 +8,8 @@ import {
 
 @Injectable()
 export class AttendanceJobStatusService {
+  private readonly logger = new Logger(AttendanceJobStatusService.name);
+
   constructor(
     @InjectRepository(AttendanceJob)
     private readonly attendanceJobRepository: Repository<AttendanceJob>,
@@ -47,11 +49,20 @@ export class AttendanceJobStatusService {
       updateData.result = result;
     }
 
-    if (
-      status === AttendanceJobStatus.PROCESSING &&
-      !updateData.startedAt
-    ) {
-      updateData.startedAt = new Date();
+    // Set startedAt when status changes to PROCESSING (only if not already set)
+    if (status === AttendanceJobStatus.PROCESSING) {
+      // Check if startedAt is already set in database
+      const existingJob = await this.attendanceJobRepository.findOne({
+        where: { jobId },
+        select: ['startedAt'],
+      });
+      
+      if (!existingJob?.startedAt) {
+        updateData.startedAt = new Date();
+        this.logger.log(`⏰ Setting started_at for job ${jobId} to ${updateData.startedAt.toISOString()}`);
+      } else {
+        this.logger.debug(`⏰ Job ${jobId} already has started_at: ${existingJob.startedAt}`);
+      }
     }
 
     if (
