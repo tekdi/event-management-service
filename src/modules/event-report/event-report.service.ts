@@ -82,11 +82,13 @@ export class EventReportService {
         authorization,
       );
 
+      const attended = reportDto.attended ?? true;
       const combinedData = this.combineUserAndEventData(
         queryResults,
         userDataMap,
         reportDto.sortBy || 'userId',
         reportDto.orderBy || 'asc',
+        attended,
       );
 
       const duration = Date.now() - startTime;
@@ -129,6 +131,9 @@ export class EventReportService {
       titlesAggregation: attended
         ? `STRING_AGG(DISTINCT ed."title", ', ') FILTER (WHERE ea."isAttended" = TRUE)`
         : `STRING_AGG(DISTINCT ed."title", ', ') FILTER (WHERE (ea."isAttended" = FALSE OR ea."isAttended" IS NULL))`,
+      durationAggregation: attended
+        ? `COALESCE(SUM(ea."duration") FILTER (WHERE ea."isAttended" = TRUE), 0)`
+        : `COALESCE(SUM(ea."duration") FILTER (WHERE (ea."isAttended" = FALSE OR ea."isAttended" IS NULL)), 0)`,
       havingClause: attended
         ? `HAVING COUNT(*) FILTER (WHERE ea."isAttended" = TRUE) >= 1`
         : `HAVING COUNT(*) FILTER (WHERE (ea."isAttended" = FALSE OR ea."isAttended" IS NULL)) >= 1`,
@@ -203,6 +208,7 @@ export class EventReportService {
             ea."userId" AS "userId",
             ${filterConfig.eventIdsAggregation} AS "event_ids",
             ${filterConfig.titlesAggregation} AS "titles",
+            ${filterConfig.durationAggregation} AS "duration",
             COUNT(*) OVER() AS "total_count"
           FROM "EventAttendees" ea
           INNER JOIN "Events" e ON ea."eventId" = e."eventId"
@@ -213,7 +219,7 @@ export class EventReportService {
           GROUP BY ea."userId"
           ${filterConfig.havingClause}
         )
-        SELECT "userId", "event_ids", "titles", "total_count"
+        SELECT "userId", "event_ids", "titles", "duration", "total_count"
         FROM aggregated
         ${orderByClause}
         LIMIT $${paramLimit} OFFSET $${paramOffset}
@@ -228,6 +234,7 @@ export class EventReportService {
           userId: r.userId,
           event_ids: r.event_ids,
           titles: r.titles,
+          duration: Number(r.duration ?? 0),
         })),
         totalCount,
       };
@@ -322,16 +329,19 @@ export class EventReportService {
     userDataMap: Map<string, any>,
     sortBy: string,
     orderBy: string,
+    attended: boolean,
   ): any[] {
     const combined = queryResults.map((result) => {
       const userData = userDataMap.get(result.userId) ?? {};
       return {
         userId: result.userId,
-        firstName: userData.firstName || null,
-        lastName: userData.lastName || null,
-        email: userData.email || null,
-        event_ids: result.event_ids || '',
-        titles: result.titles || '',
+        firstName: userData.firstName ?? null,
+        lastName: userData.lastName ?? null,
+        email: userData.email ?? null,
+        event_ids: result.event_ids ?? '',
+        titles: result.titles ?? '',
+        attended,
+        duration: result.duration ?? 0,
       };
     });
 
