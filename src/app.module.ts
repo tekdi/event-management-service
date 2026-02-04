@@ -9,6 +9,7 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
 import { PermissionMiddleware } from './middleware/permission.middleware';
 import { RolePermissionModule } from './modules/permissionRbac/rolePermissionMapping/role-permission.module';
 import { HealthModule } from './health/health.module';
+import { EventReportModule } from './modules/event-report/event-report.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { HealthModule } from './health/health.module';
     AttendanceModule,
     RolePermissionModule,
     HealthModule,
+    EventReportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
