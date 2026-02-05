@@ -51,27 +51,35 @@ export class EventReportService {
 
       if (queryResults.length === 0) {
         return response.status(HttpStatus.OK).send(
-          APIResponse.success(apiId, {
-            data: [],
-            totalElements: 0,
-            offset: reportDto.offset ?? 0,
-            limit: reportDto.limit ?? 10,
-          }, 'No users found matching the criteria'),
+          APIResponse.success(
+            apiId,
+            {
+              data: [],
+              totalElements: 0,
+              offset: reportDto.offset ?? 0,
+              limit: reportDto.limit ?? 10,
+            },
+            'No users found matching the criteria',
+          ),
         );
       }
 
-      const userIds = [
-        ...new Set(queryResults.map((r) => r.userId)),
-      ].filter(Boolean);
+      const userIds = [...new Set(queryResults.map((r) => r.userId))].filter(
+        Boolean,
+      );
 
       if (userIds.length === 0) {
         return response.status(HttpStatus.OK).send(
-          APIResponse.success(apiId, {
-            data: [],
-            totalElements: totalCount,
-            offset: reportDto.offset ?? 0,
-            limit: reportDto.limit ?? 10,
-          }, 'No users found matching the criteria'),
+          APIResponse.success(
+            apiId,
+            {
+              data: [],
+              totalElements: totalCount,
+              offset: reportDto.offset ?? 0,
+              limit: reportDto.limit ?? 10,
+            },
+            'No users found matching the criteria',
+          ),
         );
       }
 
@@ -97,15 +105,22 @@ export class EventReportService {
       );
 
       return response.status(HttpStatus.OK).send(
-        APIResponse.success(apiId, {
-          data: combinedData,
-          totalElements: totalCount,
-          offset: reportDto.offset ?? 0,
-          limit: reportDto.limit ?? 10,
-        }, 'Event attendance report generated successfully'),
+        APIResponse.success(
+          apiId,
+          {
+            data: combinedData,
+            totalElements: totalCount,
+            offset: reportDto.offset ?? 0,
+            limit: reportDto.limit ?? 10,
+          },
+          'Event attendance report generated successfully',
+        ),
       );
     } catch (error) {
-      this.logger.error(`Event attendance report failed: ${error.message}`, error.stack);
+      this.logger.error(
+        `Event attendance report failed: ${error.message}`,
+        error.stack,
+      );
 
       if (
         error instanceof BadRequestException ||
@@ -156,10 +171,8 @@ export class EventReportService {
     }
 
     if (events.length !== eventIds.length) {
-      const foundEventIds = events.map((e) => e.eventId);
-      const missingEventIds = eventIds.filter(
-        (id) => !foundEventIds.includes(id),
-      );
+      const foundEventIds = new Set(events.map((e) => e.eventId));
+      const missingEventIds = eventIds.filter((id) => !foundEventIds.has(id));
       throw new NotFoundException(
         `Some events not found or archived: ${missingEventIds.join(', ')}`,
       );
@@ -239,7 +252,10 @@ export class EventReportService {
         totalCount,
       };
     } catch (error) {
-      this.logger.error(`Attendance aggregation query failed: ${error.message}`, error.stack);
+      this.logger.error(
+        `Attendance aggregation query failed: ${error.message}`,
+        error.stack,
+      );
       throw new BadRequestException(`Database query failed: ${error.message}`);
     }
   }
@@ -280,13 +296,18 @@ export class EventReportService {
       );
 
       // Handle different response structures
-      const userDetails =
-        response.data?.result?.getUserDetails ??
-        (Array.isArray(response.data?.result)
-          ? response.data.result
-          : Array.isArray(response.data)
-            ? response.data
-            : response.data?.data ?? []);
+      let userDetails: any[] = [];
+      if (response.data?.result?.getUserDetails) {
+        userDetails = response.data.result.getUserDetails;
+      } else if (Array.isArray(response.data?.result)) {
+        userDetails = response.data.result;
+      } else if (Array.isArray(response.data)) {
+        userDetails = response.data;
+      } else if (Array.isArray(response.data?.data)) {
+        userDetails = response.data.data;
+      } else {
+        userDetails = [];
+      }
 
       const userMap = new Map<string, any>();
       (Array.isArray(userDetails) ? userDetails : []).forEach((user: any) => {
@@ -319,7 +340,11 @@ export class EventReportService {
         'Failed to fetch user data from user service';
 
       throw new BadRequestException(
-        `User service error: ${errorMessage}${error.response?.status ? ` (Status: ${error.response.status})` : ''}`,
+        'User service error: ' +
+          errorMessage +
+          (error.response?.status
+            ? ' (Status: ' + error.response.status + ')'
+            : ''),
       );
     }
   }
