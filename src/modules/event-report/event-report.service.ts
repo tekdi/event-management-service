@@ -288,7 +288,6 @@ export class EventReportService {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            Authorization: authorization,
             tenantid: tenantId,
             organisationid: organisationId,
           },
