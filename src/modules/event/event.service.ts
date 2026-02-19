@@ -1584,9 +1584,7 @@ export class EventService {
       createEventDto.onlineProvider = null;
       createEventDto.meetingDetails = null;
       // Keep recordings from request; DB has NOT NULL constraint (default to empty object if not provided)
-      if (createEventDto.recordings == null) {
-        createEventDto.recordings = {};
-      }
+      createEventDto.recordings ??= {};
     } else if (createEventDto.eventType === EventTypes.online) {
       if (createEventDto.platformIntegration === false) {
         // Use existing meeting details
@@ -2247,9 +2245,7 @@ export class EventService {
         updateEventByIdDto.onlineProvider = null;
         updateEventByIdDto.meetingDetails = null;
         // Keep recordings; DB has NOT NULL constraint (use empty object if clearing)
-        if (updateEventByIdDto.recordings == null) {
-          updateEventByIdDto.recordings = {};
-        }
+        updateEventByIdDto.recordings ??= {};
       } else if (eventDetail.eventType === EventTypes.online) {
         // Handle online event setup
         if (
