@@ -261,14 +261,19 @@ export class EventService {
       );
     }
 
-    // Handle startDate
+    // Handle startDate: after only, before only, or both (range)
     if (filters?.startDate && filters.endDate === undefined) {
-      const startDateTime = filters.startDate.after;
-      const endDateTime = filters.startDate.before;
-
-      whereClauses.push(
-        `(er."startDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."startDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
-      );
+      const hasAfter = filters.startDate.after != null && filters.startDate.after !== '';
+      const hasBefore = filters.startDate.before != null && filters.startDate.before !== '';
+      if (hasAfter && hasBefore) {
+        whereClauses.push(
+          `(er."startDateTime" >= '${filters.startDate.after}'::timestamp AT TIME ZONE 'UTC' AND er."startDateTime" <= '${filters.startDate.before}'::timestamp AT TIME ZONE 'UTC')`,
+        );
+      } else if (hasAfter) {
+        whereClauses.push(`er."startDateTime" >= '${filters.startDate.after}'::timestamp AT TIME ZONE 'UTC'`);
+      } else if (hasBefore) {
+        whereClauses.push(`er."startDateTime" <= '${filters.startDate.before}'::timestamp AT TIME ZONE 'UTC'`);
+      }
     }
 
     if (filters?.startDate && filters.endDate) {
@@ -280,12 +285,25 @@ export class EventService {
       );
     }
 
+    // Handle endDate (when startDate not used): after only, before only, or both
     if (filters.endDate && filters.startDate === undefined) {
-      const startDateTime = filters.endDate.after;
-      const endDateTime = filters.endDate.before;
-      whereClauses.push(
-        `(er."endDateTime" <= '${endDateTime}' ::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" >= '${startDateTime}' ::timestamp AT TIME ZONE 'UTC')`,
-      );
+      const hasAfter =
+        filters.endDate.after != null && filters.endDate.after !== '';
+      const hasBefore =
+        filters.endDate.before != null && filters.endDate.before !== '';
+      if (hasAfter && hasBefore) {
+        whereClauses.push(
+          `(er."endDateTime" >= '${filters.endDate.after}'::timestamp AT TIME ZONE 'UTC' AND er."endDateTime" <= '${filters.endDate.before}'::timestamp AT TIME ZONE 'UTC')`,
+        );
+      } else if (hasAfter) {
+        whereClauses.push(
+          `er."endDateTime" >= '${filters.endDate.after}'::timestamp AT TIME ZONE 'UTC'`,
+        );
+      } else if (hasBefore) {
+        whereClauses.push(
+          `er."endDateTime" <= '${filters.endDate.before}'::timestamp AT TIME ZONE 'UTC'`,
+        );
+      }
     }
 
     // Handle eventType filter
@@ -315,6 +333,11 @@ export class EventService {
     // Handle cohortId filter
     if (filters?.cohortId) {
       whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`);
+    }
+
+    // Handle pathway filter (metadata.isPathway) - single clause, no injection (literal 'true')
+    if (filters?.isPathway === true) {
+      whereClauses.push(`ed."metadata"->>'isPathway'='true'`);
     }
 
     if (filters.hasOwnProperty('attendanceMarked')) {
@@ -1560,7 +1583,10 @@ export class EventService {
       // create offline event
       createEventDto.onlineProvider = null;
       createEventDto.meetingDetails = null;
-      createEventDto.recordings = null;
+      // Keep recordings from request; DB has NOT NULL constraint (default to empty object if not provided)
+      if (createEventDto.recordings == null) {
+        createEventDto.recordings = {};
+      }
     } else if (createEventDto.eventType === EventTypes.online) {
       if (createEventDto.platformIntegration === false) {
         // Use existing meeting details
@@ -2220,7 +2246,10 @@ export class EventService {
         // Clear online-specific fields when changing to offline
         updateEventByIdDto.onlineProvider = null;
         updateEventByIdDto.meetingDetails = null;
-        updateEventByIdDto.recordings = null;
+        // Keep recordings; DB has NOT NULL constraint (use empty object if clearing)
+        if (updateEventByIdDto.recordings == null) {
+          updateEventByIdDto.recordings = {};
+        }
       } else if (eventDetail.eventType === EventTypes.online) {
         // Handle online event setup
         if (

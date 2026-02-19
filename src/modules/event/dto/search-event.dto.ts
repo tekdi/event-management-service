@@ -7,6 +7,7 @@ import {
   ValidateNested,
   IsUUID,
   IsDateString,
+  IsBoolean,
 } from 'class-validator';
 
 // DateRangeDto for specifying date range filters
@@ -80,6 +81,15 @@ export class FilterDto {
   @IsOptional()
   @IsUUID('4')
   cohortId?: string;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'Filter by pathway events (metadata.isPathway). When true, returns only events with metadata.isPathway === true.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPathway?: boolean;
 
   @ApiProperty({
     example: 'eff008a8-2573-466d-b877-fddf6a4fc13e',

@@ -74,6 +74,10 @@ export const ERROR_MESSAGES = {
     'Both "after" and "before" fields are required when startDate is provided.',
   BOTH_AFTER_AND_BEFORE_REQUIRED_FOR_ENDDATE:
     'Both "after" and "before" fields are required when endDate is provided.',
+  AT_LEAST_ONE_AFTER_OR_BEFORE_STARTDATE:
+    'At least one of "after" or "before" is required when startDate is provided.',
+  AT_LEAST_ONE_AFTER_OR_BEFORE_ENDDATE:
+    'At least one of "after" or "before" is required when endDate is provided.',
   AFTER_IN_START_AND_BEFORE_IN_END:
     'if StartDate and EndDate Provided then "after" fields is required in startDate and "before fields is required in endDate',
   AFTER_SHOULD_BE_LESS_THAN_BEFORE:
