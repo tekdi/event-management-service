@@ -153,4 +153,5 @@ export const API_ID = {
   MARK_EVENT_ATTENDANCE: 'api.event.mark.attendance',
   MARK_ATTENDANCE: 'api.event.attendance.mark',
   MARK_ATTENDANCE_BY_USERNAME: 'api.event.mark.attendance.by.userid',
+  GENERATE_EVENT_ATTENDANCE_REPORT: 'api.event.report.attendance',
 };
