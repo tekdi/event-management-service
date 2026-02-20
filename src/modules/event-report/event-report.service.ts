@@ -278,7 +278,7 @@ export class EventReportService {
       }
 
       const response = await this.httpService.axiosRef.post(
-        `${userServiceUrl}/list`,
+        `${userServiceUrl}/user/v1/list`,
         {
           filters: { userId: userIds },
           limit: userIds.length,
