@@ -996,6 +996,16 @@ export class AttendanceService implements OnModuleInit {
       `(${minAttendanceDurationSeconds} seconds)`,
     );
 
+    // Pathway events: skip LMS lesson completion (attendance still marked in EventAttendees)
+    const isPathway =
+      (eventRepetition.eventDetail?.metadata as Record<string, unknown>)
+        ?.isPathway === true;
+    if (isPathway) {
+      this.logger.log(
+        `Pathway event ${eventInfo.eventRepetitionId}: LMS lesson completion will be skipped`,
+      );
+    }
+
     // Step 3: Load existing attendees for all registrantIds in batch (single DB query)
     // Optimize: Only select needed fields to reduce data transfer
     this.logger.log(
@@ -1187,9 +1197,9 @@ export class AttendanceService implements OnModuleInit {
           participantsNotAttended += participantSessions.length;
         }
 
-        // Call LMS service for lesson completion if participant attended
+        // Call LMS service for lesson completion if participant attended (skip for pathway events)
         // Fire and forget - don't block processing
-        if (shouldMarkAttended && eventAttendee.userId) {
+        if (shouldMarkAttended && eventAttendee.userId && !isPathway) {
           const lmsCall = this.callLmsLessonCompletion(
             eventInfo.eventId,
             eventAttendee.userId,
@@ -2009,6 +2019,7 @@ export class AttendanceService implements OnModuleInit {
           eventDetail: {
             title: true,
             status: true,
+            metadata: true,
           },
         },
       });
@@ -2023,6 +2034,16 @@ export class AttendanceService implements OnModuleInit {
       this.logger.log(
         `[${apiId}] Event validated successfully - Event ID: ${eventRepetition.eventId || markAttendanceByUsernameDto.eventId}, Title: ${eventRepetition.eventDetail.title}`,
       );
+
+      // Pathway events: skip LMS lesson completion (attendance still marked in EventAttendees)
+      const isPathway =
+        (eventRepetition.eventDetail?.metadata as Record<string, unknown>)
+          ?.isPathway === true;
+      if (isPathway) {
+        this.logger.log(
+          `[${apiId}] Pathway event: LMS lesson completion will be skipped`,
+        );
+      }
 
       // Step 2: Create attendance records directly from provided userIds (skip User Service lookup)
       this.logger.log(
@@ -2151,13 +2172,13 @@ export class AttendanceService implements OnModuleInit {
         `[${apiId}] Attendance marking in Attendance Service is bypassed for this API`,
       );
 
-      // Step 5: Mark lesson completion in LMS Service (only for users whose EventAttendees were updated)
+      // Step 5: Mark lesson completion in LMS Service (only for users whose EventAttendees were updated; skip for pathway events)
       // Same logic as markAttendance API - only call LMS for users who were successfully marked as attended
       const processedUserIds = attendeesToUpdate.map(
         (att) => att.userId,
       );
       this.logger.log(
-        `[${apiId}] Step 5: Marking lesson completion in LMS Service for ${processedUserIds.length} users (only for users with EventAttendees updated)...`,
+        `[${apiId}] Step 5: Marking lesson completion in LMS Service for ${processedUserIds.length} users (only for users with EventAttendees updated)${isPathway ? ' - skipped (pathway event)' : ''}...`,
       );
 
       const lmsServiceCalls: Promise<any>[] = [];
@@ -2165,11 +2186,17 @@ export class AttendanceService implements OnModuleInit {
       let lmsSuccessCount = 0;
       let lmsFailureCount = 0;
 
-      // Only call LMS for users whose EventAttendees were successfully updated (no new entries created)
+      // Only call LMS for users whose EventAttendees were successfully updated (no new entries created); skip for pathway events
       for (const eventAttendee of attendeesToUpdate) {
         if (!eventAttendee.isAttended) {
           this.logger.log(
             `[${apiId}] Skipping LMS call for userId: ${eventAttendee.userId} - not marked as attended`,
+          );
+          continue;
+        }
+        if (isPathway) {
+          this.logger.log(
+            `[${apiId}] Skipping LMS call for userId: ${eventAttendee.userId} - pathway event`,
           );
           continue;
         }

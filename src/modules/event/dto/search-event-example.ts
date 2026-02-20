@@ -51,6 +51,17 @@ const searchEventsExamples: Record<
       cohortId: '0278fd6a-ed93-4f29-b961-d3c87697c76a',
     },
   },
+  SearchPathwayWithDate: {
+    limit: 100,
+    offset: 0,
+    filters: {
+      isPathway: true,
+      startDate: {
+        after: '2025-01-01T00:00:00Z',
+        before: '2025-12-31T23:59:59Z',
+      },
+    },
+  },
 };
 
 export const searchEventsExamplesForSwagger = Object.entries(

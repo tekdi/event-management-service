@@ -331,24 +331,26 @@ export class SearchDateValidationPipe implements PipeTransform {
       );
     }
 
-    if (
-      startDate &&
-      (!startDate.after || !startDate.before) &&
-      endDate === undefined
-    ) {
-      throw new BadRequestException(
-        ERROR_MESSAGES.BOTH_AFTER_AND_BEFORE_REQUIRED_FOR_STARTDATE,
-      );
+    // startDate alone: at least one of after or before (allow after-only or before-only)
+    if (startDate && endDate === undefined) {
+      const hasAfter = startDate.after != null && startDate.after !== '';
+      const hasBefore = startDate.before != null && startDate.before !== '';
+      if (!hasAfter && !hasBefore) {
+        throw new BadRequestException(
+          ERROR_MESSAGES.AT_LEAST_ONE_AFTER_OR_BEFORE_STARTDATE,
+        );
+      }
     }
 
-    if (
-      endDate &&
-      (!endDate.after || !endDate.before) &&
-      startDate === undefined
-    ) {
-      throw new BadRequestException(
-        ERROR_MESSAGES.BOTH_AFTER_AND_BEFORE_REQUIRED_FOR_ENDDATE,
-      );
+    // endDate alone: at least one of after or before (allow after-only or before-only)
+    if (endDate && startDate === undefined) {
+      const hasAfter = endDate.after != null && endDate.after !== '';
+      const hasBefore = endDate.before != null && endDate.before !== '';
+      if (!hasAfter && !hasBefore) {
+        throw new BadRequestException(
+          ERROR_MESSAGES.AT_LEAST_ONE_AFTER_OR_BEFORE_ENDDATE,
+        );
+      }
     }
 
     if (startDate && endDate && (!startDate.after || !endDate.before)) {
@@ -359,16 +361,28 @@ export class SearchDateValidationPipe implements PipeTransform {
   }
 
   private checkDateOrder(date: any, startDate: any, endDate: any) {
+    const startBoth =
+      startDate &&
+      !endDate &&
+      startDate.after != null &&
+      startDate.before != null &&
+      startDate.after !== '' &&
+      startDate.before !== '';
+    const endBoth =
+      endDate &&
+      !startDate &&
+      endDate.after != null &&
+      endDate.before != null &&
+      endDate.after !== '' &&
+      endDate.before !== '';
     if (
       (date && new Date(date.after) > new Date(date.before)) ||
-      (startDate &&
-        !endDate &&
-        new Date(startDate.after) > new Date(startDate.before)) ||
-      (endDate &&
-        !startDate &&
-        new Date(endDate.after) > new Date(endDate.before)) ||
+      (startBoth && new Date(startDate.after) > new Date(startDate.before)) ||
+      (endBoth && new Date(endDate.after) > new Date(endDate.before)) ||
       (startDate &&
         endDate &&
+        startDate.after != null &&
+        endDate.before != null &&
         new Date(startDate.after) > new Date(endDate.before))
     ) {
       throw new BadRequestException(
