@@ -2013,15 +2013,6 @@ export class AttendanceService implements OnModuleInit {
           },
         },
         relations: ['eventDetail'],
-        select: {
-          eventRepetitionId: true,
-          eventId: true,
-          eventDetail: {
-            title: true,
-            status: true,
-            metadata: true,
-          },
-        },
       });
 
       if (!eventRepetition) {
