@@ -278,7 +278,7 @@ export class EventReportService {
       }
 
       const response = await this.httpService.axiosRef.post(
-        `${userServiceUrl}/list`,
+        `${userServiceUrl}/user/v1/list`,
         {
           filters: { userId: userIds },
           limit: userIds.length,
@@ -288,6 +288,7 @@ export class EventReportService {
           headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
+            ...(authorization && { Authorization: authorization }),
             tenantid: tenantId,
             organisationid: organisationId,
           },
