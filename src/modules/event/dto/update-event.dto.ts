@@ -152,7 +152,16 @@ export class UpdateEventDto {
   description: string;
 
   @ApiProperty({
-    description: 'MetaData Details',
+    type: String,
+    description: 'Event image URL (e.g. from presigned S3 upload)',
+    example: 'https://bucket.s3.region.amazonaws.com/events/event-id/image.png',
+  })
+  @IsString()
+  @IsOptional()
+  image?: string;
+
+  @ApiProperty({
+    description: 'MetaData Details (e.g. isPathway, event_material AWS URL)',
     example: {
       framework: {
         board: '',
@@ -168,6 +177,8 @@ export class UpdateEventDto {
       cohortId: '71bdbed4-388a-4c79-bd69-65b08e857f1e',
       cycleId: '',
       tenant: '',
+      isPathway: true,
+      event_material: 'https://bucket.s3.region.amazonaws.com/events/material.pdf',
     },
   })
   @IsObject()
@@ -282,7 +293,8 @@ export class UpdateEventDto {
       !o.meetingType &&
       !o.approvalType &&
       !o.timezone &&
-      !o.recordings,
+      !o.recordings &&
+      !o.image,
   )
   @IsNotEmpty({
     message:

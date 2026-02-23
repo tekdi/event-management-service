@@ -1438,6 +1438,7 @@ export class EventService {
     eventDetail.maxAttendees = createEventDto?.maxAttendees;
     eventDetail.recordings = createEventDto?.recordings;
     eventDetail.status = createEventDto.status;
+    eventDetail.image = createEventDto?.image ?? null;
     (eventDetail.meetingDetails = createEventDto.meetingDetails),
       (eventDetail.attendees = createEventDto?.attendees?.length
         ? createEventDto.attendees
@@ -2413,6 +2414,7 @@ export class EventService {
       updatedBy: updateEventByIdDto.updatedBy,
       recordings: updateEventByIdDto.recordings,
       description: updateEventByIdDto.description,
+      image: updateEventByIdDto.image,
       updateAt: new Date(),
       isRecurring: updateEventByIdDto.isRecurring,
       isMainEvent: updateEventByIdDto.isMainEvent ?? true, // Default to true for comprehensive updates
@@ -2477,7 +2479,8 @@ export class EventService {
       isRecurring: updateEventByIdDto.isRecurring ?? eventDetail.isRecurring,
       recurrencePattern:
         updateEventByIdDto.recurrencePattern || eventDetail.recurrencePattern,
-      metaData: updateEventByIdDto.metaData || eventDetail.metaData,
+      metaData: updateEventByIdDto.metaData || eventDetail.metadata,
+      image: updateEventByIdDto.image ?? eventDetail.image,
       erMetaData: updateEventByIdDto.erMetaData || eventDetail.erMetaData,
       createdBy: eventDetail.createdBy,
       updatedBy: updateEventByIdDto.updatedBy,

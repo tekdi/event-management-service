@@ -10,10 +10,14 @@ import { PermissionMiddleware } from './middleware/permission.middleware';
 import { RolePermissionModule } from './modules/permissionRbac/rolePermissionMapping/role-permission.module';
 import { HealthModule } from './health/health.module';
 import { EventReportModule } from './modules/event-report/event-report.module';
+import { ConfigurationModule } from './configuration/configuration.module';
+import { EventStorageModule } from './storage/event-storage.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ConfigurationModule,
+    EventStorageModule,
     EventModule,
     DatabaseModule,
     AttendeesModule,

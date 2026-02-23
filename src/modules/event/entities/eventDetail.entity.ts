@@ -51,6 +51,9 @@ export class EventDetail {
   @Column({ type: 'text' })
   description: string;
 
+  @Column({ type: 'text', nullable: true })
+  image: string;
+
   @Column('text', { array: true, nullable: true })
   attendees: string[];
 
