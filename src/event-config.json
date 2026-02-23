@@ -1,0 +1,87 @@
+{
+  "$id": "event-config.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "General": {
+      "type": "object",
+      "title": "General",
+      "properties": {
+        "date_format": {
+          "type": "string",
+          "title": "Date format to show",
+          "description": "Date format to show",
+          "default": "Y-m-d H:i:s"
+        }
+      }
+    },
+    "Cloud-Agnostic Settings": {
+      "type": "object",
+      "title": "Cloud-Agnostic Settings",
+      "properties": {
+        "cloud_storage_provider": {
+          "type": "string",
+          "title": "Cloud Storage Provider",
+          "description": "Cloud Storage Provider",
+          "enum": ["azure", "aws", "gcloud"],
+          "enumNames": ["Local", "Azure", "Aws", "Google Cloud"],
+          "default": "aws"
+        },
+        "storage_key": {
+          "type": "string",
+          "title": "Storage Key",
+          "description": "Storage Key",
+          "default": ""
+        },
+        "storage_secret": {
+          "type": "string",
+          "title": "Storage Secret",
+          "description": "Storage Secret",
+          "default": ""
+        },
+        "storage_container": {
+          "type": "string",
+          "title": "Storage Container",
+          "description": "Storage Container",
+          "default": ""
+        },
+        "storage_region": {
+          "type": "string",
+          "title": "Storage Region",
+          "description": "Storage Region",
+          "default": ""
+        },
+        "presigned_url_expires_in": {
+          "type": "number",
+          "title": "Presigned URL Expires In",
+          "description": "Presigned URL Expires In",
+          "default": 3600
+        }
+      }
+    },
+    "Media Settings": {
+      "type": "object",
+      "title": "Media Settings",
+      "properties": {
+        "image_mime_type": {
+          "type": "string",
+          "title": "Allowed Image Mime types",
+          "description": "Allowed Image Mime types",
+          "default": "image/jpeg, image/jpg, image/png"
+        },
+        "image_filesize": {
+          "type": "number",
+          "title": "Allowed image size in MB",
+          "description": "Allowed image size in MB",
+          "default": 5
+        },
+        "event_upload_path": {
+          "type": "string",
+          "title": "Event Upload Path",
+          "description": "S3/key prefix for event uploads",
+          "default": "events"
+        }
+      }
+    }
+  }
+}
