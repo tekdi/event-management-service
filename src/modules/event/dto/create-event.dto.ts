@@ -482,9 +482,22 @@ export class CreateEventDto {
   recurrencePattern: RecurrencePatternDto;
 
   @ApiProperty({
+    type: String,
+    description: 'Event image URL (e.g. from presigned S3 upload)',
+    example: 'https://bucket.s3.region.amazonaws.com/events/event-id/image.png',
+  })
+  @IsString()
+  @IsOptional()
+  image?: string;
+
+  @ApiProperty({
     type: Object,
-    description: 'Event meta data',
-    example: '',
+    description:
+      'Event meta data (e.g. isPathway: true, event_material: "AWS upload URL for material")',
+    example: {
+      isPathway: true,
+      event_material: 'https://bucket.s3.region.amazonaws.com/events/material.pdf',
+    },
   })
   @IsObject()
   @IsOptional()

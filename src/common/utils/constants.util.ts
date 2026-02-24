@@ -154,4 +154,7 @@ export const API_ID = {
   MARK_ATTENDANCE: 'api.event.attendance.mark',
   MARK_ATTENDANCE_BY_USERNAME: 'api.event.mark.attendance.by.userid',
   GENERATE_EVENT_ATTENDANCE_REPORT: 'api.event.report.attendance',
+  GET_CONFIG: 'api.event.config.get',
+  SYNC_CONFIG: 'api.event.config.sync',
+  PRESIGNED_URL: 'api.event.storage.presignedurl',
 };

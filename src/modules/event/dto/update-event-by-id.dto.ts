@@ -349,9 +349,23 @@ export class UpdateEventByIdDto {
   recurrencePattern?: RecurrencePatternDto;
 
   @ApiProperty({
+    type: String,
+    description: 'Event image URL (e.g. from presigned S3 upload)',
+    example: 'https://bucket.s3.region.amazonaws.com/events/event-id/image.png',
+  })
+  @IsString()
+  @IsOptional()
+  image?: string;
+
+  @ApiProperty({
     type: Object,
-    description: 'Event meta data',
-    example: { category: 'Education' },
+    description:
+      'Event meta data (e.g. isPathway: true, event_material: "AWS upload URL")',
+    example: {
+      category: 'Education',
+      isPathway: true,
+      event_material: 'https://bucket.s3.region.amazonaws.com/events/material.pdf',
+    },
   })
   @IsObject()
   @IsOptional()
@@ -402,7 +416,8 @@ export class UpdateEventByIdDto {
       !o.isRecurring &&
       !o.recurrencePattern &&
       !o.metaData &&
-      !o.erMetaData,
+      !o.erMetaData &&
+      !o.image,
   )
   @IsNotEmpty({
     message: 'At least one field must be provided for update.',
