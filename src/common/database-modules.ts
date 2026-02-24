@@ -14,11 +14,18 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         password: configService.get('POSTGRES_PASSWORD'),
         extra: {
           timezone: 'Z', // Use "Z" for UTC or your preferred timezone
+          max: configService.get('DB_POOL_MAX', 100), // Maximum pool size
+          min: configService.get('DB_POOL_MIN', 10), // Minimum pool size
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 5000,
         },
-        // entities: [
-        //   User
-        // ],
         autoLoadEntities: true,
+        logging: configService.get('NODE_ENV') !== 'production',
+        // Query result caching
+        cache: {
+          duration: 30000, // 30 seconds
+          type: 'database',
+        },
       }),
       inject: [ConfigService],
     }),

@@ -12,5 +12,9 @@
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },
-  "eslint.validate": ["typescript", "javascript"]
+  "eslint.validate": [
+    "typescript",
+    "javascript"
+  ],
+  "kiroAgent.configureMCP": "Disabled"
 }

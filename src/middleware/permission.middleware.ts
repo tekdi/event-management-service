@@ -1,11 +1,16 @@
-import { ForbiddenException, Injectable, NestMiddleware } from '@nestjs/common';
+import { ForbiddenException, Injectable, NestMiddleware, Inject } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { RolePermissionService } from '../modules/permissionRbac/rolePermissionMapping/role-permission-mapping.service';
 import { LoggerWinston } from 'src/common/logger/logger.util';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 @Injectable()
 export class PermissionMiddleware implements NestMiddleware {
-  constructor(private readonly rolePermissionService: RolePermissionService) {}
+  constructor(
+    private readonly rolePermissionService: RolePermissionService,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+  ) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
     LoggerWinston.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -53,10 +58,22 @@ export class PermissionMiddleware implements NestMiddleware {
     return apiPath;
   }
   async fetchPermissions(roleTitle: string, apiPath: string) {
-    return await this.rolePermissionService.getPermissionForMiddleware(
-      roleTitle,
-      apiPath,
-    );
+    const cacheKey = `permissions:${roleTitle}:${apiPath}`;
+    
+    // Try to get from cache
+    let permissions = await this.cacheManager.get(cacheKey);
+    
+    if (!permissions) {
+      // Cache miss - fetch from database
+      permissions = await this.rolePermissionService.getPermissionForMiddleware(
+        roleTitle,
+        apiPath,
+      );
+      // Store in cache for 1 hour (3600 seconds)
+      await this.cacheManager.set(cacheKey, permissions, 3600000);
+    }
+    
+    return permissions;
   }
   getRole(token: string) {
     const payloadBase64 = token.split('.')[1]; // Get the payload part

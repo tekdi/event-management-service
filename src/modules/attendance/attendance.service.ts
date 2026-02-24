@@ -21,6 +21,8 @@ import { EventRepetition } from '../event/entities/eventRepetition.entity';
 import { Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LoggerWinston } from 'src/common/logger/logger.util';
+import { CircuitBreakerService } from 'src/common/circuit-breaker/circuit-breaker.service';
+import * as CircuitBreaker from 'opossum';
 
 @Injectable()
 export class AttendanceService implements OnModuleInit {
@@ -29,6 +31,8 @@ export class AttendanceService implements OnModuleInit {
   private readonly userServiceUrl: string;
   private readonly attendanceServiceUrl: string;
   private readonly onlineMeetingProvider: string;
+  private userServiceBreaker: CircuitBreaker;
+  private attendanceServiceBreaker: CircuitBreaker;
 
   constructor(
     @InjectRepository(EventRepetition)
@@ -36,6 +40,7 @@ export class AttendanceService implements OnModuleInit {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly onlineMeetingAdapter: OnlineMeetingAdapter,
+    private readonly circuitBreakerService: CircuitBreakerService,
   ) {
     this.userServiceUrl = this.configService.get('USER_SERVICE');
     this.attendanceServiceUrl = this.configService.get('ATTENDANCE_SERVICE');
@@ -54,6 +59,19 @@ export class AttendanceService implements OnModuleInit {
         `${ERROR_MESSAGES.ENVIRONMENT_VARIABLES_MISSING}: USER_SERVICE, ATTENDANCE_SERVICE`,
       );
     }
+
+    // Initialize circuit breakers
+    this.userServiceBreaker = this.circuitBreakerService.createBreaker(
+      'user-service',
+      this.callUserService.bind(this),
+      { timeout: 5000, errorThresholdPercentage: 50 },
+    );
+
+    this.attendanceServiceBreaker = this.circuitBreakerService.createBreaker(
+      'attendance-service',
+      this.callAttendanceService.bind(this),
+      { timeout: 5000, errorThresholdPercentage: 50 },
+    );
   }
 
   async markAttendanceForMeetingParticipants(
@@ -150,6 +168,21 @@ export class AttendanceService implements OnModuleInit {
     authToken: string,
     tenantId: string,
   ): Promise<UserDetails[]> {
+    // Use circuit breaker for user service call
+    return this.userServiceBreaker.fire(
+      identifiers,
+      markAttendanceBy,
+      authToken,
+      tenantId,
+    );
+  }
+
+  private async callUserService(
+    identifiers: string[],
+    markAttendanceBy: string,
+    authToken: string,
+    tenantId: string,
+  ): Promise<UserDetails[]> {
     // get userIds for emails or usernames provided from user service
     try {
       const filters = {};
@@ -192,6 +225,21 @@ export class AttendanceService implements OnModuleInit {
   }
 
   async markUsersAttendance(
+    userAttendance: AttendanceRecord[],
+    markMeetingAttendanceDto: MarkMeetingAttendanceDto,
+    loggedInUserId: string,
+    authToken: string,
+  ): Promise<any> {
+    // Use circuit breaker for attendance service call
+    return this.attendanceServiceBreaker.fire(
+      userAttendance,
+      markMeetingAttendanceDto,
+      loggedInUserId,
+      authToken,
+    );
+  }
+
+  private async callAttendanceService(
     userAttendance: AttendanceRecord[],
     markMeetingAttendanceDto: MarkMeetingAttendanceDto,
     loggedInUserId: string,
