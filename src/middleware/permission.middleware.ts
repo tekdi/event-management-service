@@ -60,9 +60,16 @@ export class PermissionMiddleware implements NestMiddleware {
     );
   }
   getRole(token: string) {
-    const payloadBase64 = token.split('.')[1]; // Get the payload part
-    const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf-8'); // Decode Base64
-    const payload = JSON.parse(payloadJson); // Convert to JSON
-    return payload.user_roles;
+    if (!token || typeof token !== 'string') return 'public';
+    const parts = token.split('.');
+    const payloadBase64 = parts[1]; // Get the payload part (JWT has 3 parts)
+    if (!payloadBase64) return 'public';
+    try {
+      const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf-8');
+      const payload = JSON.parse(payloadJson);
+      return payload.user_roles ?? 'public';
+    } catch {
+      return 'public';
+    }
   }
 }

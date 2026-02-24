@@ -158,6 +158,11 @@ export class ConfigurationService {
               default: 'image/jpeg, image/jpg, image/png',
             },
             image_filesize: { default: 5 },
+            document_mime_type: {
+              default:
+                'application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            },
+            document_filesize: { default: 50 },
             event_upload_path: { default: 'events' },
           },
         },
