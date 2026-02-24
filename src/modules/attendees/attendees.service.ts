@@ -607,9 +607,10 @@ export class AttendeesService {
         );
       }
 
-      //get meeting id from eventId from onlineDetails (get first available event repetition)
+      // Get event repetition with event detail to know event type (online vs offline)
       const eventRepetition = await this.eventRepetitionRepository.findOne({
         where: { eventRepetitionId },
+        relations: ['eventDetail'],
       });
 
       if (!eventRepetition) {
@@ -618,15 +619,55 @@ export class AttendeesService {
         );
       }
 
-      if (
-        !eventRepetition.onlineDetails ||
-        !(eventRepetition.onlineDetails as any).id
-      ) {
+      const eventType = eventRepetition.eventDetail?.eventType;
+      const hasOnlineMeetingDetails =
+        eventRepetition.onlineDetails &&
+        (eventRepetition.onlineDetails as any).id;
+
+      // Online event but missing meeting details → throw (do not treat as offline)
+      if (eventType === 'online' && !hasOnlineMeetingDetails) {
         throw new BadRequestException(
           `No online meeting details found for event ${eventRepetitionId}`,
         );
       }
 
+      const isOfflineEvent =
+        eventType === 'offline' || !hasOnlineMeetingDetails;
+
+      if (isOfflineEvent) {
+        // Offline event: create EventAttendees only, no Zoom/provider API call
+        const eventAttendeesDTO: EventAttendeesDTO = {
+          eventRepetitionId: eventRepetition.eventRepetitionId,
+          userId,
+          eventId: eventRepetition.eventId,
+          status: 'published',
+          enrolledBy,
+          enrolledAt: new Date(),
+          registrantId: undefined,
+          params: {},
+        };
+
+        const attendeeRecord = await this.saveattendessRecord(
+          eventAttendeesDTO,
+          [userId],
+        );
+
+        return response.status(HttpStatus.CREATED).send(
+          APIResponse.success(
+            apiId,
+            {
+              attendeesId: attendeeRecord[0]?.eventAttendeesId,
+              providerRegistrantId: null,
+              joinUrl: null,
+              provider: 'offline',
+              synced: false,
+            },
+            'User enrolled to event successfully',
+          ),
+        );
+      }
+
+      // Online event: call provider (Zoom) API then create EventAttendees
       const meetingId = (eventRepetition.onlineDetails as any).id;
 
       // Get provider from event details or default to 'Zoom'
