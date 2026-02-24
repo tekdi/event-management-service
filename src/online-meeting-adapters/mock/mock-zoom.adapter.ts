@@ -62,8 +62,7 @@ export class MockZoomService implements IOnlineMeetingLocator {
     }
 
     const jsonFilePath = path.join(
-      process.cwd(),
-      'data',
+      this.getAppDataDir(),
       'mock-json',
       fileName,
     );
@@ -83,6 +82,16 @@ export class MockZoomService implements IOnlineMeetingLocator {
   }
 
   /**
+   * Resolve path to data folder relative to app root (event-management-service).
+   * Avoids creating CSV in wrong place when process.cwd() is workspace root or another directory.
+   */
+  private getAppDataDir(): string {
+    // From dist/online-meeting-adapters/mock or src/.../mock: 4 levels up = project root
+    const projectRoot = path.join(__dirname, '..', '..', '..', '..');
+    return path.join(projectRoot, 'data');
+  }
+
+  /**
    * Initialize default CSV file path
    */
   private initializeDefaultFilePath(): void {
@@ -94,17 +103,9 @@ export class MockZoomService implements IOnlineMeetingLocator {
     } else if (webinarPath) {
       this.csvFilePath = webinarPath;
     } else {
-      // Default to webinar participants if available, otherwise regular participants
-      const webinarDefault = path.join(
-        process.cwd(),
-        'data',
-        'mock-webinar-participants.csv',
-      );
-      const regularDefault = path.join(
-        process.cwd(),
-        'data',
-        'mock-participants.csv',
-      );
+      const dataDir = this.getAppDataDir();
+      const webinarDefault = path.join(dataDir, 'mock-webinar-participants.csv');
+      const regularDefault = path.join(dataDir, 'mock-participants.csv');
 
       if (fs.existsSync(webinarDefault)) {
         this.csvFilePath = webinarDefault;

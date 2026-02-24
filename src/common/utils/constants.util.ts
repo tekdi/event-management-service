@@ -157,4 +157,5 @@ export const API_ID = {
   GET_CONFIG: 'api.event.config.get',
   SYNC_CONFIG: 'api.event.config.sync',
   PRESIGNED_URL: 'api.event.storage.presignedurl',
+  STORAGE_DELETE: 'api.event.storage.files.delete',
 };

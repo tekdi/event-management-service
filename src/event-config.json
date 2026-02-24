@@ -75,6 +75,18 @@
           "description": "Allowed image size in MB",
           "default": 5
         },
+        "document_mime_type": {
+          "type": "string",
+          "title": "Allowed Document Mime types",
+          "description": "Allowed Document Mime types (e.g. PDF)",
+          "default": "application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        },
+        "document_filesize": {
+          "type": "number",
+          "title": "Allowed document size in MB",
+          "description": "Allowed document size in MB",
+          "default": 50
+        },
         "event_upload_path": {
           "type": "string",
           "title": "Event Upload Path",
