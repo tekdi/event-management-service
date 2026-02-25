@@ -446,12 +446,13 @@ export class AttendeesService {
       // Optimized: Parallel queries for better performance - avoids JOIN overhead
       // Split into two independent queries that can run concurrently
       const [eventResult, attendeeResult] = await Promise.all([
-        // Query 1: Get eventId and recordings (minimal fields)
+        // Query 1: Get eventId, recordings, and eventType (for offline isEnrolled flag)
         this.eventAttendeesRepository.query(
           `
           SELECT 
             e."eventId",
-            ed."recordings"
+            ed."recordings",
+            ed."eventType"
           FROM "Events" e
           INNER JOIN "EventDetails" ed ON ed."eventDetailId" = e."eventDetailId"
           WHERE e."eventId" = $1
@@ -489,8 +490,9 @@ export class AttendeesService {
 
       const eventRow = eventResult[0];
       const attendeeRow = attendeeResult?.[0] || null;
+      const isOfflineEvent = eventRow.eventType === 'offline';
 
-      // Prepare event details with only selected fields
+      // Prepare event details with only selected fields (exclude eventType from response)
       const eventDetails = {
         eventId: eventRow.eventId,
         eventDetail: {
@@ -498,20 +500,21 @@ export class AttendeesService {
         },
       };
 
-      // Prepare attendee data (will be null if user is not enrolled)
-      // Only include params field as per optimization requirements
+      // Prepare attendee data (null if not enrolled). For offline event with enrollment, add isEnrolled: true in params
+      const baseParams = attendeeRow?.params ?? {};
       const attendee = attendeeRow?.eventAttendeesId
         ? {
-            params: attendeeRow.params ?? null,
+            params:
+              isOfflineEvent && attendeeRow
+                ? { ...baseParams, isEnrolled: true }
+                : baseParams,
           }
         : null;
 
       const result = {
         attendee: attendee
           ? {
-              
               params: attendee.params,
-             
             }
           : null,
         event: eventDetails,
