@@ -1447,10 +1447,10 @@ export class EventService {
     eventDetail.recordings = createEventDto?.recordings;
     eventDetail.status = createEventDto.status;
     eventDetail.image = createEventDto?.image ?? null;
-    ((eventDetail.meetingDetails = createEventDto.meetingDetails),
+    (eventDetail.meetingDetails = createEventDto.meetingDetails),
       (eventDetail.attendees = createEventDto?.attendees?.length
         ? createEventDto.attendees
-        : null));
+        : null);
     // Remove onlineDetails assignment - it will be stored in EventRepetition
     eventDetail.idealTime = createEventDto?.idealTime
       ? createEventDto.idealTime
