@@ -263,16 +263,22 @@ export class EventService {
 
     // Handle startDate: after only, before only, or both (range)
     if (filters?.startDate && filters.endDate === undefined) {
-      const hasAfter = filters.startDate.after != null && filters.startDate.after !== '';
-      const hasBefore = filters.startDate.before != null && filters.startDate.before !== '';
+      const hasAfter =
+        filters.startDate.after != null && filters.startDate.after !== '';
+      const hasBefore =
+        filters.startDate.before != null && filters.startDate.before !== '';
       if (hasAfter && hasBefore) {
         whereClauses.push(
           `(er."startDateTime" >= '${filters.startDate.after}'::timestamp AT TIME ZONE 'UTC' AND er."startDateTime" <= '${filters.startDate.before}'::timestamp AT TIME ZONE 'UTC')`,
         );
       } else if (hasAfter) {
-        whereClauses.push(`er."startDateTime" >= '${filters.startDate.after}'::timestamp AT TIME ZONE 'UTC'`);
+        whereClauses.push(
+          `er."startDateTime" >= '${filters.startDate.after}'::timestamp AT TIME ZONE 'UTC'`,
+        );
       } else if (hasBefore) {
-        whereClauses.push(`er."startDateTime" <= '${filters.startDate.before}'::timestamp AT TIME ZONE 'UTC'`);
+        whereClauses.push(
+          `er."startDateTime" <= '${filters.startDate.before}'::timestamp AT TIME ZONE 'UTC'`,
+        );
       }
     }
 
@@ -1052,7 +1058,8 @@ export class EventService {
       updateBody.metadata ||
       updateBody.recordings ||
       updateBody.description ||
-      updateBody.minAttendanceDurationMinutes !== undefined
+      updateBody.minAttendanceDurationMinutes !== undefined ||
+      updateBody.image !== undefined
     ) {
       updateResult.updatedEventDetails =
         await this.updateEventDetailsForRecurringEvents(
@@ -1319,7 +1326,8 @@ export class EventService {
       updateBody.metadata ||
       updateBody.recordings ||
       updateBody.description ||
-      updateBody.minAttendanceDurationMinutes !== undefined
+      updateBody.minAttendanceDurationMinutes !== undefined ||
+      updateBody.image !== undefined
     ) {
       if (updateBody.onlineDetails) {
         Object.assign(
@@ -1439,10 +1447,10 @@ export class EventService {
     eventDetail.recordings = createEventDto?.recordings;
     eventDetail.status = createEventDto.status;
     eventDetail.image = createEventDto?.image ?? null;
-    (eventDetail.meetingDetails = createEventDto.meetingDetails),
+    ((eventDetail.meetingDetails = createEventDto.meetingDetails),
       (eventDetail.attendees = createEventDto?.attendees?.length
         ? createEventDto.attendees
-        : null);
+        : null));
     // Remove onlineDetails assignment - it will be stored in EventRepetition
     eventDetail.idealTime = createEventDto?.idealTime
       ? createEventDto.idealTime
