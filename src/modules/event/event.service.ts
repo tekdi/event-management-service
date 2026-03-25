@@ -1052,7 +1052,8 @@ export class EventService {
       updateBody.metadata ||
       updateBody.recordings ||
       updateBody.description ||
-      updateBody.minAttendanceDurationMinutes !== undefined
+      updateBody.minAttendanceDurationMinutes !== undefined ||
+      updateBody.image !== undefined
     ) {
       updateResult.updatedEventDetails =
         await this.updateEventDetailsForRecurringEvents(
@@ -1319,7 +1320,8 @@ export class EventService {
       updateBody.metadata ||
       updateBody.recordings ||
       updateBody.description ||
-      updateBody.minAttendanceDurationMinutes !== undefined
+      updateBody.minAttendanceDurationMinutes !== undefined ||
+      updateBody.image !== undefined
     ) {
       if (updateBody.onlineDetails) {
         Object.assign(
