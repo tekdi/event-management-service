@@ -56,13 +56,6 @@ jobs:
           kubectl apply -f manifest/configmap.yaml -n $NAMESPACE
           kubectl apply -f manifest/event-management-service-updated.yaml -n $NAMESPACE
 
-          PODS=$(kubectl get pods -n $NAMESPACE -l app=eventmanagement -o name)
-
-          if [ -z "$PODS" ]; then
-            echo "❌ No pods found for app=eventmanagement"
-            exit 1
-          fi
-
-          echo "$PODS" | xargs kubectl delete -n $NAMESPACE
-
+          kubectl rollout restart deployment eventmanagement -n $NAMESPACE
+          kubectl rollout status deployment eventmanagement -n $NAMESPACE
           kubectl get pods -n $NAMESPACE -l app=eventmanagement
