@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsOptional,
   IsEnum,
@@ -8,6 +8,7 @@ import {
   IsUUID,
   IsDateString,
   IsBoolean,
+  IsIn,
 } from 'class-validator';
 
 // DateRangeDto for specifying date range filters
@@ -100,6 +101,31 @@ export class FilterDto {
   createdBy?: string;
 }
 
+const EVENT_LIST_SORT_COLUMNS = ['startDateTime', 'endDateTime'] as const;
+
+export class EventListSortDto {
+  @ApiProperty({
+    example: 'startDateTime',
+    description: 'Column on EventRepetition to sort by',
+    enum: EVENT_LIST_SORT_COLUMNS,
+  })
+  @IsIn(EVENT_LIST_SORT_COLUMNS)
+  column: (typeof EVENT_LIST_SORT_COLUMNS)[number];
+
+  @ApiProperty({
+    example: 'ASC',
+    description: 'Sort direction (defaults to ASC)',
+    enum: ['ASC', 'DESC'],
+    required: false,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    value == null || value === '' ? 'ASC' : String(value).toUpperCase(),
+  )
+  @IsIn(['ASC', 'DESC'])
+  order?: string;
+}
+
 export class SearchFilterDto {
   @ApiProperty({
     type: Number,
@@ -117,4 +143,14 @@ export class SearchFilterDto {
   @ValidateNested({ each: true })
   @Type(() => FilterDto)
   filters: FilterDto;
+
+  @ApiProperty({
+    type: EventListSortDto,
+    description: 'Sort by EventRepetition occurrence time (default startDateTime ASC)',
+    required: false,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EventListSortDto)
+  sort?: EventListSortDto;
 }

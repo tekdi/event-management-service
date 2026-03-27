@@ -217,6 +217,8 @@ export class EventService {
       finalquery = await this.createSearchQuery(filters, finalquery);
     }
 
+    finalquery += this.buildEventListOrderByClause(requestBody.sort);
+
     // Set default limit and offset if not provided
     const limit = requestBody.limit ? requestBody.limit : 200;
     const offset = requestBody.offset ? requestBody.offset : 0;
@@ -247,6 +249,26 @@ export class EventService {
       .json(
         APIResponse.success(apiId, { totalCount, events: finalResult }, 'OK`'),
       );
+  }
+
+  /** Whitelist sort columns to SQL (EventRepetition alias er). */
+  private buildEventListOrderByClause(sort?: {
+    column?: string;
+    order?: string;
+  }): string {
+    const columnSql: Record<string, string> = {
+      startDateTime: 'er."startDateTime"',
+      endDateTime: 'er."endDateTime"',
+    };
+    const col =
+      sort?.column && columnSql[sort.column] != null
+        ? sort.column
+        : 'startDateTime';
+    const dir =
+      sort?.order && String(sort.order).toUpperCase() === 'DESC'
+        ? 'DESC'
+        : 'ASC';
+    return ` ORDER BY ${columnSql[col]} ${dir}`;
   }
 
   async createSearchQuery(filters, finalquery) {

@@ -1,6 +1,6 @@
 const searchEventsExamples: Record<
   string,
-  { limit: number; offset: number; filters: any }
+  { limit: number; offset: number; filters: any; sort?: any }
 > = {
   // All keys are optional you just cant use startDate and endDate along with the date filter
   SearchWithStartAndEndDate: {
@@ -61,6 +61,7 @@ const searchEventsExamples: Record<
         before: '2025-12-31T23:59:59Z',
       },
     },
+    sort: { column: 'startDateTime', order: 'ASC' },
   },
 };
 
