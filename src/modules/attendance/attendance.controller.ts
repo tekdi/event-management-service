@@ -239,22 +239,40 @@ export class EventAttendance {
 
   /**
    * Get job status by job ID
+   * Optional query eventRepetitionId: if provided, the job must belong to that repetition (404 otherwise).
+   * Response includes eventName (from EventDetails.title), eventRepetition snapshot, and attendanceMarked.
    * @param jobId - Job ID
    * @param response - Response object
    * @returns Response object with job status
    */
   @Get('/status/:jobId')
   @ApiParam({ name: 'jobId', description: 'Job ID' })
+  @ApiQuery({
+    name: 'eventRepetitionId',
+    required: false,
+    description:
+      'When set, only succeeds if this job was created for this event repetition',
+  })
   async getStatus(
     @Param('jobId') jobId: string,
     @Res() response: Response,
+    @Query('eventRepetitionId') eventRepetitionId?: string,
   ): Promise<Response> {
     try {
-      const job = await this.jobStatusService.getJobByJobId(jobId);
+      const enriched = await this.jobStatusService.getJobStatusEnriched(
+        jobId,
+        eventRepetitionId,
+      );
 
-      if (!job) {
-        throw new NotFoundException(`Job ${jobId} not found`);
+      if (!enriched) {
+        throw new NotFoundException(
+          eventRepetitionId
+            ? `Job ${jobId} not found for event repetition ${eventRepetitionId}`
+            : `Job ${jobId} not found`,
+        );
       }
+
+      const { job, eventName, attendanceMarked, eventRepetition } = enriched;
 
       // Also get BullMQ job status
       const bullJob = await this.attendanceQueueService.getJob(jobId);
@@ -266,6 +284,9 @@ export class EventAttendance {
           {
             jobId: job.jobId,
             eventRepetitionId: job.eventRepetitionId,
+            eventName,
+            attendanceMarked,
+            eventRepetition,
             status: job.status,
             progress: job.progress,
             errorMessage: job.errorMessage,
@@ -291,7 +312,8 @@ export class EventAttendance {
   }
 
   /**
-   * Get list of jobs with optional filtering
+   * Get list of jobs with optional filtering.
+   * Each job includes eventName (event title from EventDetails.title) when linked to a repetition.
    * @param status - Optional status filter
    * @param limit - Number of jobs to return
    * @param offset - Offset for pagination
@@ -300,11 +322,17 @@ export class EventAttendance {
    */
   @Get('/jobs')
   @ApiQuery({ name: 'status', required: false, enum: AttendanceJobStatus })
+  @ApiQuery({
+    name: 'eventRepetitionId',
+    required: false,
+    description: 'Filter jobs by event repetition UUID',
+  })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
   async getJobs(
     @Res() response: Response,
     @Query('status') status?: AttendanceJobStatus,
+    @Query('eventRepetitionId') eventRepetitionId?: string,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
   ): Promise<Response> {
@@ -313,6 +341,7 @@ export class EventAttendance {
         status,
         limit || 50,
         offset || 0,
+        eventRepetitionId,
       );
 
       return response.status(HttpStatus.OK).json(

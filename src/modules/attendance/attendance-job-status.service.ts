@@ -1,10 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import {
   AttendanceJob,
   AttendanceJobStatus,
 } from './entities/attendance-job.entity';
+import { EventRepetition } from '../event/entities/eventRepetition.entity';
+
+export type AttendanceJobStatusEnriched = {
+  job: AttendanceJob;
+  eventName: string | null;
+  attendanceMarked: boolean | null;
+  eventRepetition: Record<string, unknown> | null;
+};
+
+/** Job row for list APIs: same as AttendanceJob plus event title (EventDetails.title). */
+export type AttendanceJobListItem = AttendanceJob & {
+  eventName: string | null;
+};
 
 @Injectable()
 export class AttendanceJobStatusService {
@@ -13,6 +26,8 @@ export class AttendanceJobStatusService {
   constructor(
     @InjectRepository(AttendanceJob)
     private readonly attendanceJobRepository: Repository<AttendanceJob>,
+    @InjectRepository(EventRepetition)
+    private readonly eventRepetitionRepository: Repository<EventRepetition>,
   ) {}
 
   async createJob(
@@ -79,16 +94,127 @@ export class AttendanceJobStatusService {
     return this.attendanceJobRepository.findOne({ where: { jobId } });
   }
 
+  /**
+   * Job status with EventRepetition context (event title, attendanceMarked).
+   * If filterEventRepetitionId is set, returns null when the job is not for that repetition.
+   */
+  async getJobStatusEnriched(
+    jobId: string,
+    filterEventRepetitionId?: string,
+  ): Promise<AttendanceJobStatusEnriched | null> {
+    const job = await this.getJobByJobId(jobId);
+    if (!job) {
+      return null;
+    }
+    if (
+      filterEventRepetitionId &&
+      job.eventRepetitionId !== filterEventRepetitionId
+    ) {
+      return null;
+    }
+
+    if (!job.eventRepetitionId) {
+      return {
+        job,
+        eventName: null,
+        attendanceMarked: null,
+        eventRepetition: null,
+      };
+    }
+
+    const er = await this.eventRepetitionRepository.findOne({
+      where: { eventRepetitionId: job.eventRepetitionId },
+      relations: ['event', 'event.eventDetail'],
+    });
+
+    const eventName = er?.event?.eventDetail?.title ?? null;
+    const attendanceMarked = er ? er.attendanceMarked : null;
+
+    const eventRepetition = er
+      ? {
+          eventRepetitionId: er.eventRepetitionId,
+          eventId: er.eventId,
+          eventDetailId: er.eventDetailId,
+          onlineDetails: er.onlineDetails,
+          erMetaData: er.erMetaData,
+          params: er.params,
+          startDateTime: er.startDateTime,
+          endDateTime: er.endDateTime,
+          createdAt: er.createdAt,
+          updatedAt: er.updatedAt,
+          createdBy: er.createdBy,
+          updatedBy: er.updatedBy,
+          attendanceMarked: er.attendanceMarked,
+          totalParticipantsProcessed: er.totalParticipantsProcessed,
+          totalParticipantsExpected: er.totalParticipantsExpected,
+        }
+      : null;
+
+    return { job, eventName, attendanceMarked, eventRepetition };
+  }
+
+  /**
+   * Batch-load event titles (EventDetails.title) for jobs — one query for all repetition ids.
+   */
+  private async attachEventNamesToJobs(
+    jobs: AttendanceJob[],
+  ): Promise<AttendanceJobListItem[]> {
+    const repIds = [
+      ...new Set(
+        jobs
+          .map((j) => j.eventRepetitionId)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+
+    if (repIds.length === 0) {
+      return jobs.map(
+        (j) =>
+          ({ ...j, eventName: null }) as AttendanceJobListItem,
+      );
+    }
+
+    const repetitions = await this.eventRepetitionRepository.find({
+      where: { eventRepetitionId: In(repIds) },
+      relations: ['event', 'event.eventDetail'],
+    });
+
+    const titleByRepId = new Map<string, string | null>();
+    for (const er of repetitions) {
+      titleByRepId.set(
+        er.eventRepetitionId,
+        er.event?.eventDetail?.title ?? null,
+      );
+    }
+
+    return jobs.map((job) => {
+      const eventName = job.eventRepetitionId
+        ? titleByRepId.get(job.eventRepetitionId) ?? null
+        : null;
+      return { ...job, eventName } as AttendanceJobListItem;
+    });
+  }
+
   async getJobs(
     status?: AttendanceJobStatus,
     limit: number = 50,
     offset: number = 0,
-  ): Promise<{ jobs: AttendanceJob[]; total: number }> {
+    eventRepetitionId?: string,
+  ): Promise<{ jobs: AttendanceJobListItem[]; total: number }> {
     const queryBuilder =
       this.attendanceJobRepository.createQueryBuilder('job');
 
-    if (status) {
+    if (status && eventRepetitionId) {
       queryBuilder.where('job.status = :status', { status });
+      queryBuilder.andWhere('job.eventRepetitionId = :eventRepetitionId', {
+        eventRepetitionId,
+      });
+    } else if (status) {
+      queryBuilder.where('job.status = :status', { status });
+    } else if (eventRepetitionId) {
+      queryBuilder.where('job.eventRepetitionId = :eventRepetitionId', {
+        eventRepetitionId,
+      });
     }
 
     queryBuilder
@@ -97,8 +223,9 @@ export class AttendanceJobStatusService {
       .take(limit);
 
     const [jobs, total] = await queryBuilder.getManyAndCount();
+    const jobsWithTitles = await this.attachEventNamesToJobs(jobs);
 
-    return { jobs, total };
+    return { jobs: jobsWithTitles, total };
   }
 }
 
