@@ -40,11 +40,10 @@ import {
   MarkAttendanceByUsernameDto,
   MarkAttendanceDto,
 } from './dto/markAttendance.dto';
+import { ListAttendanceJobsDto } from './dto/list-attendance-jobs.dto';
 import { API_ID } from 'src/common/utils/constants.util';
 import { GetUserId } from 'src/common/decorators/userId.decorator';
 import APIResponse from 'src/common/utils/response';
-import { AttendanceJobStatus } from './entities/attendance-job.entity';
-
 @Controller('attendance/v1')
 @ApiTags('Event-Attendance')
 @ApiBasicAuth('access-token')
@@ -178,7 +177,11 @@ export class EventAttendance {
           );
         }
 
-        await this.jobStatusService.createJob(job.id, dto.eventRepetitionId);
+        await this.jobStatusService.createJob(
+          job.id,
+          dto.eventRepetitionId,
+          dto.contextType,
+        );
         jobIds = [job.id];
 
         this.logger.log(
@@ -207,6 +210,7 @@ export class EventAttendance {
           await this.jobStatusService.createJob(
             job.id,
             event.eventRepetitionId,
+            dto.contextType,
           );
           jobIds.push(job.id);
         }
@@ -223,6 +227,7 @@ export class EventAttendance {
             jobIds,
             totalEvents: jobIds.length,
             status: 'pending',
+            contextType: dto.contextType ?? null,
             message:
               'Attendance marking jobs created. Use status API to track progress.',
           },
@@ -284,6 +289,7 @@ export class EventAttendance {
           {
             jobId: job.jobId,
             eventRepetitionId: job.eventRepetitionId,
+            contextType: job.contextType ?? null,
             eventName,
             attendanceMarked,
             eventRepetition,
@@ -312,37 +318,38 @@ export class EventAttendance {
   }
 
   /**
-   * Get list of jobs with optional filtering.
-   * Each job includes eventName (event title from EventDetails.title) when linked to a repetition.
-   * @param status - Optional status filter
-   * @param limit - Number of jobs to return
-   * @param offset - Offset for pagination
-   * @param response - Response object
-   * @returns Response object with jobs list
+   * List attendance jobs (POST body filters).
+   * Each job includes eventName and contextType when set.
    */
-  @Get('/jobs')
-  @ApiQuery({ name: 'status', required: false, enum: AttendanceJobStatus })
-  @ApiQuery({
-    name: 'eventRepetitionId',
-    required: false,
-    description: 'Filter jobs by event repetition UUID',
-  })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'offset', required: false, type: Number })
-  async getJobs(
+  @Post('/jobs')
+  @ApiBody({ type: ListAttendanceJobsDto })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async listAttendanceJobs(
+    @Body() body: ListAttendanceJobsDto,
     @Res() response: Response,
-    @Query('status') status?: AttendanceJobStatus,
-    @Query('eventRepetitionId') eventRepetitionId?: string,
-    @Query('limit') limit?: number,
-    @Query('offset') offset?: number,
   ): Promise<Response> {
     try {
+      const limit = body.limit ?? 50;
+      const offset = body.offset ?? 0;
+
       const { jobs, total } = await this.jobStatusService.getJobs(
-        status,
-        limit || 50,
-        offset || 0,
-        eventRepetitionId,
+        body.status,
+        limit,
+        offset,
+        body.eventRepetitionId,
+        body.contextType,
       );
+
+      const filters: Record<string, unknown> = {};
+      if (body.status !== undefined) {
+        filters.status = body.status;
+      }
+      if (body.eventRepetitionId) {
+        filters.eventRepetitionId = body.eventRepetitionId;
+      }
+      if (body.contextType !== undefined) {
+        filters.contextType = body.contextType;
+      }
 
       return response.status(HttpStatus.OK).json(
         APIResponse.success(
@@ -350,8 +357,9 @@ export class EventAttendance {
           {
             jobs,
             total,
-            limit: limit || 50,
-            offset: offset || 0,
+            limit,
+            offset,
+            filters,
           },
           'Jobs retrieved',
         ),

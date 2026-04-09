@@ -33,10 +33,12 @@ export class AttendanceJobStatusService {
   async createJob(
     jobId: string,
     eventRepetitionId?: string,
+    contextType?: string | null,
   ): Promise<AttendanceJob> {
     const job = this.attendanceJobRepository.create({
       jobId,
       eventRepetitionId,
+      contextType: contextType ?? null,
       status: AttendanceJobStatus.PENDING,
       progress: 0,
     });
@@ -200,21 +202,29 @@ export class AttendanceJobStatusService {
     limit: number = 50,
     offset: number = 0,
     eventRepetitionId?: string,
+    contextType?: string,
   ): Promise<{ jobs: AttendanceJobListItem[]; total: number }> {
     const queryBuilder =
       this.attendanceJobRepository.createQueryBuilder('job');
 
-    if (status && eventRepetitionId) {
-      queryBuilder.where('job.status = :status', { status });
-      queryBuilder.andWhere('job.eventRepetitionId = :eventRepetitionId', {
-        eventRepetitionId,
-      });
-    } else if (status) {
-      queryBuilder.where('job.status = :status', { status });
-    } else if (eventRepetitionId) {
-      queryBuilder.where('job.eventRepetitionId = :eventRepetitionId', {
-        eventRepetitionId,
-      });
+    const clauses: string[] = [];
+    const params: Record<string, unknown> = {};
+
+    if (status !== undefined) {
+      clauses.push('job.status = :status');
+      params.status = status;
+    }
+    if (eventRepetitionId) {
+      clauses.push('job.eventRepetitionId = :eventRepetitionId');
+      params.eventRepetitionId = eventRepetitionId;
+    }
+    if (contextType !== undefined) {
+      clauses.push('job.contextType = :contextType');
+      params.contextType = contextType;
+    }
+
+    if (clauses.length > 0) {
+      queryBuilder.where(clauses.join(' AND '), params);
     }
 
     queryBuilder

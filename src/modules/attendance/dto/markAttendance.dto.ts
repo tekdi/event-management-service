@@ -126,6 +126,17 @@ export class MarkAttendanceDto {
   mockDataFile?: string;
 
   @ApiProperty({
+    type: String,
+    required: false,
+    example: 'LMS_Event',
+    description:
+      'Optional context label (any string; stored up to 255 chars). Suggested: LMS_Event, Pathway_event, Open_event.',
+  })
+  @IsOptional()
+  @IsString()
+  contextType?: string;
+
+  @ApiProperty({
     type: 'string',
     format: 'binary',
     description:

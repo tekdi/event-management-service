@@ -21,6 +21,7 @@ export enum AttendanceJobStatus {
 @Index(['createdAt'])
 @Index(['status', 'createdAt'])
 @Index(['eventRepetitionId', 'status'])
+@Index(['contextType'])
 export class AttendanceJob {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -30,6 +31,14 @@ export class AttendanceJob {
 
   @Column({ type: 'uuid', nullable: true, name: 'event_repetition_id' })
   eventRepetitionId: string;
+
+  @Column({
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    name: 'contextType',
+  })
+  contextType: string | null;
 
   @Column({
     type: 'varchar',
