@@ -228,12 +228,22 @@ export class UpdateEventByIdDto {
   meetingDetails?: MeetingDetailsDto;
 
   @ApiProperty({
-    type: Object,
+    type: MeetingDetailsDto,
     description: 'Online Details (Alias for MeetingDetails)',
   })
   @IsObject()
+  @ValidateIf((o) => o.isMeetingNew === false)
+  @ValidateIf((o) => o.eventType === EventTypes.online)
+  @ValidateNested({ each: true })
+  @Type(() => MeetingDetailsDto)
+  @Transform(({ value, obj }) => {
+    if (value && obj.onlineProvider) {
+      value.onlineProvider = obj.onlineProvider;
+    }
+    return value;
+  })
   @IsOptional()
-  onlineDetails?: any;
+  onlineDetails?: MeetingDetailsDto;
 
   @ApiProperty({
     type: Number,
