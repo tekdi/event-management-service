@@ -1056,6 +1056,13 @@ export class EventService {
         Object.assign(eventRepetition.onlineDetails, updateBody.onlineDetails);
         updateData.onlineDetails = eventRepetition.onlineDetails;
         updateResult.onlineDetails = updateBody.onlineDetails;
+
+        if (updateBody.onlineDetails.attendanceMarked !== undefined) {
+          eventRepetition.attendanceMarked =
+            updateBody.onlineDetails.attendanceMarked;
+          updateData.attendanceMarked =
+            updateBody.onlineDetails.attendanceMarked;
+        }
       }
 
       if (updateBody.erMetaData) {
@@ -1405,6 +1412,11 @@ export class EventService {
       if (updateBody.onlineDetails) {
         Object.assign(eventRepetition.onlineDetails, updateBody.onlineDetails);
         updateResult.onlineDetails = updateBody.onlineDetails;
+
+        if (updateBody.onlineDetails.attendanceMarked !== undefined) {
+          eventRepetition.attendanceMarked =
+            updateBody.onlineDetails.attendanceMarked;
+        }
       }
       if (updateBody.erMetaData) {
         Object.assign(eventRepetition.erMetaData, updateBody.erMetaData);
@@ -1909,7 +1921,7 @@ export class EventService {
     if (
       config.endCondition.type === 'endDate' &&
       occurrences[occurrences.length - 1]?.endDateTime >
-        new Date(config.endCondition.value)
+      new Date(config.endCondition.value)
     ) {
       occurrences.pop();
     }
@@ -2432,7 +2444,8 @@ export class EventService {
       location: updateEventByIdDto.location,
       longitude: updateEventByIdDto.longitude,
       latitude: updateEventByIdDto.latitude,
-      onlineDetails: updateEventByIdDto.meetingDetails,
+      onlineDetails:
+        updateEventByIdDto.meetingDetails || updateEventByIdDto.onlineDetails,
       onlineProvider: updateEventByIdDto.onlineProvider,
       meetingType: updateEventByIdDto.meetingType,
       approvalType: updateEventByIdDto.approvalType,

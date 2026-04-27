@@ -228,6 +228,14 @@ export class UpdateEventByIdDto {
   meetingDetails?: MeetingDetailsDto;
 
   @ApiProperty({
+    type: Object,
+    description: 'Online Details (Alias for MeetingDetails)',
+  })
+  @IsObject()
+  @IsOptional()
+  onlineDetails?: any;
+
+  @ApiProperty({
     type: Number,
     description: 'Max Attendees',
     example: 100,
@@ -406,6 +414,7 @@ export class UpdateEventByIdDto {
       !o.platformIntegration &&
       !o.isMeetingNew &&
       !o.meetingDetails &&
+      !o.onlineDetails &&
       !o.maxAttendees &&
       !o.attendees &&
       !o.recordings &&
