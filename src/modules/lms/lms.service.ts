@@ -8,6 +8,7 @@ export class LmsService {
   private readonly lmsServiceUrl: string;
   private readonly tenantId: string;
   private readonly organisationId: string;
+  private readonly lessonIdCache = new Map<string, string>();
 
   constructor(
     private readonly httpService: HttpService,
@@ -170,6 +171,10 @@ export class LmsService {
     try {
       if (!this.lmsServiceUrl) return null;
 
+      if (this.lessonIdCache.has(eventId)) {
+        return this.lessonIdCache.get(eventId)!;
+      }
+
       // Step 1: Get media by source (eventId)
       const mediaResponse = await this.httpService.axiosRef.get(
         `${this.lmsServiceUrl}/v1/media`,
@@ -217,7 +222,11 @@ export class LmsService {
       );
 
       if (!lesson) return null;
-      return lesson.lessonId || lesson.lesson_id || lesson.id;
+      const finalLessonId = lesson.lessonId || lesson.lesson_id || lesson.id;
+      if (finalLessonId) {
+        this.lessonIdCache.set(eventId, finalLessonId);
+      }
+      return finalLessonId;
     } catch (error) {
       this.logger.error(`Error getting lessonId from eventId ${eventId}`, {
         error: error.message,

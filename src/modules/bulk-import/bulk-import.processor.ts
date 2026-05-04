@@ -56,8 +56,9 @@ export class BulkImportProcessor extends WorkerHost {
         completedAt: null 
       });
 
-      // Load workbook
-      const workbook = xlsx.readFile(filePath);
+      // Load workbook asynchronously to avoid blocking I/O
+      const buffer = await fs.promises.readFile(filePath);
+      const workbook = xlsx.read(buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const rows: any[] = xlsx.utils.sheet_to_json(sheet);
@@ -80,14 +81,47 @@ export class BulkImportProcessor extends WorkerHost {
       // Step 2: Process attendance marking
       for (let i = 0; i < rows.length; i += this.batchSize) {
         const batch = rows.slice(i, i + this.batchSize);
-        
-        for (const row of batch) {
+
+        // Pre-fetch all EventAttendees for this batch
+        const whereConditions = batch.map(row => {
+          const email = (row.emailId || row.Email || row.email)?.toLowerCase();
+          let targetUserId = row.userId || row.UserId || row.userid;
+          if (!targetUserId && email) targetUserId = emailToUserIdMap.get(email);
+          const condition: any = {
+            eventId: row.eventId || row.EventId || eventId,
+            userId: targetUserId
+          };
+          const repId = row.eventRepetitionId || row.EventRepetitionId || eventRepetitionId;
+          if (repId) {
+            condition.eventRepetitionId = repId;
+          }
+          return condition;
+        }).filter(c => c.userId);
+
+        const attendees = await this.eventAttendeesRepository.find({
+          where: whereConditions
+        });
+
+        // Build a lookup map for the batch grouped by eventId and userId
+        const attendeeMap = new Map<string, EventAttendees[]>();
+        for (const attendee of attendees) {
+          const key = `${attendee.eventId}-${attendee.userId}`;
+          if (!attendeeMap.has(key)) {
+            attendeeMap.set(key, []);
+          }
+          attendeeMap.get(key)!.push(attendee);
+        }
+
+        for (let j = 0; j < batch.length; j++) {
+          const row = batch[j];
+          const identifier = (row.emailId || row.Email || row.email) || (row.userId || row.UserId || row.userid) || `Row ${i + j + 1}`;
+          
           try {
             const email = (row.emailId || row.Email || row.email)?.toLowerCase();
             let targetUserId = row.userId || row.UserId || row.userid;
             const duration = row.duration || row.Duration || 0;
             const rowEventId = row.eventId || row.EventId || eventId;
-            const rowEventRepetitionId = row.eventRepetitionId || row.EventRepetitionId || eventRepetitionId;
+            const rowEventRepetitionId = row.eventRepetitionId || row.EventRepetitionId || eventRepetitionId || null;
 
             if (!targetUserId && email) {
               targetUserId = emailToUserIdMap.get(email);
@@ -97,13 +131,18 @@ export class BulkImportProcessor extends WorkerHost {
               throw new Error(`Could not resolve userId for email: ${email || 'N/A'}`);
             }
 
-            const whereClause: any = {
-              eventId: rowEventId,
-              eventRepetitionId: rowEventRepetitionId || null,
-              userId: targetUserId,
-            };
-
-            const attendee = await this.eventAttendeesRepository.findOne({ where: whereClause });
+            const lookupKey = `${rowEventId}-${targetUserId}`;
+            const attendeeMatches = attendeeMap.get(lookupKey) || [];
+            
+            let attendee: EventAttendees | undefined;
+            
+            if (rowEventRepetitionId) {
+              // If repetition ID is provided, find the exact match
+              attendee = attendeeMatches.find(a => a.eventRepetitionId === rowEventRepetitionId);
+            } else if (attendeeMatches.length > 0) {
+              // If no repetition ID is provided, but we found records, use the first one
+              attendee = attendeeMatches[0];
+            }
 
             if (!attendee) {
               throw new Error(`No attendance record found for event ${rowEventId} and user ${targetUserId} (${email || 'no email'})`);
@@ -121,7 +160,7 @@ export class BulkImportProcessor extends WorkerHost {
             } catch (lmsError) {
               failureCount++;
               resultData.failures.push({
-                row,
+                identifier,
                 errorMessage: `Attendance marked, but LMS completion failed: ${lmsError.message}`,
                 errorType: 'LMS_SYNC_FAILURE',
                 timestamp: new Date().toISOString()
@@ -131,7 +170,7 @@ export class BulkImportProcessor extends WorkerHost {
           } catch (error) {
             failureCount++;
             resultData.failures.push({
-              row,
+              identifier,
               errorMessage: error.message,
               errorType: 'ATTENDANCE_MARKING_FAILURE',
               timestamp: new Date().toISOString()
@@ -189,7 +228,7 @@ export class BulkImportProcessor extends WorkerHost {
     } finally {
       if (fs.existsSync(filePath)) {
         try {
-          fs.unlinkSync(filePath);
+          await fs.promises.unlink(filePath);
         } catch (err) {
           this.logger.error(`Failed to delete temporary file ${filePath}`, err);
         }

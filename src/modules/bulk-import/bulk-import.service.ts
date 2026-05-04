@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Like, In } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { AttendanceJob, AttendanceJobStatus } from '../attendance/entities/attendance-job.entity';
@@ -35,16 +35,35 @@ export class BulkImportService {
     }
 
     const internalId = uuidv4();
-    const fileName = `${internalId}-${file.originalname}`;
+    const ext = path.extname(file.originalname);
+    const fileName = `${internalId}${ext}`;
     const filePath = path.join(this.uploadDir, fileName);
 
-    // Save file locally
-    fs.writeFileSync(filePath, file.buffer);
+    // Save file locally (asynchronously)
+    await fs.promises.writeFile(filePath, file.buffer);
+
+    const baseJobId = `bulk-import/${eventRepetitionId || eventId}`;
+    const customJobId = `${baseJobId}-${Date.now()}`;
+
+    // Prevent concurrent imports for the same event by checking the database
+    const activeJobsCount = await this.attendanceJobRepository.count({
+      where: {
+        jobId: Like(`${baseJobId}%`),
+        status: In([AttendanceJobStatus.PENDING, AttendanceJobStatus.PROCESSING]),
+      }
+    });
+
+    if (activeJobsCount > 0) {
+      throw new BadRequestException('An import is already in progress for this event.');
+    }
+
+    // Note: We no longer delete old DB records because the jobId includes a unique timestamp, 
+    // allowing you to keep a history of all bulk import attempts.
 
     // Create AttendanceJob record first to avoid race condition with worker
     const attendanceJob = this.attendanceJobRepository.create({
       id: internalId,
-      jobId: 'pending', // Will be updated after enqueuing
+      jobId: customJobId, // Use customJobId immediately to avoid unique constraint violations on 'pending'
       eventRepetitionId: eventRepetitionId || null,
       contextType: 'bulk-import',
       status: AttendanceJobStatus.PENDING,
@@ -63,9 +82,7 @@ export class BulkImportService {
 
     await this.attendanceJobRepository.save(attendanceJob);
 
-    // Enqueue job for background processing with a custom ID
     // Enqueue job for background processing with a simplified custom ID
-    const customJobId = `bulk-import/${eventRepetitionId || eventId}`;
     const bullJob = await this.bulkImportQueue.add('process-attendance-import', {
       internalId,
       eventId,
@@ -73,9 +90,6 @@ export class BulkImportService {
       filePath,
       adminUserId,
     }, { jobId: customJobId });
-
-    // Update job record with our custom jobId
-    await this.attendanceJobRepository.update(internalId, { jobId: customJobId });
 
     this.logger.log(`Enqueued bulk import job ${bullJob.id} for event ${eventRepetitionId || eventId}`);
 

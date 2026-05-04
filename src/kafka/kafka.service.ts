@@ -31,7 +31,8 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         await this.producer.connect();
         this.logger.log('Kafka producer connected successfully');
       } catch (error) {
-        this.logger.error('Failed to connect Kafka producer', error);
+        this.logger.error('Failed to connect Kafka producer. Disabling Kafka for this instance.', error);
+        this.isKafkaEnabled = false;
       }
     }
   }
