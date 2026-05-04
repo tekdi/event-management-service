@@ -29,5 +29,6 @@ import { AttendanceJob } from './entities/attendance-job.entity';
     AttendanceProcessor,
     AttendanceJobStatusService,
   ],
+  exports: [AttendanceJobStatusService],
 })
 export class AttendanceModule {}

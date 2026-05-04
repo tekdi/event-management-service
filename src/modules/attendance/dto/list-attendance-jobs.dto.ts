@@ -4,6 +4,14 @@ import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-val
 import { AttendanceJobStatus } from '../entities/attendance-job.entity';
 
 export class ListAttendanceJobsDto {
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Specific job ID to retrieve (BullMQ jobId or UUID). If provided, other filters are ignored.',
+  })
+  @IsOptional()
+  @IsString()
+  jobId?: string;
+
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()
@@ -16,9 +24,9 @@ export class ListAttendanceJobsDto {
 
   @ApiPropertyOptional({
     type: String,
-    example: 'LMS_Event',
+    example: 'bulk-import',
     description:
-      'Filter by context label (exact match). Any string (DB stores up to 255 chars).',
+      'Filter by context label (exact match). Defaults to bulk-import in the bulk-import API.',
   })
   @IsOptional()
   @IsString()

@@ -12,6 +12,7 @@ import { HealthModule } from './health/health.module';
 import { EventReportModule } from './modules/event-report/event-report.module';
 import { ConfigurationModule } from './configuration/configuration.module';
 import { EventStorageModule } from './storage/event-storage.module';
+import { BulkImportModule } from './modules/bulk-import/bulk-import.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { EventStorageModule } from './storage/event-storage.module';
     RolePermissionModule,
     HealthModule,
     EventReportModule,
+    BulkImportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
