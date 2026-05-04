@@ -1,11 +1,9 @@
 import {
   Controller,
   Post,
-  Get,
   UploadedFile,
   UseInterceptors,
   Body,
-  Param,
   HttpStatus,
   Req,
 } from '@nestjs/common';
@@ -13,7 +11,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { BulkImportService } from './bulk-import.service';
 import { AttendanceJobStatusService } from '../attendance/attendance-job-status.service';
 import { ListAttendanceJobsDto } from '../attendance/dto/list-attendance-jobs.dto';
-import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiParam, ApiProperty } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { API_ID } from '../../common/utils/constants.util';
 import APIResponse from '../../common/utils/response';
 
@@ -69,7 +67,9 @@ export class BulkImportController {
   async getStatusOrList(@Body() body: ListAttendanceJobsDto) {
     // If jobId is provided, return status of that specific job
     if (body.jobId) {
-      const result = await this.bulkImportService.getImportJobStatus(body.jobId);
+      const result = await this.bulkImportService.getImportJobStatus(
+        body.jobId,
+      );
       return APIResponse.success(
         API_ID.GET_BULK_IMPORT_STATUS,
         result,
@@ -92,7 +92,8 @@ export class BulkImportController {
 
     const filters: Record<string, any> = { contextType };
     if (body.status) filters.status = body.status;
-    if (body.eventRepetitionId) filters.eventRepetitionId = body.eventRepetitionId;
+    if (body.eventRepetitionId)
+      filters.eventRepetitionId = body.eventRepetitionId;
 
     return APIResponse.success(
       API_ID.LIST_ATTENDANCE_JOBS,

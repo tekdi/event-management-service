@@ -5,9 +5,10 @@ import { Kafka, Producer, Partitioners } from 'kafkajs';
 @Injectable()
 export class KafkaService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(KafkaService.name);
-  private kafka: Kafka;
-  private producer: Producer;
-  private isKafkaEnabled: boolean;
+  private readonly kafka: Kafka;
+  private readonly producer: Producer;
+  private readonly isKafkaEnabled: boolean;
+  private isConnected = false;
 
   constructor(private readonly configService: ConfigService) {
     this.isKafkaEnabled = this.configService.get<boolean>('KAFKA_ENABLED', true);
@@ -29,10 +30,11 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
     if (this.isKafkaEnabled) {
       try {
         await this.producer.connect();
+        this.isConnected = true;
         this.logger.log('Kafka producer connected successfully');
       } catch (error) {
         this.logger.error('Failed to connect Kafka producer. Disabling Kafka for this instance.', error);
-        this.isKafkaEnabled = false;
+        this.isConnected = false;
       }
     }
   }
@@ -44,7 +46,7 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   }
 
   async publishMessage(topic: string, message: any, key?: string): Promise<void> {
-    if (!this.isKafkaEnabled) return;
+    if (!this.isKafkaEnabled || !this.isConnected) return;
 
     try {
       await this.producer.send({
