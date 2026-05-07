@@ -27,7 +27,9 @@ export class BulkImportService {
   async handleFileUpload(
     file: Express.Multer.File,
     eventId: string,
-    eventRepetitionId: string,
+    cohortId: string,
+    lessonId: string,
+    courseId: string,
     adminUserId: string,
   ): Promise<any> {
     if (!file) {
@@ -42,7 +44,7 @@ export class BulkImportService {
     // Save file locally (asynchronously)
     await fs.promises.writeFile(filePath, file.buffer);
 
-    const baseJobId = `bulk-import/${eventRepetitionId || eventId}`;
+    const baseJobId = `bulk-import/${eventId}`;
     const customJobId = `${baseJobId}-${Date.now()}`;
 
     // Prevent concurrent imports for the same event by checking the database
@@ -57,14 +59,11 @@ export class BulkImportService {
       throw new BadRequestException('An import is already in progress for this event.');
     }
 
-    // Note: We no longer delete old DB records because the jobId includes a unique timestamp, 
-    // allowing you to keep a history of all bulk import attempts.
-
     // Create AttendanceJob record first to avoid race condition with worker
     const attendanceJob = this.attendanceJobRepository.create({
       id: internalId,
-      jobId: customJobId, // Use customJobId immediately to avoid unique constraint violations on 'pending'
-      eventRepetitionId: eventRepetitionId || null,
+      jobId: customJobId, 
+      eventRepetitionId: null, // Removed eventRepetitionId as per requirement
       contextType: 'bulk-import',
       status: AttendanceJobStatus.PENDING,
       progress: 0,
@@ -72,6 +71,9 @@ export class BulkImportService {
         importType: 'attendance',
         adminUserId,
         eventId,
+        cohortId,
+        lessonId,
+        courseId,
         originalFileName: file.originalname,
         filePath,
         successCount: 0,
@@ -82,16 +84,18 @@ export class BulkImportService {
 
     await this.attendanceJobRepository.save(attendanceJob);
 
-    // Enqueue job for background processing with a simplified custom ID
+    // Enqueue job for background processing
     const bullJob = await this.bulkImportQueue.add('process-attendance-import', {
       internalId,
       eventId,
-      eventRepetitionId,
+      cohortId,
+      lessonId,
+      courseId,
       filePath,
       adminUserId,
     }, { jobId: customJobId });
 
-    this.logger.log(`Enqueued bulk import job ${bullJob.id} for event ${eventRepetitionId || eventId}`);
+    this.logger.log(`Enqueued bulk import job ${bullJob.id} for event ${eventId}`);
 
     return {
       jobId: bullJob.id,

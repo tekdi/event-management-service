@@ -9,6 +9,7 @@ import { LmsService } from '../lms/lms.service';
 import { UserService } from '../user/user.service';
 import { KafkaService } from '../../kafka/kafka.service';
 import { ConfigService } from '@nestjs/config';
+import { EventRepetition } from '../event/entities/eventRepetition.entity';
 import * as xlsx from 'xlsx';
 import * as fs from 'fs';
 import { validate as isUuid } from 'uuid';
@@ -23,6 +24,8 @@ export class BulkImportProcessor extends WorkerHost {
     private readonly attendanceJobRepository: Repository<AttendanceJob>,
     @InjectRepository(EventAttendees)
     private readonly eventAttendeesRepository: Repository<EventAttendees>,
+    @InjectRepository(EventRepetition)
+    private readonly eventRepetitionRepository: Repository<EventRepetition>,
     private readonly lmsService: LmsService,
     private readonly userService: UserService,
     private readonly kafkaService: KafkaService,
@@ -33,10 +36,10 @@ export class BulkImportProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>): Promise<any> {
-    const { internalId, eventId, eventRepetitionId, filePath, adminUserId } = job.data;
+    const { internalId, eventId, cohortId, lessonId, courseId, filePath, adminUserId } = job.data;
     const jobId = job.id;
     
-    this.logger.log(`Processing bulk import job ${jobId} (Internal ID: ${internalId})`);
+    this.logger.log(`[BullMQ] Starting bulk import job ${jobId} (Internal ID: ${internalId}). Monitoring progress via Kafka.`);
     
     const attendanceJob = await this.attendanceJobRepository.findOne({ where: { id: internalId } });
     if (!attendanceJob) {
@@ -56,7 +59,18 @@ export class BulkImportProcessor extends WorkerHost {
         completedAt: null 
       });
 
-      // Load workbook asynchronously to avoid blocking I/O
+      // Step 0: Resolve eventRepetitionId
+      const eventRepetition = await this.eventRepetitionRepository.findOne({
+        where: { eventId: eventId }
+      });
+
+      if (!eventRepetition) {
+        throw new Error(`Event repetition not found for eventId: ${eventId}`);
+      }
+
+      const eventRepetitionId = eventRepetition.eventRepetitionId;
+
+      // Load workbook asynchronously
       const buffer = await fs.promises.readFile(filePath);
       const workbook = xlsx.read(buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
@@ -67,18 +81,16 @@ export class BulkImportProcessor extends WorkerHost {
       await this.attendanceJobRepository.update(internalId, { result: resultData });
 
       // Step 1: Resolve userIds from emails
-      this.logger.log(`Resolving userIds for ${rows.length} rows using batch size ${this.batchSize}...`);
       const uniqueEmails = Array.from(new Set(
         rows.map(row => (row.emailId || row.Email || row.email)?.toLowerCase()).filter(Boolean)
       ));
       
       const emailToUserIdMap = await this.userService.getUserIdsFromEmails(uniqueEmails);
-      this.logger.log(`Resolved ${emailToUserIdMap.size} userIds from ${uniqueEmails.length} unique emails.`);
 
       let successCount = 0;
       let failureCount = 0;
 
-      // Step 2: Process attendance marking
+      // Step 2: Process attendance marking in batches
       for (let i = 0; i < rows.length; i += this.batchSize) {
         const batch = rows.slice(i, i + this.batchSize);
 
@@ -87,75 +99,99 @@ export class BulkImportProcessor extends WorkerHost {
           const email = (row.emailId || row.Email || row.email)?.toLowerCase();
           let targetUserId = row.userId || row.UserId || row.userid;
           if (!targetUserId && email) targetUserId = emailToUserIdMap.get(email);
-          const condition: any = {
-            eventId: row.eventId || row.EventId || eventId,
+          return {
+            eventId: eventId,
             userId: targetUserId
           };
-          const repId = row.eventRepetitionId || row.EventRepetitionId || eventRepetitionId;
-          if (repId) {
-            condition.eventRepetitionId = repId;
-          }
-          return condition;
         }).filter(c => c.userId);
 
         const attendees = await this.eventAttendeesRepository.find({
           where: whereConditions
         });
 
-        // Build a lookup map for the batch grouped by eventId and userId
-        const attendeeMap = new Map<string, EventAttendees[]>();
+        // Build a lookup map for the batch
+        const attendeeMap = new Map<string, EventAttendees>();
         for (const attendee of attendees) {
-          const key = `${attendee.eventId}-${attendee.userId}`;
-          if (!attendeeMap.has(key)) {
-            attendeeMap.set(key, []);
-          }
-          attendeeMap.get(key)!.push(attendee);
+          attendeeMap.set(attendee.userId, attendee);
         }
 
-        for (let j = 0; j < batch.length; j++) {
-          const row = batch[j];
+        const batchAttendeesToSave: EventAttendees[] = [];
+        const rowProcessingPromises = batch.map(async (row, j) => {
           const identifier = (row.emailId || row.Email || row.email) || (row.userId || row.UserId || row.userid) || `Row ${i + j + 1}`;
           
           try {
             const email = (row.emailId || row.Email || row.email)?.toLowerCase();
             let targetUserId = row.userId || row.UserId || row.userid;
             const duration = row.duration || row.Duration || 0;
-            const rowEventId = row.eventId || row.EventId || eventId;
-            const rowEventRepetitionId = row.eventRepetitionId || row.EventRepetitionId || eventRepetitionId || null;
 
+            // Step 1: Check if user exists
             if (!targetUserId && email) {
               targetUserId = emailToUserIdMap.get(email);
             }
 
             if (!targetUserId) {
-              throw new Error(`Could not resolve userId for email: ${email || 'N/A'}`);
+              throw new Error(`user email not exist`);
             }
 
-            const lookupKey = `${rowEventId}-${targetUserId}`;
-            const attendeeMatches = attendeeMap.get(lookupKey) || [];
-            
-            let attendee: EventAttendees | undefined;
-            
-            if (rowEventRepetitionId) {
-              // If repetition ID is provided, find the exact match
-              attendee = attendeeMatches.find(a => a.eventRepetitionId === rowEventRepetitionId);
-            } else if (attendeeMatches.length > 0) {
-              // If no repetition ID is provided, but we found records, use the first one
-              attendee = attendeeMatches[0];
+            // Step 2: Check shortlisting using cohortId from payload
+            if (cohortId) {
+              const isShortlisted = await this.userService.checkCohortShortlisted(targetUserId, cohortId);
+              if (!isShortlisted) {
+                throw new Error(`user status is not shortlisted`);
+              }
             }
+
+            // Step 3: Check LMS course enrollment (Required - no auto-enrollment)
+            if (courseId) {
+              const isEnrolled = await this.lmsService.checkEnrollment(targetUserId, courseId);
+              if (!isEnrolled) {
+                throw new Error(`user is not enrolled`);
+              }
+            }
+
+            // Step 4: Check/Create EventAttendee record (Event Enrollment)
+            let attendee = attendeeMap.get(targetUserId);
 
             if (!attendee) {
-              throw new Error(`No attendance record found for event ${rowEventId} and user ${targetUserId} (${email || 'no email'})`);
+              attendee = this.eventAttendeesRepository.create({
+                eventId: eventId,
+                eventRepetitionId: eventRepetitionId,
+                userId: targetUserId,
+                isAttended: true,
+                duration: duration,
+                enrolledAt: new Date(),
+                enrolledBy: validAdminUserId,
+                status: 'published',
+                joinedLeftHistory: [],
+                params: {},
+                updatedAt: new Date(),
+                updatedBy: validAdminUserId,
+              });
+            } else {
+              attendee.isAttended = true;
+              attendee.duration = duration;
+              attendee.status = 'published';
+              attendee.eventRepetitionId = eventRepetitionId;
+              attendee.joinedLeftHistory = attendee.joinedLeftHistory || [];
+              attendee.params = attendee.params || {};
+              attendee.updatedAt = new Date();
+              attendee.updatedBy = validAdminUserId;
             }
+            
+            batchAttendeesToSave.push(attendee);
 
-            attendee.isAttended = true;
-            attendee.duration = duration;
-            attendee.updatedAt = new Date();
-            attendee.updatedBy = validAdminUserId;
-            await this.eventAttendeesRepository.save(attendee);
-
+            // Step 5: Check and handle LMS lesson track & completion
             try {
-              await this.lmsService.markLessonCompletionWithRetry(rowEventId, targetUserId, duration);
+              if (lessonId) {
+                // Ensure lesson track exists before marking completion (LMS Enrollment)
+                // We run this for both new and existing attendees to ensure data integrity
+                const trackExists = await this.lmsService.checkLessontrack(lessonId, targetUserId);
+                if (!trackExists) {
+                  await this.lmsService.markLessonAttempt(lessonId, targetUserId);
+                }
+              }
+
+              await this.lmsService.markLessonCompletionWithRetry(eventId, targetUserId, duration);
               successCount++;
             } catch (lmsError) {
               failureCount++;
@@ -176,6 +212,14 @@ export class BulkImportProcessor extends WorkerHost {
               timestamp: new Date().toISOString()
             });
           }
+        });
+
+        // Parallel processing of network calls
+        await Promise.all(rowProcessingPromises);
+
+        // Batch database save
+        if (batchAttendeesToSave.length > 0) {
+          await this.eventAttendeesRepository.save(batchAttendeesToSave);
         }
 
         const progress = Math.round(((i + batch.length) / rows.length) * 100);
@@ -226,6 +270,7 @@ export class BulkImportProcessor extends WorkerHost {
         errorMessage: error.message,
       });
     } finally {
+      this.logger.log(`[BullMQ] Finishing bulk import job ${jobId}. Clearing local metadata cache and deleting temporary file.`);
       if (fs.existsSync(filePath)) {
         try {
           await fs.promises.unlink(filePath);

@@ -11,12 +11,14 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { BulkImportService } from './bulk-import.service';
 import { AttendanceJobStatusService } from '../attendance/attendance-job-status.service';
 import { ListAttendanceJobsDto } from '../attendance/dto/list-attendance-jobs.dto';
-import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBasicAuth } from '@nestjs/swagger';
 import { API_ID } from '../../common/utils/constants.util';
 import APIResponse from '../../common/utils/response';
+import { GetUserId } from 'src/common/decorators/userId.decorator';
 
 @ApiTags('Bulk Import')
 @Controller('attendance/v1')
+@ApiBasicAuth('access-token')
 export class BulkImportController {
   constructor(
     private readonly bulkImportService: BulkImportService,
@@ -36,21 +38,27 @@ export class BulkImportController {
           format: 'binary',
         },
         eventId: { type: 'string' },
-        eventRepetitionId: { type: 'string' },
+        cohortId: { type: 'string' },
+        lessonId: { type: 'string' },
+        courseId: { type: 'string' },
       },
     },
   })
   async bulkImport(
     @UploadedFile() file: Express.Multer.File,
     @Body('eventId') eventId: string,
-    @Body('eventRepetitionId') eventRepetitionId: string,
+    @Body('cohortId') cohortId: string,
+    @Body('lessonId') lessonId: string,
+    @Body('courseId') courseId: string,
     @Req() req: any,
+    @GetUserId() adminUserId: string,
   ) {
-    const adminUserId = req.user?.userId || 'system';
     const result = await this.bulkImportService.handleFileUpload(
       file,
       eventId,
-      eventRepetitionId,
+      cohortId,
+      lessonId,
+      courseId,
       adminUserId,
     );
 

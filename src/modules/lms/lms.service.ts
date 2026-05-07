@@ -39,21 +39,21 @@ export class LmsService {
         return null;
       }
 
-      const response = await this.httpService.axiosRef.patch(
-        `${this.lmsServiceUrl}/v1/tracking/event/${eventId}`,
-        {
-          userId,
-          status: 'completed',
-          timeSpent: Math.floor(timeSpent),
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            tenantid: this.tenantId,
-            organisationid: this.organisationId,
-          },
-        },
-      );
+      const url = `${this.lmsServiceUrl}/v1/tracking/event/${eventId}`;
+      const body = {
+        userId,
+        status: 'completed',
+        timeSpent: Math.floor(timeSpent),
+      };
+      const headers = {
+        'Content-Type': 'application/json',
+        tenantid: this.tenantId,
+        organisationid: this.organisationId,
+      };
+
+      const response = await this.httpService.axiosRef.patch(url, body, {
+        headers,
+      });
 
       this.logger.log(
         `Successfully marked lesson completion for user ${userId} in event ${eventId}`,
@@ -87,16 +87,17 @@ export class LmsService {
         return null;
       }
 
+      const url = `${this.lmsServiceUrl}/v1/tracking/lesson/attempt/${lessonId}?userId=${userId}`;
+      const headers = {
+        'Content-Type': 'application/json',
+        tenantid: this.tenantId,
+        organisationid: this.organisationId,
+      };
+
       const response = await this.httpService.axiosRef.post(
-        `${this.lmsServiceUrl}/v1/tracking/lesson/attempt/${lessonId}?userId=${userId}`,
+        url,
         {},
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            tenantid: this.tenantId,
-            organisationid: this.organisationId,
-          },
-        },
+        { headers },
       );
 
       this.logger.log(
@@ -146,10 +147,10 @@ export class LmsService {
         );
 
         try {
-          const lessonId = await this.getLessonIdFromEventId(eventId);
-          if (!lessonId) return null;
+          const lmsInfo = await this.getLessonIdFromEventId(eventId);
+          if (!lmsInfo || !lmsInfo.lessonId) return null;
 
-          await this.markLessonAttempt(lessonId, userId);
+          await this.markLessonAttempt(lmsInfo.lessonId, userId);
           return await this.markLessonCompletion(eventId, userId, timeSpent);
         } catch (createError) {
           this.logger.error(
@@ -164,16 +165,14 @@ export class LmsService {
   }
 
   /**
-   * Get lessonId from eventId
+   * Get lessonId and courseId from eventId
    * @param eventId - The event ID
    */
-  async getLessonIdFromEventId(eventId: string): Promise<string | null> {
+  async getLessonIdFromEventId(
+    eventId: string,
+  ): Promise<{ lessonId: string; courseId: string } | null> {
     try {
       if (!this.lmsServiceUrl) return null;
-
-      if (this.lessonIdCache.has(eventId)) {
-        return this.lessonIdCache.get(eventId)!;
-      }
 
       // Step 1: Get media by source (eventId)
       const mediaResponse = await this.httpService.axiosRef.get(
@@ -191,7 +190,9 @@ export class LmsService {
       if (mediaList.media && Array.isArray(mediaList.media)) {
         mediaList = mediaList.media;
       }
-      mediaList = this.flattenArray(Array.isArray(mediaList) ? mediaList : [mediaList]);
+      mediaList = this.flattenArray(
+        Array.isArray(mediaList) ? mediaList : [mediaList],
+      );
 
       const media = mediaList.find((m: any) => m.source === eventId);
       if (!media) return null;
@@ -211,27 +212,95 @@ export class LmsService {
         },
       );
 
-      let lessons = lessonsResponse.data?.result?.lessons || lessonsResponse.data?.result || [];
+      let lessons =
+        lessonsResponse.data?.result?.lessons ||
+        lessonsResponse.data?.result ||
+        [];
       lessons = this.flattenArray(Array.isArray(lessons) ? lessons : [lessons]);
 
       const lesson = lessons.find(
         (l: any) =>
           l.mediaId === mediaId ||
           l.media_id === mediaId ||
-          (l.media && (l.media.mediaId === mediaId || l.media.media_id === mediaId)),
+          (l.media &&
+            (l.media.mediaId === mediaId || l.media.media_id === mediaId)),
       );
 
       if (!lesson) return null;
+
       const finalLessonId = lesson.lessonId || lesson.lesson_id || lesson.id;
-      if (finalLessonId) {
-        this.lessonIdCache.set(eventId, finalLessonId);
-      }
-      return finalLessonId;
+      const finalCourseId = lesson.courseId || lesson.course_id;
+
+      return {
+        lessonId: finalLessonId,
+        courseId: finalCourseId,
+      };
     } catch (error) {
-      this.logger.error(`Error getting lessonId from eventId ${eventId}`, {
+      this.logger.error(`Error getting lesson info from eventId ${eventId}`, {
         error: error.message,
       });
       return null;
+    }
+  }
+
+  /**
+   * Check if a user is enrolled in a course
+   */
+  async checkEnrollment(userId: string, courseId: string): Promise<boolean> {
+    try {
+      if (!this.lmsServiceUrl) return false;
+
+      // Note: LMS_SERVICE_URL in .env already includes '/lms-service'
+      const url = `${this.lmsServiceUrl}/v1/enrollments`;
+      const params = { learnerId: userId, courseId, status: 'published' };
+
+      const response = await this.httpService.axiosRef.get(url, {
+        params,
+        headers: {
+          tenantid: this.tenantId,
+          organisationid: this.organisationId,
+        },
+      });
+
+      const enrollments = response.data?.result?.enrollments || [];
+
+      return enrollments.length > 0;
+    } catch (error) {
+      this.logger.error(
+        `Error checking enrollment for user ${userId} in course ${courseId}`,
+        {
+          error: error.message,
+        },
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Check if lesson track exists for a user
+   */
+  async checkLessontrack(lessonId: string, userId: string): Promise<boolean> {
+    try {
+      if (!this.lmsServiceUrl) return false;
+
+      const url = `${this.lmsServiceUrl}/v1/tracking/${lessonId}/users/${userId}/status`;
+      const headers = {
+        tenantid: this.tenantId,
+        organisationid: this.organisationId,
+      };
+
+      const response = await this.httpService.axiosRef.get(url, { headers });
+
+      return !!response.data?.result?.lastAttemptId;
+    } catch (error) {
+      if (error.response?.status === 404) return false;
+      this.logger.error(
+        `Error checking lesson track for user ${userId} in lesson ${lessonId}`,
+        {
+          error: error.message,
+        },
+      );
+      return false;
     }
   }
 

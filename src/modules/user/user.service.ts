@@ -13,7 +13,10 @@ export class UserService {
     private readonly configService: ConfigService,
   ) {
     this.userServiceUrl = this.configService.get('USER_SERVICE');
-    this.batchSize = this.configService.get<number>('BULK_IMPORT_BATCH_SIZE', 100);
+    this.batchSize = this.configService.get<number>(
+      'BULK_IMPORT_BATCH_SIZE',
+      100,
+    );
   }
 
   /**
@@ -33,7 +36,7 @@ export class UserService {
 
       for (let i = 0; i < emails.length; i += this.batchSize) {
         const batch = emails.slice(i, i + this.batchSize);
-        
+
         const response = await this.httpService.axiosRef.post(
           `${this.userServiceUrl}/user/v1/list`,
           {
@@ -50,7 +53,8 @@ export class UserService {
           },
         );
 
-        const users = response.data?.result?.getUserDetails || response.data?.result || [];
+        const users =
+          response.data?.result?.getUserDetails || response.data?.result || [];
         for (const user of users) {
           if (user.email && user.userId) {
             emailToUserIdMap.set(user.email.toLowerCase(), user.userId);
@@ -66,6 +70,57 @@ export class UserService {
         data: error.response?.data,
       });
       return emailToUserIdMap;
+    }
+  }
+
+  /**
+   * Check if a user is shortlisted for a cohort
+   * @param userId - The user ID
+   * @param cohortId - The cohort ID
+   * @returns Promise resolving to boolean
+   */
+  async checkCohortShortlisted(
+    userId: string,
+    cohortId: string,
+  ): Promise<boolean> {
+    try {
+      if (!this.userServiceUrl) return false;
+
+      const url = `${this.userServiceUrl}/user/v1/cohortmember/list`;
+      const body = {
+        limit: 1,
+        offset: 0,
+        filters: {
+          userId,
+          cohortId: [cohortId],
+          status: ['shortlisted'],
+        },
+      };
+      const headers = {
+        'Content-Type': 'application/json',
+        tenantid: this.configService.get('TENANT_ID'),
+        academicyearid: this.configService.get('ACADEMIC_YEAR_ID'),
+      };
+
+      const response = await this.httpService.axiosRef.post(url, body, {
+        headers,
+      });
+
+      const result = response.data?.result;
+
+      const members =
+        result?.results ||
+        result?.userDetails ||
+        result?.getUserDetails ||
+        (Array.isArray(result) ? result : []);
+      return members.length > 0;
+    } catch (error) {
+      this.logger.error('Failed to check cohort shortlisting status', {
+        error: error.message,
+        userId,
+        cohortId,
+      });
+      return false;
     }
   }
 }
