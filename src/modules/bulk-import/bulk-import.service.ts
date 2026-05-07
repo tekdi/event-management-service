@@ -5,8 +5,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { AttendanceJob, AttendanceJobStatus } from '../attendance/entities/attendance-job.entity';
 import { v4 as uuidv4, validate as isUuid } from 'uuid';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 @Injectable()
 export class BulkImportService {

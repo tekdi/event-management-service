@@ -11,7 +11,7 @@ import { KafkaService } from '../../kafka/kafka.service';
 import { ConfigService } from '@nestjs/config';
 import { EventRepetition } from '../event/entities/eventRepetition.entity';
 import * as xlsx from 'xlsx';
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 import { validate as isUuid } from 'uuid';
 
 @Processor('bulk-import')
