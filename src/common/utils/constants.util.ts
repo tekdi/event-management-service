@@ -158,4 +158,7 @@ export const API_ID = {
   SYNC_CONFIG: 'api.event.config.sync',
   PRESIGNED_URL: 'api.event.storage.presignedurl',
   STORAGE_DELETE: 'api.event.storage.files.delete',
+  BULK_IMPORT_ATTENDANCE: 'api.event.attendance.bulk.import',
+  GET_BULK_IMPORT_STATUS: 'api.event.attendance.bulk.import.status',
+  LIST_ATTENDANCE_JOBS: 'api.event.attendance.jobs.list',
 };
