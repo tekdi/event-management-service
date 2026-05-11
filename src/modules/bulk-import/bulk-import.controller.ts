@@ -15,6 +15,7 @@ import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBasicAuth } from '@nest
 import { API_ID } from '../../common/utils/constants.util';
 import APIResponse from '../../common/utils/response';
 import { GetUserId } from 'src/common/decorators/userId.decorator';
+import { BulkImportDto } from './dto/bulk-import.dto';
 
 @ApiTags('Bulk Import')
 @Controller('attendance/v1')
@@ -29,36 +30,19 @@ export class BulkImportController {
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({ summary: 'Bulk import event attendance via XLSX' })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-        eventId: { type: 'string' },
-        cohortId: { type: 'string' },
-        lessonId: { type: 'string' },
-        courseId: { type: 'string' },
-      },
-    },
-  })
+  @ApiBody({ type: BulkImportDto })
   async bulkImport(
     @UploadedFile() file: Express.Multer.File,
-    @Body('eventId') eventId: string,
-    @Body('cohortId') cohortId: string,
-    @Body('lessonId') lessonId: string,
-    @Body('courseId') courseId: string,
+    @Body() body: BulkImportDto,
     @Req() req: any,
     @GetUserId() adminUserId: string,
   ) {
     const result = await this.bulkImportService.handleFileUpload(
       file,
-      eventId,
-      cohortId,
-      lessonId,
-      courseId,
+      body.eventId,
+      body.cohortId,
+      body.lessonId,
+      body.courseId,
       adminUserId,
     );
 
