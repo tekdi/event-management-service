@@ -36,22 +36,45 @@ export class UserService {
 
       for (let i = 0; i < emails.length; i += this.batchSize) {
         const batch = emails.slice(i, i + this.batchSize);
+        const payload = {
+          limit: batch.length,
+          offset: 0,
+          filters: {
+            email: batch,
+          },
+        };
 
-        const response = await this.httpService.axiosRef.post(
-          `${this.userServiceUrl}/user/v1/list`,
-          {
-            limit: batch.length,
-            offset: 0,
-            filters: {
-              email: batch,
-            },
+        const url = `${this.userServiceUrl}/user/v1/list`;
+
+        const curl = `
+curl --location --request POST '${url}' \
+--header 'Content-Type: application/json' \
+--data '${JSON.stringify(payload)}'
+`;
+
+        console.log(curl);
+
+        const response = await this.httpService.axiosRef.post(url, payload, {
+          headers: {
+            'Content-Type': 'application/json',
           },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          },
-        );
+        });
+        // const response = await this.httpService.axiosRef.post(
+        //   `${this.userServiceUrl}/user/v1/list`,
+        //   {
+        //     limit: batch.length,
+        //     offset: 0,
+        //     filters: {
+        //       email: batch,
+        //     },
+        //   },
+        //   {
+        //     headers: {
+        //       'Content-Type': 'application/json',
+        //     },
+        //   },
+        // );
+        // console.log('sdsdsd', response);
 
         const users =
           response.data?.result?.getUserDetails || response.data?.result || [];
