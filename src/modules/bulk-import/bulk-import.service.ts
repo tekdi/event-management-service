@@ -31,6 +31,11 @@ export class BulkImportService {
     lessonId: string,
     courseId: string,
     adminUserId: string,
+    requestContext?: {
+      tenantid?: string;
+      academicyearid?: string;
+      authorization?: string;
+    },
   ): Promise<any> {
     if (!file) {
       throw new BadRequestException('No file uploaded or file field name is incorrect (should be "file")');
@@ -74,6 +79,11 @@ export class BulkImportService {
         cohortId,
         lessonId,
         courseId,
+        requestContext: {
+          tenantid: requestContext?.tenantid ?? null,
+          academicyearid: requestContext?.academicyearid ?? null,
+          hasAuth: Boolean(requestContext?.authorization),
+        },
         originalFileName: file.originalname,
         filePath,
         successCount: 0,
@@ -93,6 +103,11 @@ export class BulkImportService {
       courseId,
       filePath,
       adminUserId,
+      requestContext: {
+        tenantid: requestContext?.tenantid,
+        academicyearid: requestContext?.academicyearid,
+        authorization: requestContext?.authorization,
+      },
     }, { jobId: customJobId });
 
     this.logger.log(`Enqueued bulk import job ${bullJob.id} for event ${eventId}`);
