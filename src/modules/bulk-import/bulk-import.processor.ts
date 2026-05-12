@@ -3,7 +3,10 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { AttendanceJob, AttendanceJobStatus } from '../attendance/entities/attendance-job.entity';
+import {
+  AttendanceJob,
+  AttendanceJobStatus,
+} from '../attendance/entities/attendance-job.entity';
 import { EventAttendees } from '../attendees/entity/attendees.entity';
 import { LmsService } from '../lms/lms.service';
 import { UserService } from '../user/user.service';
@@ -32,16 +35,31 @@ export class BulkImportProcessor extends WorkerHost {
     private readonly configService: ConfigService,
   ) {
     super();
-    this.batchSize = this.configService.get<number>('BULK_IMPORT_BATCH_SIZE', 50);
+    this.batchSize = this.configService.get<number>(
+      'BULK_IMPORT_BATCH_SIZE',
+      50,
+    );
   }
 
   async process(job: Job<any, any, string>): Promise<any> {
-    const { internalId, eventId, cohortId, lessonId, courseId, filePath, adminUserId } = job.data;
+    const {
+      internalId,
+      eventId,
+      cohortId,
+      lessonId,
+      courseId,
+      filePath,
+      adminUserId,
+    } = job.data;
     const jobId = job.id;
-    
-    this.logger.log(`[BullMQ] Starting bulk import job ${jobId} (Internal ID: ${internalId}). Monitoring progress via Kafka.`);
-    
-    const attendanceJob = await this.attendanceJobRepository.findOne({ where: { id: internalId } });
+
+    this.logger.log(
+      `[BullMQ] Starting bulk import job ${jobId} (Internal ID: ${internalId}). Monitoring progress via Kafka.`,
+    );
+
+    const attendanceJob = await this.attendanceJobRepository.findOne({
+      where: { id: internalId },
+    });
     if (!attendanceJob) {
       this.logger.error(`Attendance job ${internalId} not found in database`);
       return;
@@ -51,17 +69,17 @@ export class BulkImportProcessor extends WorkerHost {
 
     try {
       const resultData = attendanceJob.result || {};
-      resultData.failures = []; 
-      
-      await this.attendanceJobRepository.update(internalId, { 
-        status: AttendanceJobStatus.PROCESSING, 
+      resultData.failures = [];
+
+      await this.attendanceJobRepository.update(internalId, {
+        status: AttendanceJobStatus.PROCESSING,
         startedAt: new Date(),
-        completedAt: null 
+        completedAt: null,
       });
 
       // Step 0: Resolve eventRepetitionId
       const eventRepetition = await this.eventRepetitionRepository.findOne({
-        where: { eventId: eventId }
+        where: { eventId: eventId },
       });
 
       if (!eventRepetition) {
@@ -78,14 +96,23 @@ export class BulkImportProcessor extends WorkerHost {
       const rows: any[] = xlsx.utils.sheet_to_json(sheet);
 
       resultData.totalCount = rows.length;
-      await this.attendanceJobRepository.update(internalId, { result: resultData });
+      await this.attendanceJobRepository.update(internalId, {
+        result: resultData,
+      });
 
       // Step 1: Resolve userIds from emails
-      const uniqueEmails = Array.from(new Set(
-        rows.map(row => (row.emailId || row.Email || row.email)?.toLowerCase()).filter(Boolean)
-      ));
-      
-      const emailToUserIdMap = await this.userService.getUserIdsFromEmails(uniqueEmails);
+      const uniqueEmails = Array.from(
+        new Set(
+          rows
+            .map((row) =>
+              (row.emailId || row.Email || row.email)?.toLowerCase(),
+            )
+            .filter(Boolean),
+        ),
+      );
+
+      const emailToUserIdMap =
+        await this.userService.getUserIdsFromEmails(uniqueEmails);
 
       let successCount = 0;
       let failureCount = 0;
@@ -95,18 +122,26 @@ export class BulkImportProcessor extends WorkerHost {
         const batch = rows.slice(i, i + this.batchSize);
 
         // Pre-fetch all EventAttendees for this batch
-        const whereConditions = batch.map(row => {
-          const email = (row.emailId || row.Email || row.email)?.toLowerCase();
-          let targetUserId = row.userId || row.UserId || row.userid;
-          if (!targetUserId && email) targetUserId = emailToUserIdMap.get(email);
-          return {
-            eventId: eventId,
-            userId: targetUserId
-          };
-        }).filter(c => c.userId);
+        const whereConditions = batch
+          .map((row) => {
+            const email = (
+              row.emailId ||
+              row.Email ||
+              row.email
+            )?.toLowerCase();
+            let targetUserId = row.userId || row.UserId || row.userid;
+            if (!targetUserId && email)
+              targetUserId = emailToUserIdMap.get(email);
+            return {
+              eventId: eventId,
+              eventRepetitionId: eventRepetitionId,
+              userId: targetUserId,
+            };
+          })
+          .filter((c) => c.userId);
 
         const attendees = await this.eventAttendeesRepository.find({
-          where: whereConditions
+          where: whereConditions,
         });
 
         // Build a lookup map for the batch
@@ -117,12 +152,24 @@ export class BulkImportProcessor extends WorkerHost {
 
         const batchAttendeesToSave: EventAttendees[] = [];
         const rowProcessingPromises = batch.map(async (row, j) => {
-          const identifier = (row.emailId || row.Email || row.email) || (row.userId || row.UserId || row.userid) || `Row ${i + j + 1}`;
-          
+          const identifier =
+            row.emailId ||
+            row.Email ||
+            row.email ||
+            row.userId ||
+            row.UserId ||
+            row.userid ||
+            `Row ${i + j + 1}`;
+
           try {
-            const email = (row.emailId || row.Email || row.email)?.toLowerCase();
+            const email = (
+              row.emailId ||
+              row.Email ||
+              row.email
+            )?.toLowerCase();
             let targetUserId = row.userId || row.UserId || row.userid;
-            const duration = row.duration || row.Duration || 0;
+            const durationRaw = row.duration ?? row.Duration ?? 0;
+            const duration = Number(durationRaw) || 0;
 
             // Step 1: Check if user exists
             if (!targetUserId && email) {
@@ -135,7 +182,11 @@ export class BulkImportProcessor extends WorkerHost {
 
             // Step 2: Check shortlisting using cohortId from payload
             if (cohortId) {
-              const isShortlisted = await this.userService.checkCohortShortlisted(targetUserId, cohortId);
+              const isShortlisted =
+                await this.userService.checkCohortShortlisted(
+                  targetUserId,
+                  cohortId,
+                );
               if (!isShortlisted) {
                 throw new Error(`user status is not shortlisted`);
               }
@@ -143,7 +194,10 @@ export class BulkImportProcessor extends WorkerHost {
 
             // Step 3: Check LMS course enrollment (Required - no auto-enrollment)
             if (courseId) {
-              const isEnrolled = await this.lmsService.checkEnrollment(targetUserId, courseId);
+              const isEnrolled = await this.lmsService.checkEnrollment(
+                targetUserId,
+                courseId,
+              );
               if (!isEnrolled) {
                 throw new Error(`user is not enrolled`);
               }
@@ -177,7 +231,7 @@ export class BulkImportProcessor extends WorkerHost {
               attendee.updatedAt = new Date();
               attendee.updatedBy = validAdminUserId;
             }
-            
+
             batchAttendeesToSave.push(attendee);
 
             // Step 5: Check and handle LMS lesson track & completion
@@ -185,13 +239,23 @@ export class BulkImportProcessor extends WorkerHost {
               if (lessonId) {
                 // Ensure lesson track exists before marking completion (LMS Enrollment)
                 // We run this for both new and existing attendees to ensure data integrity
-                const trackExists = await this.lmsService.checkLessontrack(lessonId, targetUserId);
+                const trackExists = await this.lmsService.checkLessontrack(
+                  lessonId,
+                  targetUserId,
+                );
                 if (!trackExists) {
-                  await this.lmsService.markLessonAttempt(lessonId, targetUserId);
+                  await this.lmsService.markLessonAttempt(
+                    lessonId,
+                    targetUserId,
+                  );
                 }
               }
 
-              await this.lmsService.markLessonCompletionWithRetry(eventId, targetUserId, duration);
+              await this.lmsService.markLessonCompletionWithRetry(
+                eventId,
+                targetUserId,
+                duration,
+              );
               successCount++;
             } catch (lmsError) {
               failureCount++;
@@ -199,17 +263,16 @@ export class BulkImportProcessor extends WorkerHost {
                 identifier,
                 errorMessage: `Attendance marked, but LMS completion failed: ${lmsError.message}`,
                 errorType: 'LMS_SYNC_FAILURE',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
               });
             }
-
           } catch (error) {
             failureCount++;
             resultData.failures.push({
               identifier,
               errorMessage: error.message,
               errorType: 'ATTENDANCE_MARKING_FAILURE',
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
             });
           }
         });
@@ -225,7 +288,7 @@ export class BulkImportProcessor extends WorkerHost {
         const progress = Math.round(((i + batch.length) / rows.length) * 100);
         resultData.successCount = successCount;
         resultData.failureCount = failureCount;
-        
+
         await this.attendanceJobRepository.update(internalId, {
           progress,
           result: resultData,
@@ -241,9 +304,10 @@ export class BulkImportProcessor extends WorkerHost {
         });
       }
 
-      const finalStatus = (successCount === 0 && rows.length > 0) 
-        ? AttendanceJobStatus.FAILED 
-        : AttendanceJobStatus.COMPLETED;
+      const finalStatus =
+        successCount === 0 && rows.length > 0
+          ? AttendanceJobStatus.FAILED
+          : AttendanceJobStatus.COMPLETED;
 
       await this.attendanceJobRepository.update(internalId, {
         status: finalStatus,
@@ -257,11 +321,13 @@ export class BulkImportProcessor extends WorkerHost {
         internalId,
         successCount,
         failureCount,
-        status: finalStatus === AttendanceJobStatus.FAILED ? 'failed' : 'completed',
+        status:
+          finalStatus === AttendanceJobStatus.FAILED ? 'failed' : 'completed',
       });
 
-      this.logger.log(`Bulk import job ${jobId} finished with status ${finalStatus}. Success: ${successCount}, Failures: ${failureCount}`);
-
+      this.logger.log(
+        `Bulk import job ${jobId} finished with status ${finalStatus}. Success: ${successCount}, Failures: ${failureCount}`,
+      );
     } catch (error) {
       this.logger.error(`Failed to process import job ${jobId}`, error);
       await this.attendanceJobRepository.update(internalId, {
@@ -270,7 +336,9 @@ export class BulkImportProcessor extends WorkerHost {
         errorMessage: error.message,
       });
     } finally {
-      this.logger.log(`[BullMQ] Finishing bulk import job ${jobId}. Clearing local metadata cache and deleting temporary file.`);
+      this.logger.log(
+        `[BullMQ] Finishing bulk import job ${jobId}. Clearing local metadata cache and deleting temporary file.`,
+      );
       if (fs.existsSync(filePath)) {
         try {
           await fs.promises.unlink(filePath);
