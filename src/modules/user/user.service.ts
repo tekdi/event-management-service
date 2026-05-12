@@ -2,6 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 
+type UserServiceRequestContext = {
+  tenantid?: string;
+  academicyearid?: string;
+  authorization?: string;
+};
+
 @Injectable()
 export class UserService {
   private readonly logger = new Logger(UserService.name);
@@ -24,7 +30,10 @@ export class UserService {
    * @param emails - Array of email strings
    * @returns Map of email to userId
    */
-  async getUserIdsFromEmails(emails: string[]): Promise<Map<string, string>> {
+  async getUserIdsFromEmails(
+    emails: string[],
+    requestContext?: UserServiceRequestContext,
+  ): Promise<Map<string, string>> {
     const emailToUserIdMap = new Map<string, string>();
     if (!emails || emails.length === 0) return emailToUserIdMap;
 
@@ -34,47 +43,34 @@ export class UserService {
         return emailToUserIdMap;
       }
 
+      const tenantid =
+        requestContext?.tenantid ?? this.configService.get('TENANT_ID');
+      const academicyearid =
+        requestContext?.academicyearid ??
+        this.configService.get('ACADEMIC_YEAR_ID');
+      const authorization = requestContext?.authorization;
+
       for (let i = 0; i < emails.length; i += this.batchSize) {
         const batch = emails.slice(i, i + this.batchSize);
-        const payload = {
-          limit: batch.length,
-          offset: 0,
-          filters: {
-            email: batch,
+
+        const response = await this.httpService.axiosRef.post(
+          `${this.userServiceUrl}/user/v1/list`,
+          {
+            limit: batch.length,
+            offset: 0,
+            filters: {
+              email: batch,
+            },
           },
-        };
-
-        const url = `${this.userServiceUrl}/user/v1/list`;
-
-        const curl = `
-curl --location --request POST '${url}' \
---header 'Content-Type: application/json' \
---data '${JSON.stringify(payload)}'
-`;
-
-        console.log(curl);
-
-        const response = await this.httpService.axiosRef.post(url, payload, {
-          headers: {
-            'Content-Type': 'application/json',
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              ...(tenantid ? { tenantid } : {}),
+              ...(academicyearid ? { academicyearid } : {}),
+              ...(authorization ? { Authorization: authorization } : {}),
+            },
           },
-        });
-        // const response = await this.httpService.axiosRef.post(
-        //   `${this.userServiceUrl}/user/v1/list`,
-        //   {
-        //     limit: batch.length,
-        //     offset: 0,
-        //     filters: {
-        //       email: batch,
-        //     },
-        //   },
-        //   {
-        //     headers: {
-        //       'Content-Type': 'application/json',
-        //     },
-        //   },
-        // );
-        // console.log('sdsdsd', response);
+        );
 
         const users =
           response.data?.result?.getUserDetails || response.data?.result || [];
@@ -105,6 +101,7 @@ curl --location --request POST '${url}' \
   async checkCohortShortlisted(
     userId: string,
     cohortId: string,
+    requestContext?: UserServiceRequestContext,
   ): Promise<boolean> {
     try {
       if (!this.userServiceUrl) return false;
@@ -119,10 +116,18 @@ curl --location --request POST '${url}' \
           status: ['shortlisted'],
         },
       };
+      const tenantid =
+        requestContext?.tenantid ?? this.configService.get('TENANT_ID');
+      const academicyearid =
+        requestContext?.academicyearid ??
+        this.configService.get('ACADEMIC_YEAR_ID');
+      const authorization = requestContext?.authorization;
+
       const headers = {
         'Content-Type': 'application/json',
-        tenantid: this.configService.get('TENANT_ID'),
-        academicyearid: this.configService.get('ACADEMIC_YEAR_ID'),
+        ...(tenantid ? { tenantid } : {}),
+        ...(academicyearid ? { academicyearid } : {}),
+        ...(authorization ? { Authorization: authorization } : {}),
       };
 
       const response = await this.httpService.axiosRef.post(url, body, {

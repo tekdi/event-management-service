@@ -44,6 +44,11 @@ export class BulkImportController {
       body.lessonId,
       body.courseId,
       adminUserId,
+      {
+        tenantid: req?.headers?.tenantid,
+        academicyearid: req?.headers?.academicyearid,
+        authorization: req?.headers?.authorization ?? req?.headers?.Authorization,
+      },
     );
 
     return APIResponse.success(

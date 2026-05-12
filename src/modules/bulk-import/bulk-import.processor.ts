@@ -50,6 +50,7 @@ export class BulkImportProcessor extends WorkerHost {
       courseId,
       filePath,
       adminUserId,
+      requestContext,
     } = job.data;
     const jobId = job.id;
 
@@ -111,8 +112,10 @@ export class BulkImportProcessor extends WorkerHost {
         ),
       );
 
-      const emailToUserIdMap =
-        await this.userService.getUserIdsFromEmails(uniqueEmails);
+      const emailToUserIdMap = await this.userService.getUserIdsFromEmails(
+        uniqueEmails,
+        requestContext,
+      );
 
       let successCount = 0;
       let failureCount = 0;
@@ -186,6 +189,7 @@ export class BulkImportProcessor extends WorkerHost {
                 await this.userService.checkCohortShortlisted(
                   targetUserId,
                   cohortId,
+                  requestContext,
                 );
               if (!isShortlisted) {
                 throw new Error(`user status is not shortlisted`);
