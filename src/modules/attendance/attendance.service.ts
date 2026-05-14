@@ -1604,21 +1604,16 @@ export class AttendanceService implements OnModuleInit {
 
   /**
    * Calls LMS to reset a user's lesson_track status back to 'started'.
-   * Used when re-processing attendance for users who were previously marked as attended.
+   * Configuration is passed in to avoid repeated configService lookups when called in a batch.
    */
   private async callLmsLessonStatusReset(
     eventId: string,
     userId: string,
     authToken: string,
+    lmsServiceUrl: string,
+    tenantId: string,
+    organisationId: string,
   ): Promise<void> {
-    const lmsServiceUrl = this.configService.get('LMS_SERVICE_URL');
-    const tenantId = this.configService.get('TENANT_ID');
-    const organisationId = this.configService.get('ORGANISATION_ID');
-
-    if (!lmsServiceUrl) {
-      return;
-    }
-
     try {
       await this.httpService.axiosRef.patch(
         `${lmsServiceUrl}/v1/tracking/event/${eventId}`,
@@ -1637,7 +1632,12 @@ export class AttendanceService implements OnModuleInit {
       );
     } catch (error) {
       this.logger.warn(
-        `Failed to reset lesson_track status for user ${userId}, event ${eventId}: ${error.message}`,
+        `Failed to reset lesson_track status for user ${userId}, event ${eventId}`,
+        {
+          error: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+        },
       );
     }
   }
@@ -1645,13 +1645,24 @@ export class AttendanceService implements OnModuleInit {
   /**
    * For all users who already have isAttended=true on this event repetition,
    * resets their LMS lesson_track status from 'completed' back to 'started'.
-   * Runs a single DB query then fans out LMS calls in batches via Promise.allSettled.
+   * Fetches config once, runs a single DB query, then fans out LMS calls in batches.
    */
   private async resetAttendedUsersLmsStatus(
     eventRepetitionId: string,
     eventId: string,
     authToken: string,
   ): Promise<void> {
+    const lmsServiceUrl = this.configService.get('LMS_SERVICE_URL');
+    if (!lmsServiceUrl) {
+      this.logger.warn(
+        'LMS_SERVICE_URL not configured, skipping attended-users lesson_track reset',
+      );
+      return;
+    }
+
+    const tenantId = this.configService.get('TENANT_ID');
+    const organisationId = this.configService.get('ORGANISATION_ID');
+
     const attendedUsers = await this.eventAttendeesRepository.find({
       where: { eventRepetitionId, isAttended: true },
       select: ['userId'],
@@ -1673,7 +1684,16 @@ export class AttendanceService implements OnModuleInit {
 
     for (const { userId } of attendedUsers) {
       if (!userId) continue;
-      batch.push(this.callLmsLessonStatusReset(eventId, userId, authToken));
+      batch.push(
+        this.callLmsLessonStatusReset(
+          eventId,
+          userId,
+          authToken,
+          lmsServiceUrl,
+          tenantId,
+          organisationId,
+        ),
+      );
 
       if (batch.length >= LMS_BATCH_SIZE) {
         await Promise.allSettled(batch);
