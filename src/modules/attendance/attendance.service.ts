@@ -550,14 +550,6 @@ export class AttendanceService implements OnModuleInit {
       eventInfo.zoomId,
     );
 
-    // Reset LMS lesson_track to 'started' for any users already marked as attended,
-    // so re-processing a fresh run doesn't leave stale 'completed' entries.
-    await this.resetAttendedUsersLmsStatus(
-      eventInfo.eventRepetitionId,
-      eventInfo.eventId,
-      authToken,
-    );
-
     // Process the event
     const result = await this.processEventParticipants(
       eventInfo,
@@ -1014,6 +1006,11 @@ export class AttendanceService implements OnModuleInit {
       );
     }
 
+    // Fetch LMS config once per batch to avoid repeated lookups inside the participant loop
+    const lmsServiceUrl = this.configService.get<string>('LMS_SERVICE_URL') ?? '';
+    const lmsTenantId = this.configService.get<string>('TENANT_ID') ?? '';
+    const lmsOrganisationId = this.configService.get<string>('ORGANISATION_ID') ?? '';
+
     // Step 3: Load existing attendees for all registrantIds in batch (single DB query)
     // Optimize: Only select needed fields to reduce data transfer
     this.logger.log(
@@ -1229,6 +1226,24 @@ export class AttendanceService implements OnModuleInit {
               // Silently handle errors - already logged in individual calls
             });
             lmsServiceCalls.length = 0; // Clear array to release memory
+          }
+        }
+
+        // User was previously attended but no longer meets the threshold — reset LMS to 'started'
+        if (previousIsAttended && !shouldMarkAttended && eventAttendee.userId && lmsServiceUrl && !isPathway) {
+          const lmsResetCall = this.callLmsLessonStatusReset(
+            eventInfo.eventId,
+            eventAttendee.userId,
+            authToken,
+            lmsServiceUrl,
+            lmsTenantId,
+            lmsOrganisationId,
+          );
+          lmsServiceCalls.push(lmsResetCall);
+
+          if (lmsServiceCalls.length >= LMS_BATCH_SIZE) {
+            Promise.allSettled(lmsServiceCalls).catch(() => {});
+            lmsServiceCalls.length = 0;
           }
         }
       } catch (error) {
@@ -1642,69 +1657,7 @@ export class AttendanceService implements OnModuleInit {
     }
   }
 
-  /**
-   * For all users who already have isAttended=true on this event repetition,
-   * resets their LMS lesson_track status from 'completed' back to 'started'.
-   * Fetches config once, runs a single DB query, then fans out LMS calls in batches.
-   */
-  private async resetAttendedUsersLmsStatus(
-    eventRepetitionId: string,
-    eventId: string,
-    authToken: string,
-  ): Promise<void> {
-    const lmsServiceUrl = this.configService.get('LMS_SERVICE_URL');
-    if (!lmsServiceUrl) {
-      this.logger.warn(
-        'LMS_SERVICE_URL not configured, skipping attended-users lesson_track reset',
-      );
-      return;
-    }
 
-    const tenantId = this.configService.get('TENANT_ID');
-    const organisationId = this.configService.get('ORGANISATION_ID');
-
-    const attendedUsers = await this.eventAttendeesRepository.find({
-      where: { eventRepetitionId, isAttended: true },
-      select: ['userId'],
-    });
-
-    if (!attendedUsers.length) {
-      this.logger.log(
-        `No previously attended users for event ${eventRepetitionId}, skipping LMS reset`,
-      );
-      return;
-    }
-
-    this.logger.log(
-      `Resetting LMS lesson_track to 'started' for ${attendedUsers.length} previously attended user(s) in event ${eventRepetitionId}`,
-    );
-
-    const LMS_BATCH_SIZE = 50;
-    const batch: Promise<void>[] = [];
-
-    for (const { userId } of attendedUsers) {
-      if (!userId) continue;
-      batch.push(
-        this.callLmsLessonStatusReset(
-          eventId,
-          userId,
-          authToken,
-          lmsServiceUrl,
-          tenantId,
-          organisationId,
-        ),
-      );
-
-      if (batch.length >= LMS_BATCH_SIZE) {
-        await Promise.allSettled(batch);
-        batch.length = 0;
-      }
-    }
-
-    if (batch.length > 0) {
-      await Promise.allSettled(batch);
-    }
-  }
 
   /**
    * Helper method to flatten nested arrays recursively
