@@ -1006,6 +1006,11 @@ export class AttendanceService implements OnModuleInit {
       );
     }
 
+    // Fetch LMS config once per batch to avoid repeated lookups inside the participant loop
+    const lmsServiceUrl = this.configService.get<string>('LMS_SERVICE_URL') ?? '';
+    const lmsTenantId = this.configService.get<string>('TENANT_ID') ?? '';
+    const lmsOrganisationId = this.configService.get<string>('ORGANISATION_ID') ?? '';
+
     // Step 3: Load existing attendees for all registrantIds in batch (single DB query)
     // Optimize: Only select needed fields to reduce data transfer
     this.logger.log(
@@ -1221,6 +1226,24 @@ export class AttendanceService implements OnModuleInit {
               // Silently handle errors - already logged in individual calls
             });
             lmsServiceCalls.length = 0; // Clear array to release memory
+          }
+        }
+
+        // User was previously attended but no longer meets the threshold — reset LMS to 'started'
+        if (previousIsAttended && !shouldMarkAttended && eventAttendee.userId && lmsServiceUrl && !isPathway) {
+          const lmsResetCall = this.callLmsLessonStatusReset(
+            eventInfo.eventId,
+            eventAttendee.userId,
+            authToken,
+            lmsServiceUrl,
+            lmsTenantId,
+            lmsOrganisationId,
+          );
+          lmsServiceCalls.push(lmsResetCall);
+
+          if (lmsServiceCalls.length >= LMS_BATCH_SIZE) {
+            Promise.allSettled(lmsServiceCalls).catch(() => {});
+            lmsServiceCalls.length = 0;
           }
         }
       } catch (error) {
@@ -1593,6 +1616,48 @@ export class AttendanceService implements OnModuleInit {
       throw error;
     }
   }
+
+  /**
+   * Calls LMS to reset a user's lesson_track status back to 'started'.
+   * Configuration is passed in to avoid repeated configService lookups when called in a batch.
+   */
+  private async callLmsLessonStatusReset(
+    eventId: string,
+    userId: string,
+    authToken: string,
+    lmsServiceUrl: string,
+    tenantId: string,
+    organisationId: string,
+  ): Promise<void> {
+    try {
+      await this.httpService.axiosRef.patch(
+        `${lmsServiceUrl}/v1/tracking/event/${eventId}`,
+        { userId, status: 'started' },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: authToken,
+            tenantid: tenantId,
+            organisationid: organisationId,
+          },
+        },
+      );
+      this.logger.log(
+        `Reset lesson_track to 'started' for user ${userId} in event ${eventId}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to reset lesson_track status for user ${userId}, event ${eventId}`,
+        {
+          error: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+        },
+      );
+    }
+  }
+
+
 
   /**
    * Helper method to flatten nested arrays recursively
