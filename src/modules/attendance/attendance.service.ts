@@ -550,6 +550,14 @@ export class AttendanceService implements OnModuleInit {
       eventInfo.zoomId,
     );
 
+    // Reset LMS lesson_track to 'started' for any users already marked as attended,
+    // so re-processing a fresh run doesn't leave stale 'completed' entries.
+    await this.resetAttendedUsersLmsStatus(
+      eventInfo.eventRepetitionId,
+      eventInfo.eventId,
+      authToken,
+    );
+
     // Process the event
     const result = await this.processEventParticipants(
       eventInfo,
@@ -1591,6 +1599,90 @@ export class AttendanceService implements OnModuleInit {
         },
       );
       throw error;
+    }
+  }
+
+  /**
+   * Calls LMS to reset a user's lesson_track status back to 'started'.
+   * Used when re-processing attendance for users who were previously marked as attended.
+   */
+  private async callLmsLessonStatusReset(
+    eventId: string,
+    userId: string,
+    authToken: string,
+  ): Promise<void> {
+    const lmsServiceUrl = this.configService.get('LMS_SERVICE_URL');
+    const tenantId = this.configService.get('TENANT_ID');
+    const organisationId = this.configService.get('ORGANISATION_ID');
+
+    if (!lmsServiceUrl) {
+      return;
+    }
+
+    try {
+      await this.httpService.axiosRef.patch(
+        `${lmsServiceUrl}/v1/tracking/event/${eventId}`,
+        { userId, status: 'started' },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: authToken,
+            tenantid: tenantId,
+            organisationid: organisationId,
+          },
+        },
+      );
+      this.logger.log(
+        `Reset lesson_track to 'started' for user ${userId} in event ${eventId}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to reset lesson_track status for user ${userId}, event ${eventId}: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * For all users who already have isAttended=true on this event repetition,
+   * resets their LMS lesson_track status from 'completed' back to 'started'.
+   * Runs a single DB query then fans out LMS calls in batches via Promise.allSettled.
+   */
+  private async resetAttendedUsersLmsStatus(
+    eventRepetitionId: string,
+    eventId: string,
+    authToken: string,
+  ): Promise<void> {
+    const attendedUsers = await this.eventAttendeesRepository.find({
+      where: { eventRepetitionId, isAttended: true },
+      select: ['userId'],
+    });
+
+    if (!attendedUsers.length) {
+      this.logger.log(
+        `No previously attended users for event ${eventRepetitionId}, skipping LMS reset`,
+      );
+      return;
+    }
+
+    this.logger.log(
+      `Resetting LMS lesson_track to 'started' for ${attendedUsers.length} previously attended user(s) in event ${eventRepetitionId}`,
+    );
+
+    const LMS_BATCH_SIZE = 50;
+    const batch: Promise<void>[] = [];
+
+    for (const { userId } of attendedUsers) {
+      if (!userId) continue;
+      batch.push(this.callLmsLessonStatusReset(eventId, userId, authToken));
+
+      if (batch.length >= LMS_BATCH_SIZE) {
+        await Promise.allSettled(batch);
+        batch.length = 0;
+      }
+    }
+
+    if (batch.length > 0) {
+      await Promise.allSettled(batch);
     }
   }
 
