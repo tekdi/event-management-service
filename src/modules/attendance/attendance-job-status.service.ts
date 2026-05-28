@@ -39,6 +39,7 @@ export class AttendanceJobStatusService {
       jobId,
       eventRepetitionId,
       contextType: contextType ?? null,
+      startedAt: new Date(),
       status: AttendanceJobStatus.PENDING,
       progress: 0,
     });
