@@ -56,19 +56,54 @@ export class ZoomService implements IOnlineMeetingLocator {
   private tokenExpiry: number = 0;
 
   constructor(configService: ConfigService, prefix: string = '') {
-    this.accountId = configService.get(`${prefix}ZOOM_ACCOUNT_ID`) || '';
-    this.clientId = configService.get(`${prefix}ZOOM_CLIENT_ID`) || '';
-    this.clientSecret = configService.get(`${prefix}ZOOM_CLIENT_SECRET`) || '';
-    this.username = configService.get(`${prefix}ZOOM_USERNAME`) || '';
-    this.password = configService.get(`${prefix}ZOOM_PASSWORD`) || '';
-    this.zoomHostId = configService.get(`${prefix}ZOOM_HOST_ID`) || '';
-    // Shared API endpoints — fall back to non-prefixed if prefixed not set
-    this.authUrl = configService.get(`${prefix}ZOOM_AUTH_URL`) || configService.get('ZOOM_AUTH_URL') || '';
-    this.apiBaseUrl = configService.get(`${prefix}ZOOM_API_BASE_URL`) || configService.get('ZOOM_API_BASE_URL') || '';
-    this.meetingsEndpoint = configService.get(`${prefix}ZOOM_MEETINGS_ENDPOINT`) || configService.get('ZOOM_MEETINGS_ENDPOINT') || '';
-    this.webinarsEndpoint = configService.get(`${prefix}ZOOM_WEBINARS_ENDPOINT`) || configService.get('ZOOM_WEBINARS_ENDPOINT') || '';
-    this.zoomPastMeetings = configService.get(`${prefix}ZOOM_PAST_MEETINGS`) || configService.get('ZOOM_PAST_MEETINGS') || '';
-    this.zoomPastWebinars = configService.get(`${prefix}ZOOM_PAST_WEBINARS`) || configService.get('ZOOM_PAST_WEBINARS') || '';
+    this.accountId =
+      configService.get(`${prefix}ZOOM_ACCOUNT_ID`) ||
+      configService.get('ZOOM_ACCOUNT_ID') ||
+      '';
+    this.clientId =
+      configService.get(`${prefix}ZOOM_CLIENT_ID`) ||
+      configService.get('ZOOM_CLIENT_ID') ||
+      '';
+    this.clientSecret =
+      configService.get(`${prefix}ZOOM_CLIENT_SECRET`) ||
+      configService.get('ZOOM_CLIENT_SECRET') ||
+      '';
+    this.username =
+      configService.get(`${prefix}ZOOM_USERNAME`) ||
+      configService.get('ZOOM_USERNAME') ||
+      '';
+    this.password =
+      configService.get(`${prefix}ZOOM_PASSWORD`) ||
+      configService.get('ZOOM_PASSWORD') ||
+      '';
+    this.zoomHostId =
+      configService.get(`${prefix}ZOOM_HOST_ID`) ||
+      configService.get('ZOOM_HOST_ID') ||
+      '';
+    this.authUrl =
+      configService.get(`${prefix}ZOOM_AUTH_URL`) ||
+      configService.get('ZOOM_AUTH_URL') ||
+      '';
+    this.apiBaseUrl =
+      configService.get(`${prefix}ZOOM_API_BASE_URL`) ||
+      configService.get('ZOOM_API_BASE_URL') ||
+      '';
+    this.meetingsEndpoint =
+      configService.get(`${prefix}ZOOM_MEETINGS_ENDPOINT`) ||
+      configService.get('ZOOM_MEETINGS_ENDPOINT') ||
+      '';
+    this.webinarsEndpoint =
+      configService.get(`${prefix}ZOOM_WEBINARS_ENDPOINT`) ||
+      configService.get('ZOOM_WEBINARS_ENDPOINT') ||
+      '';
+    this.zoomPastMeetings =
+      configService.get(`${prefix}ZOOM_PAST_MEETINGS`) ||
+      configService.get('ZOOM_PAST_MEETINGS') ||
+      '';
+    this.zoomPastWebinars =
+      configService.get(`${prefix}ZOOM_PAST_WEBINARS`) ||
+      configService.get('ZOOM_PAST_WEBINARS') ||
+      '';
     this.authMethod = this.determineAuthMethod();
   }
 
@@ -79,10 +114,12 @@ export class ZoomService implements IOnlineMeetingLocator {
   private convertUtcToTimezone(utcTime: string, timezone: string): string {
     try {
       const utcDate = new Date(utcTime);
-      
+
       // Convert UTC time to the specified timezone
-      const timezoneDate = new Date(utcDate.toLocaleString('en-US', { timeZone: timezone }));
-      
+      const timezoneDate = new Date(
+        utcDate.toLocaleString('en-US', { timeZone: timezone }),
+      );
+
       // Format as ISO string without the 'Z' suffix (Zoom doesn't expect UTC indicator)
       // and ensure it's in the correct timezone format
       const year = timezoneDate.getFullYear();
@@ -91,10 +128,13 @@ export class ZoomService implements IOnlineMeetingLocator {
       const hours = String(timezoneDate.getHours()).padStart(2, '0');
       const minutes = String(timezoneDate.getMinutes()).padStart(2, '0');
       const seconds = String(timezoneDate.getSeconds()).padStart(2, '0');
-      
+
       return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
     } catch (error) {
-      this.logger.warn(`Failed to convert timezone for ${utcTime} to ${timezone}, using original time`, error.message);
+      this.logger.warn(
+        `Failed to convert timezone for ${utcTime} to ${timezone}, using original time`,
+        error.message,
+      );
       // Fallback to original time if conversion fails
       return utcTime.replace('Z', '');
     }
@@ -227,7 +267,7 @@ export class ZoomService implements IOnlineMeetingLocator {
         meetingType === MeetingType.webinar
           ? `${this.apiBaseUrl}/users/${this.zoomHostId}/webinars` // https://api.zoom.us/v2/users/me/webinars
           : `${this.apiBaseUrl}/users/${this.zoomHostId}/meetings`; // https://api.zoom.us/v2/users/me/meetings
-      
+
       const meetingData = {
         topic: request.topic,
         type: meetingType === MeetingType.webinar ? 5 : 2, // 2 for scheduled meeting, 5 for webinar
@@ -443,19 +483,23 @@ export class ZoomService implements IOnlineMeetingLocator {
       },
     };
 
-    const baseEndpoint = meetingType === MeetingType.webinar 
-      ? this.zoomPastWebinars 
-      : this.zoomPastMeetings;
-    
+    const baseEndpoint =
+      meetingType === MeetingType.webinar
+        ? this.zoomPastWebinars
+        : this.zoomPastMeetings;
+
     const finalUrl =
       `${baseEndpoint}/${zoomId}/participants?include_fields=registrant_id,user_email&page_size=${pageSize}` +
       url;
-      console.log('finalUrl', finalUrl);
+    console.log('finalUrl', finalUrl);
     try {
       const response = await axios.get(finalUrl, headers);
       return response.data;
     } catch (error) {
-      this.logger.error(`Failed to get meeting participant list`, error.message);
+      this.logger.error(
+        `Failed to get meeting participant list`,
+        error.message,
+      );
       throw error;
     }
 
@@ -676,7 +720,7 @@ export class ZoomService implements IOnlineMeetingLocator {
       this.logger.error(
         `Error adding registrant to ${meetingType}: ${error.message}`,
       );
-      
+
       // Handle 400 error (already registered) - return a special error that can be handled upstream
       if (error.response?.status === 400) {
         const errorMessage = error.response?.data?.message || error.message;
@@ -695,14 +739,14 @@ export class ZoomService implements IOnlineMeetingLocator {
           throw duplicateError;
         }
       }
-      
+
       // Handle 429 rate limit error
       if (error.response?.status === 429) {
         throw new BadRequestException(
           `Rate limit exceeded while adding registrant to ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}. Please try again later.`,
         );
       }
-      
+
       throw new BadRequestException(
         `Failed to add registrant to ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}: ${error.message}`,
       );
@@ -845,7 +889,12 @@ export class ZoomService implements IOnlineMeetingLocator {
         this.logger.warn(
           `Meeting/webinar ${meetingId} not found or has no registrants`,
         );
-        return { registrants: [], page_count: 0, page_size: 0, total_records: 0 };
+        return {
+          registrants: [],
+          page_count: 0,
+          page_size: 0,
+          total_records: 0,
+        };
       }
       throw new BadRequestException(
         `Failed to get registrants for ${meetingType === MeetingType.webinar ? 'webinar' : 'meeting'}: ${error.message}`,
@@ -876,7 +925,7 @@ export class ZoomService implements IOnlineMeetingLocator {
         );
 
         const registrants = registrantsData.registrants || [];
-        
+
         // Check if email exists in current page
         const foundRegistrant = registrants.find(
           (registrant: any) =>
