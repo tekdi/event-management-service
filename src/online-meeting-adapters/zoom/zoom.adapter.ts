@@ -55,23 +55,20 @@ export class ZoomService implements IOnlineMeetingLocator {
   private cachedToken: string | null = null;
   private tokenExpiry: number = 0;
 
-  constructor(private readonly configService: ConfigService) {
-    this.accountId = this.configService.get('ZOOM_ACCOUNT_ID') || '';
-    this.clientId = this.configService.get('ZOOM_CLIENT_ID') || '';
-    this.clientSecret = this.configService.get('ZOOM_CLIENT_SECRET') || '';
-    this.username = this.configService.get('ZOOM_USERNAME') || '';
-    this.password = this.configService.get('ZOOM_PASSWORD') || '';
-    this.authUrl = this.configService.get('ZOOM_AUTH_URL') || '';
-    this.apiBaseUrl = this.configService.get('ZOOM_API_BASE_URL') || '';
-    this.meetingsEndpoint =
-      this.configService.get('ZOOM_MEETINGS_ENDPOINT') || '';
-    this.webinarsEndpoint =
-      this.configService.get('ZOOM_WEBINARS_ENDPOINT') || '';
-    this.zoomPastMeetings = this.configService.get('ZOOM_PAST_MEETINGS');
-    this.zoomPastWebinars = this.configService.get('ZOOM_PAST_WEBINARS');
-    this.zoomHostId = this.configService.get('ZOOM_HOST_ID');
-
-    // Determine authentication method based on available credentials
+  constructor(configService: ConfigService, prefix: string = '') {
+    this.accountId = configService.get(`${prefix}ZOOM_ACCOUNT_ID`) || '';
+    this.clientId = configService.get(`${prefix}ZOOM_CLIENT_ID`) || '';
+    this.clientSecret = configService.get(`${prefix}ZOOM_CLIENT_SECRET`) || '';
+    this.username = configService.get(`${prefix}ZOOM_USERNAME`) || '';
+    this.password = configService.get(`${prefix}ZOOM_PASSWORD`) || '';
+    this.zoomHostId = configService.get(`${prefix}ZOOM_HOST_ID`) || '';
+    // Shared API endpoints — fall back to non-prefixed if prefixed not set
+    this.authUrl = configService.get(`${prefix}ZOOM_AUTH_URL`) || configService.get('ZOOM_AUTH_URL') || '';
+    this.apiBaseUrl = configService.get(`${prefix}ZOOM_API_BASE_URL`) || configService.get('ZOOM_API_BASE_URL') || '';
+    this.meetingsEndpoint = configService.get(`${prefix}ZOOM_MEETINGS_ENDPOINT`) || configService.get('ZOOM_MEETINGS_ENDPOINT') || '';
+    this.webinarsEndpoint = configService.get(`${prefix}ZOOM_WEBINARS_ENDPOINT`) || configService.get('ZOOM_WEBINARS_ENDPOINT') || '';
+    this.zoomPastMeetings = configService.get(`${prefix}ZOOM_PAST_MEETINGS`) || configService.get('ZOOM_PAST_MEETINGS') || '';
+    this.zoomPastWebinars = configService.get(`${prefix}ZOOM_PAST_WEBINARS`) || configService.get('ZOOM_PAST_WEBINARS') || '';
     this.authMethod = this.determineAuthMethod();
   }
 

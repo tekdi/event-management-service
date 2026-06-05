@@ -1636,7 +1636,8 @@ export class EventService {
           createEventDto.meetingType || MeetingType.meeting;
       } else {
         // Create new meeting automatically
-        createEventDto = await this.createNewMeeting(createEventDto);
+        const isPathway = createEventDto.metaData?.isPathway === true;
+        createEventDto = await this.createNewMeeting(createEventDto, isPathway);
       }
     }
 
@@ -1931,9 +1932,12 @@ export class EventService {
 
   private async createNewMeeting(
     createEventDto: CreateEventDto,
+    isPathway: boolean = false,
   ): Promise<CreateEventDto> {
     try {
-      const adapter = this.onlineMeetingAdapter.getAdapter();
+      const adapter = isPathway
+        ? this.onlineMeetingAdapter.getPathwayAdapter()
+        : this.onlineMeetingAdapter.getAdapter();
       const meetingType = createEventDto.meetingType || MeetingType.meeting;
       const startTime = new Date(createEventDto.startDatetime);
       const endTime = new Date(createEventDto.endDatetime);
@@ -2033,9 +2037,12 @@ export class EventService {
     updateBody: UpdateEventDto,
     meetingType: MeetingType,
     onlineProvider: string,
+    isPathway: boolean = false,
   ): Promise<any> {
     try {
-      const adapter = this.onlineMeetingAdapter.getAdapter();
+      const adapter = isPathway
+        ? this.onlineMeetingAdapter.getPathwayAdapter()
+        : this.onlineMeetingAdapter.getAdapter();
 
       // Only calculate duration if both start and end times are provided
       let durationMinutes: number | undefined;
@@ -2545,11 +2552,13 @@ export class EventService {
     try {
       // Reuse existing updateMeeting method
       const meetingDetails = eventDetail.meetingDetails as any;
+      const isPathway = (eventDetail.metadata as any)?.isPathway === true;
       const platformResult = await this.updateMeeting(
         meetingDetails.id,
         updateEventByIdDto as UpdateEventDto,
         meetingDetails.meetingType || MeetingType.meeting,
         eventDetail.onlineProvider,
+        isPathway,
       );
       result.platformIntegrationResult = platformResult;
     } catch (error) {
