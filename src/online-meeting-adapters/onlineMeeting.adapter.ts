@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { IOnlineMeetingLocator } from './onlineMeeting.locator';
 import { ZoomService } from './zoom/zoom.adapter';
+import { PathwayZoomService } from './zoom/pathway-zoom.adapter';
 import { MockZoomService } from './mock/mock-zoom.adapter';
 import { ConfigService } from '@nestjs/config';
 
@@ -17,6 +18,7 @@ export class OnlineMeetingAdapter {
 
   constructor(
     private readonly zoomProvider: ZoomService,
+    private readonly pathwayZoomProvider: PathwayZoomService,
     private readonly mockZoomProvider: MockZoomService,
     private readonly configService: ConfigService,
   ) {
@@ -26,7 +28,7 @@ export class OnlineMeetingAdapter {
   private initializeProviderRegistry(): void {
     // Check if mock mode is enabled
     const useMockMode = this.configService.get<string>('USE_MOCK_ZOOM_ADAPTER') === 'true';
-    
+
     // Register Zoom provider (real or mock based on config)
     if (useMockMode) {
       this.logger.log('Using Mock Zoom Adapter for testing');
@@ -35,10 +37,20 @@ export class OnlineMeetingAdapter {
         adapter: this.mockZoomProvider,
         enabled: true,
       });
+      this.registerProvider('pathway-zoom', {
+        name: 'Pathway Zoom (Mock)',
+        adapter: this.mockZoomProvider,
+        enabled: true,
+      });
     } else {
-    this.registerProvider('zoom', {
-      name: 'Zoom',
-      adapter: this.zoomProvider,
+      this.registerProvider('zoom', {
+        name: 'Zoom',
+        adapter: this.zoomProvider,
+        enabled: true,
+      });
+      this.registerProvider('pathway-zoom', {
+        name: 'Pathway Zoom',
+        adapter: this.pathwayZoomProvider,
         enabled: true,
       });
     }
@@ -95,6 +107,10 @@ export class OnlineMeetingAdapter {
   getAdapter(): IOnlineMeetingLocator {
     const source = this.configService.get('ONLINE_MEETING_ADAPTER');
     return this.getProvider(source);
+  }
+
+  getPathwayAdapter(): IOnlineMeetingLocator {
+    return this.getProvider('pathway-zoom');
   }
 
   /**
