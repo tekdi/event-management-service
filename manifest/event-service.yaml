@@ -19,7 +19,7 @@ spec:
         imagePullPolicy: "Always"
         name: event-management-service
         envFrom:
-        - configMapRef:
+        - secretRef:
             name: event-service-config
         ports:
         - containerPort: 3000        
