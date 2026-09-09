@@ -362,6 +362,13 @@ export class EventReportService {
         firstName: userData.firstName ?? null,
         lastName: userData.lastName ?? null,
         email: userData.email ?? null,
+        // Aspire Leaders-specific: the participant's live profile country of
+        // residence, rendered as the "Current Country" column of the
+        // Masterclass and Completion Criteria report exports. Already present
+        // on the POST /user/v1/list response this row's name and email come
+        // from, so passing it through costs nothing - it was simply being
+        // dropped here.
+        currentCountry: userData.currentCountry ?? null,
         event_ids: result.event_ids ?? '',
         titles: result.titles ?? '',
         attended,
