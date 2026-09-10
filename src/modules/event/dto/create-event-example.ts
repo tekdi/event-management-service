@@ -58,7 +58,7 @@ const createEventsExamples: Record<
       },
       recurringStartDate: '2024-03-18T10:00:00Z',
     },
-    metaData: { cohortId: '3218bb35-a87d-4adf-b305-b205286fe320' },
+    metaData: { cohortIds: ['3218bb35-a87d-4adf-b305-b205286fe320'] },
     erMetaData: {},
   },
   RecurringOnlineDailyByOccurrences: {
@@ -91,7 +91,7 @@ const createEventsExamples: Record<
       },
       recurringStartDate: '2024-03-18T10:00:00Z',
     },
-    metaData: { cohortId: '3218bb35-a87d-4adf-b305-b205286fe320' },
+    metaData: { cohortIds: ['3218bb35-a87d-4adf-b305-b205286fe320'] },
     erMetaData: {},
   },
   RecurringOfflineDailyByEndDate: {
@@ -121,7 +121,7 @@ const createEventsExamples: Record<
       recurringStartDate: '2024-03-18T10:00:00Z',
     },
     metaData: {
-      cohortId: '3218bb35-a87d-4adf-b305-b205286fe320',
+      cohortIds: ['3218bb35-a87d-4adf-b305-b205286fe320'],
     },
     erMetaData: {},
   },
@@ -151,7 +151,7 @@ const createEventsExamples: Record<
       recurringStartDate: '2024-03-18T10:00:00Z',
     },
     metaData: {
-      cohortId: '3218bb35-a87d-4adf-b305-b205286fe320',
+      cohortIds: ['3218bb35-a87d-4adf-b305-b205286fe320'],
     },
     erMetaData: {},
   },

@@ -107,7 +107,7 @@ export class UpdateEventDto {
       },
       eventType: 'PLANNED_SESSION',
       doId: '',
-      cohortId: '71bdbed4-388a-4c79-bd69-65b08e857f1e',
+      cohortIds: ['71bdbed4-388a-4c79-bd69-65b08e857f1e'],
       cycleId: '',
       tenant: '',
     },

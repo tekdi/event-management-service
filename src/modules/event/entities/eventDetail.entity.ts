@@ -6,6 +6,8 @@ import {
   UpdateDateColumn,
   OneToMany,
   OneToOne,
+  BeforeInsert,
+  BeforeUpdate,
 } from 'typeorm';
 import { Events } from './event.entity';
 import { EventRepetition } from './eventRepetition.entity';
@@ -80,6 +82,18 @@ export class EventDetail {
 
   @Column({ type: 'jsonb', nullable: true })
   metadata: object;
+
+  // Server-computed, not client-settable: recalculated from metadata.cohortIds on every
+  // insert/update so it always reflects reality regardless of which code path saved this
+  // row (create, or any of the recurring/non-recurring update branches).
+  @BeforeInsert()
+  @BeforeUpdate()
+  setMultiSessionFlag() {
+    const metadata: any = this.metadata ?? {};
+    metadata.multiSession =
+      Array.isArray(metadata.cohortIds) && metadata.cohortIds.length > 1;
+    this.metadata = metadata;
+  }
 
   @OneToOne(() => Events, (event) => event.eventDetail)
   events: Event[];

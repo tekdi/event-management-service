@@ -21,7 +21,7 @@ const searchEventsExamples: Record<
         'offline',
       ],
       title: 'Event',
-      cohortId: '0278fd6a-ed93-4f29-b961-d3c87697c76a',
+      cohortIds: ['0278fd6a-ed93-4f29-b961-d3c87697c76a'],
       createdBy: 'eff008a8-2573-466d-b877-fddf6a4fc13e',
     },
   },
@@ -39,7 +39,7 @@ const searchEventsExamples: Record<
         'offline',
       ],
       title: 'Event',
-      cohortId: '0278fd6a-ed93-4f29-b961-d3c87697c76a',
+      cohortIds: ['0278fd6a-ed93-4f29-b961-d3c87697c76a'],
       createdBy: 'eff008a8-2573-466d-b877-fddf6a4fc13e',
     },
   },
@@ -48,7 +48,7 @@ const searchEventsExamples: Record<
     offset: 1,
     filters: {
       title: 'Event',
-      cohortId: '0278fd6a-ed93-4f29-b961-d3c87697c76a',
+      cohortIds: ['0278fd6a-ed93-4f29-b961-d3c87697c76a'],
     },
   },
 };

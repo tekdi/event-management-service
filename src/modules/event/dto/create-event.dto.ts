@@ -14,7 +14,6 @@ import {
   ValidateIf,
   ValidateNested,
   IsArray,
-  IsDefined,
   ArrayMinSize,
   ArrayMaxSize,
   Validate,
@@ -28,7 +27,6 @@ import {
   Frequency,
   MeetingDetails,
 } from 'src/common/utils/types';
-import { ERROR_MESSAGES } from 'src/common/utils/constants.util';
 import { EndsWithZConstraint } from 'src/common/pipes/event-validation.pipe';
 import { UrlWithProviderValidator } from 'src/common/utils/validation.util';
 
@@ -313,14 +311,15 @@ export class CreateEventDto {
 
   @ApiProperty({
     type: Object,
-    description: 'Attendees',
+    description:
+      'Deprecated: no longer used now that an event can span multiple cohorts. ' +
+      'If sent, it is accepted but ignored and not persisted.',
     example: [
       'eff008a8-2573-466d-b877-fddf6a4fc13e',
       'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9',
     ],
   })
-  @ValidateIf((o) => o.isRestricted === true && o.autoEnroll)
-  @IsDefined({ message: ERROR_MESSAGES.ATTENDEES_REQUIRED })
+  @IsOptional()
   @IsArray()
   @Type(() => String)
   @ArrayMaxSize(200)
@@ -404,8 +403,16 @@ export class CreateEventDto {
 
   @ApiProperty({
     type: Object,
-    description: 'Event meta data',
-    example: '',
+    description:
+      'Event meta data. Use metaData.cohortIds (string[]) to associate the event with one ' +
+      'or more cohorts. metaData.multiSession is server-computed (true when cohortIds has ' +
+      'more than one entry) — any value sent by the client is ignored and overwritten.',
+    example: {
+      cohortIds: [
+        'eff008a8-2573-466d-b877-fddf6a4fc13e',
+        'e9fec05a-d6ab-44be-bfa4-eaeef2ef8fe9',
+      ],
+    },
   })
   @IsObject()
   @IsOptional()

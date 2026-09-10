@@ -250,9 +250,17 @@ export class EventService {
       whereClauses.push(`ed."status" = 'live'`);
     }
 
-    // Handle cohortId filter
-    if (filters?.cohortId) {
-      whereClauses.push(`ed."metadata"->>'cohortId'='${filters.cohortId}'`);
+    // Handle cohortIds filter (event matches if it has any of the given cohorts).
+    // Also checks the legacy singular 'cohortId' key for events created before
+    // the multi-cohort migration/backfill. cohortIds is validated as UUIDs by
+    // FilterDto, so safe to inline into the array literal below.
+    if (filters?.cohortIds && filters.cohortIds.length > 0) {
+      const cohortIdsLiteral = filters.cohortIds
+        .map((cohortId: string) => `'${cohortId}'`)
+        .join(',');
+      whereClauses.push(
+        `(ed."metadata"->'cohortIds' ?| array[${cohortIdsLiteral}] OR ed."metadata"->>'cohortId' = ANY(array[${cohortIdsLiteral}]))`,
+      );
     }
 
     if (filters.hasOwnProperty('attendanceMarked')) {
@@ -1004,18 +1012,21 @@ export class EventService {
         updateBody.onlineDetails,
       );
     }
-    if (updateBody.metadata) {
-      Object.assign(existingEventDetails.metadata, updateBody.metadata);
-    }
 
     // get first event
     const firstEvent: EventRepetition = recurrenceRecords[0];
 
     if (firstEvent.eventRepetitionId === eventRepetition.eventRepetitionId) {
       // Always true in case of non recurring
+      const metadataBeforeAssign = existingEventDetails.metadata;
       Object.assign(existingEventDetails, updateBody, {
         eventRepetitionId: eventRepetition.eventRepetitionId,
       });
+      this.restoreMergedMetadata(
+        existingEventDetails,
+        updateBody,
+        metadataBeforeAssign,
+      );
       existingEventDetails.updatedAt = new Date();
       const updatedEventDetails =
         await this.eventDetailRepository.save(existingEventDetails);
@@ -1040,7 +1051,13 @@ export class EventService {
       // Not going in this condition if event is non recurring
       // create new entry for new updated record which connect all upcoming and this event
       if (eventRepetition.eventDetailId === event.eventDetailId) {
+        const metadataBeforeAssign = existingEventDetails.metadata;
         Object.assign(existingEventDetails, updateBody);
+        this.restoreMergedMetadata(
+          existingEventDetails,
+          updateBody,
+          metadataBeforeAssign,
+        );
         existingEventDetails.eventDetailId = undefined;
         const saveNewEntry =
           await this.eventDetailRepository.save(existingEventDetails);
@@ -1081,9 +1098,16 @@ export class EventService {
           );
         }
         if (numberOfEntryInEventReperationTable.length === 1) {
+          const metadataBeforeAssign =
+            repetationeventDetailexistingResult['metadata'];
           Object.assign(repetationeventDetailexistingResult, updateBody, {
             eventRepetitionId: eventRepetition.eventRepetitionId,
           });
+          this.restoreMergedMetadata(
+            repetationeventDetailexistingResult,
+            updateBody,
+            metadataBeforeAssign,
+          );
 
           const result = await this.eventDetailRepository.save(
             repetationeventDetailexistingResult,
@@ -1092,9 +1116,16 @@ export class EventService {
           updateResult['eventDetails'] = result;
         } else {
           // if greater than then create new entry in eventDetail Table
+          const metadataBeforeAssign =
+            repetationeventDetailexistingResult['metadata'];
           Object.assign(repetationeventDetailexistingResult, updateBody, {
             eventRepetitionId: eventRepetition.eventRepetitionId,
           });
+          this.restoreMergedMetadata(
+            repetationeventDetailexistingResult,
+            updateBody,
+            metadataBeforeAssign,
+          );
           repetationeventDetailexistingResult.eventDetailId = undefined;
           const result = await this.eventDetailRepository.save(
             repetationeventDetailexistingResult,
@@ -1152,9 +1183,15 @@ export class EventService {
 
       if (event.eventDetailId === existingEventDetails.eventDetailId) {
         // as we are updating event from set of events we will make its details separate
+        const metadataBeforeAssign = existingEventDetails.metadata;
         Object.assign(existingEventDetails, updateBody, {
           eventRepetitionId: eventRepetition.eventRepetitionId,
         });
+        this.restoreMergedMetadata(
+          existingEventDetails,
+          updateBody,
+          metadataBeforeAssign,
+        );
         existingEventDetails.eventDetailId = undefined;
 
         const result =
@@ -1172,17 +1209,29 @@ export class EventService {
           );
 
         if (numberOfEntryInEventRepetitionTable.length === 1) {
+          const metadataBeforeAssign = existingEventDetails.metadata;
           Object.assign(existingEventDetails, updateBody, {
             eventRepetitionId: eventRepetition.eventRepetitionId,
           });
+          this.restoreMergedMetadata(
+            existingEventDetails,
+            updateBody,
+            metadataBeforeAssign,
+          );
           const result =
             await this.eventDetailRepository.save(existingEventDetails);
           updateResult.eventDetails = result;
         } else {
           // if greater than then create new entry in eventDetail Table
+          const metadataBeforeAssign = existingEventDetails.metadata;
           Object.assign(existingEventDetails, updateBody, {
             eventRepetitionId: eventRepetition.eventRepetitionId,
           });
+          this.restoreMergedMetadata(
+            existingEventDetails,
+            updateBody,
+            metadataBeforeAssign,
+          );
           existingEventDetails.eventDetailId = undefined;
           const result =
             await this.eventDetailRepository.save(existingEventDetails);
@@ -1206,6 +1255,24 @@ export class EventService {
       await this.eventRepetitionRepository.save(eventRepetition);
     }
     return updateResult;
+  }
+
+  // `Object.assign(existingEventDetails, updateBody, {...})` (used across the update paths
+  // below) replaces existingEventDetails.metadata wholesale with updateBody.metadata rather
+  // than merging it. Call this right after any such assign so a partial metadata update
+  // (e.g. just cohortIds) doesn't silently wipe out unrelated existing metadata fields
+  // (category, courseType, teacherName, etc).
+  private restoreMergedMetadata(
+    eventDetailEntity: EventDetail,
+    updateBody,
+    metadataBeforeAssign: object,
+  ) {
+    if (updateBody.metadata) {
+      eventDetailEntity.metadata = {
+        ...(metadataBeforeAssign ?? {}),
+        ...updateBody.metadata,
+      };
+    }
   }
 
   isInvalidUpdate(updateBody: UpdateEventDto, eventDetail: EventDetail) {
@@ -1255,9 +1322,10 @@ export class EventService {
     eventDetail.maxAttendees = createEventDto?.maxAttendees;
     eventDetail.recordings = createEventDto?.recordings;
     eventDetail.status = createEventDto.status;
-    eventDetail.attendees = createEventDto?.attendees?.length
-      ? createEventDto.attendees
-      : null;
+    // Explicit attendee lists no longer make sense once an event can span
+    // multiple cohorts; ignore whatever is sent (frontend has been asked to
+    // stop sending this field) rather than storing it.
+    eventDetail.attendees = null;
     eventDetail.meetingDetails = createEventDto.meetingDetails;
     eventDetail.idealTime = createEventDto?.idealTime
       ? createEventDto.idealTime

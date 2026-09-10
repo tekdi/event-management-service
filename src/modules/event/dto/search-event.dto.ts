@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsEnum,
   IsString,
+  IsArray,
   ValidateNested,
   IsUUID,
   IsDateString,
@@ -74,12 +75,17 @@ export class FilterDto {
   title?: string;
 
   @ApiProperty({
-    example: '76a5e84a-4336-47c8-986f-98f7ad190e0b',
-    description: 'Cohort',
+    example: [
+      '76a5e84a-4336-47c8-986f-98f7ad190e0b',
+      '9c8a9d3e-6b3a-4b3a-9f3a-1a2b3c4d5e6f',
+    ],
+    description:
+      'Cohort ids — event matches if it belongs to any of the given cohorts',
   })
   @IsOptional()
-  @IsUUID('4')
-  cohortId?: string;
+  @IsArray()
+  @IsUUID('4', { each: true })
+  cohortIds?: string[];
 
   @ApiProperty({
     example: 'eff008a8-2573-466d-b877-fddf6a4fc13e',
