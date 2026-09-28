@@ -45,6 +45,7 @@ interface EventInfo {
   zoomId: string;
   meetingType: 'meeting' | 'webinar';
   attendanceMarked: boolean;
+  isPathway: boolean;
 }
 
 /**
@@ -123,8 +124,13 @@ export class AttendanceService implements OnModuleInit {
       relations: ['eventDetail'], // Ensure eventDetail is included
       select: {
         eventRepetitionId: true,
+        // onlineDetails must be selected: meetingType is read from it below and
+        // drives both the Zoom endpoint (meeting vs webinar) and which Zoom
+        // account is used. Without it meetingType silently defaults to 'meeting'.
+        onlineDetails: true as any,
         eventDetail: {
           onlineProvider: true,
+          metadata: true as any,
         },
       },
     });
@@ -141,9 +147,17 @@ export class AttendanceService implements OnModuleInit {
     // Access onlineDetails directly with type assertion to avoid TypeORM select type issues
     const meetingType = (eventRepetition.onlineDetails as any)?.meetingType || MeetingType.meeting;
 
+    // Resolve the same Zoom account the meeting was created on
+    const isPathway =
+      (eventRepetition.eventDetail?.metadata as any)?.isPathway === true;
+    const meetingAdapter = this.onlineMeetingAdapter.getAdapterFor(
+      isPathway,
+      meetingType as MeetingType,
+      `markAttendance:${markMeetingAttendanceDto.meetingId}`,
+    );
+
     // get meeting participants (supports both meetings and webinars)
-    const participantIdentifiers = await this.onlineMeetingAdapter
-      .getAdapter()
+    const participantIdentifiers = await meetingAdapter
       .getMeetingParticipantsIdentifiers(
         markMeetingAttendanceDto.meetingId,
         markMeetingAttendanceDto.markAttendanceBy,
@@ -159,8 +173,7 @@ export class AttendanceService implements OnModuleInit {
     );
 
     // combine data from user service and meeting attendance
-    const userDetailList = this.onlineMeetingAdapter
-      .getAdapter()
+    const userDetailList = meetingAdapter
       .getParticipantAttendance(
         userList,
         participantIdentifiers.inMeetingUserDetails,
@@ -378,6 +391,7 @@ export class AttendanceService implements OnModuleInit {
           zoomId: (event.onlineDetails as any)?.id || '',
           meetingType: (event.onlineDetails as any)?.meetingType || 'meeting',
           attendanceMarked: event.attendanceMarked,
+          isPathway: (event.eventDetail?.metadata as any)?.isPathway === true,
         };
 
         // Skip if already processed and not forcing reprocess
@@ -619,6 +633,7 @@ export class AttendanceService implements OnModuleInit {
   ): Promise<ProcessingResult> {
     const zoomId = eventInfo.zoomId;
     const meetingType = eventInfo.meetingType as MeetingType;
+    const isPathway = eventInfo.isPathway === true;
 
     let totalParticipants = checkpoint.totalParticipants;
     let participantsProcessed = checkpoint.participantsProcessed;
@@ -649,7 +664,11 @@ export class AttendanceService implements OnModuleInit {
           
           const adapter = useMockData && mockDataFile
             ? this.onlineMeetingAdapter.getAdapterWithMockData(useMockData, mockDataFile)
-            : this.onlineMeetingAdapter.getAdapter();
+            : this.onlineMeetingAdapter.getAdapterFor(
+                isPathway,
+                meetingType,
+                `participantList:${zoomId}`,
+              );
           
           if (useMockData && mockDataFile) {
             this.logger.log(
@@ -766,7 +785,11 @@ export class AttendanceService implements OnModuleInit {
           // Get adapter (mock or real based on parameters)
           const adapter = useMockData && mockDataFile
             ? this.onlineMeetingAdapter.getAdapterWithMockData(useMockData, mockDataFile)
-            : this.onlineMeetingAdapter.getAdapter();
+            : this.onlineMeetingAdapter.getAdapterFor(
+                isPathway,
+                meetingType,
+                `participantList:${zoomId}`,
+              );
 
           if (useMockData && mockDataFile) {
             this.logger.log(
@@ -1380,6 +1403,7 @@ export class AttendanceService implements OnModuleInit {
       zoomId: (event.onlineDetails as any)?.id || '',
       meetingType: (event.onlineDetails as any)?.meetingType || 'meeting',
       attendanceMarked: event.attendanceMarked,
+      isPathway: (event.eventDetail?.metadata as any)?.isPathway === true,
     };
 
     if (eventInfo.attendanceMarked) {

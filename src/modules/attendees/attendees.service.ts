@@ -677,13 +677,21 @@ export class AttendeesService {
       const provider =
         (eventRepetition.onlineDetails as any).provider || 'Zoom';
 
-      // Get the appropriate adapter for the provider
-      const adapter = this.onlineMeetingAdapter.getAdapter();
-
       // Determine meeting type (default to meeting, can be enhanced based on provider)
       const meetingType =
         (eventRepetition.onlineDetails as any).meetingType ||
         MeetingType.meeting;
+
+      // Resolve the same Zoom account the meeting was created on, so registrants
+      // are added where the meeting actually lives (pathway meetings sit on the
+      // Pathway Zoom account; pathway webinars and everything else on the main one).
+      const isPathway =
+        (eventRepetition.eventDetail?.metadata as any)?.isPathway === true;
+      const adapter = this.onlineMeetingAdapter.getAdapterFor(
+        isPathway,
+        meetingType,
+        `addRegistrant:${meetingId}`,
+      );
 
       // Prepare attendee data for provider API
       const attendeeData = {
@@ -847,6 +855,7 @@ export class AttendeesService {
       // Get event repetition details to find meeting information
       const eventRepetition = await this.eventRepetitionRepository.findOne({
         where: { eventRepetitionId },
+        relations: ['eventDetail'],
       });
 
       if (!eventRepetition) {
@@ -873,8 +882,15 @@ export class AttendeesService {
 
         if (meetingId) {
           try {
-            // Get the appropriate adapter for the provider
-            const adapter = this.onlineMeetingAdapter.getAdapter();
+            // Resolve the same Zoom account the meeting was created on
+            const isPathway =
+              (eventRepetition.eventDetail?.metadata as any)?.isPathway ===
+              true;
+            const adapter = this.onlineMeetingAdapter.getAdapterFor(
+              isPathway,
+              meetingType,
+              `removeRegistrant:${meetingId}`,
+            );
 
             // Remove registrant from provider meeting
             await adapter.removeRegistrantFromMeeting(
