@@ -1934,7 +1934,7 @@ export class EventService {
   ): Promise<CreateEventDto> {
     try {
       const meetingType = createEventDto.meetingType || MeetingType.meeting;
-      // Account is chosen by AspireAccountRules from the event's own metadata.
+      // Account is chosen by AccountRules from the event's own metadata.
       const adapter = this.onlineMeetingAdapter.getAdapterFor({
         metadata: createEventDto.metaData,
         meetingType,

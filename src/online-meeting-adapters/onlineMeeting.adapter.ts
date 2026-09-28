@@ -5,9 +5,9 @@ import { PathwayZoomService } from './zoom/pathway-zoom.adapter';
 import { MockZoomService } from './mock/mock-zoom.adapter';
 import { ConfigService } from '@nestjs/config';
 import {
-  AspireAccountRules,
+  AccountRules,
   MeetingAccountContext,
-} from './aspire/aspire-account.rules';
+} from './zoom/zoom-account-rules';
 
 export interface ProviderConfig {
   name: string;
@@ -25,7 +25,7 @@ export class OnlineMeetingAdapter {
     private readonly pathwayZoomProvider: PathwayZoomService,
     private readonly mockZoomProvider: MockZoomService,
     private readonly configService: ConfigService,
-    private readonly aspireAccountRules: AspireAccountRules,
+    private readonly accountRules: AccountRules,
   ) {
     this.initializeProviderRegistry();
   }
@@ -117,12 +117,12 @@ export class OnlineMeetingAdapter {
   /**
    * Resolves which Zoom account an event belongs to and returns that adapter.
    *
-   * The decision itself lives in AspireAccountRules - this method only turns the
+   * The decision itself lives in AccountRules - this method only turns the
    * resolved provider key into an adapter and logs the choice. To change or add
-   * routing rules, edit aspire/aspire-account.rules.ts, not this file.
+   * routing rules, edit zoom/zoom-account-rules.ts, not this file.
    */
   getAdapterFor(ctx: MeetingAccountContext): IOnlineMeetingLocator {
-    const account = this.aspireAccountRules.getAccountDetails(ctx);
+    const account = this.accountRules.getAccountDetails(ctx);
 
     this.logger.log(
       `[ZOOM ACCOUNT]${ctx.operation ? ` [${ctx.operation}]` : ''} ` +

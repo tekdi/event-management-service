@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { MeetingType } from 'src/common/utils/types';
 
 /**
+ * This is the Product specific place that decides which Zoom account is used.
  * Everything a caller tells us about the event so an account can be picked.
  *
  * Callers pass `metadata` as-is and never interpret it - only the rules in this
@@ -29,7 +30,7 @@ export interface ZoomAccountDetails {
 }
 
 /**
- * ASPIRE PRODUCT RULES - the only place that decides which Zoom account is used.
+ * ZOOM ACCOUNT RULES - This is the Product specific place that decides which Zoom account is used.
  *
  * Every flow (create, update, delete, enrollment, unenrollment and attendance)
  * resolves its account through getAccountDetails(), so changing a rule here
@@ -42,7 +43,7 @@ export interface ZoomAccountDetails {
  * they would land on different accounts and Zoom would 404.
  */
 @Injectable()
-export class AspireAccountRules {
+export class AccountRules {
   constructor(private readonly configService: ConfigService) {}
 
   getAccountDetails(ctx: MeetingAccountContext): ZoomAccountDetails {
@@ -67,7 +68,9 @@ export class AspireAccountRules {
       provider: this.configService.get('ONLINE_MEETING_ADAPTER') || 'zoom',
       label: 'MAIN ACCOUNT SELECTED',
       reason:
-        ctx.metadata?.isPathway === true ? 'pathway + webinar' : 'no rule matched',
+        ctx.metadata?.isPathway === true
+          ? 'pathway + webinar'
+          : 'no rule matched',
     };
   }
 }

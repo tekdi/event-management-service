@@ -45,7 +45,7 @@ interface EventInfo {
   zoomId: string;
   meetingType: 'meeting' | 'webinar';
   attendanceMarked: boolean;
-  /** eventDetail.metadata, passed through to AspireAccountRules. */
+  /** eventDetail.metadata, passed through to AccountRules. */
   metadata?: Record<string, any> | null;
 }
 
