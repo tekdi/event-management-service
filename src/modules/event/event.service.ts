@@ -1935,10 +1935,14 @@ export class EventService {
     isPathway: boolean = false,
   ): Promise<CreateEventDto> {
     try {
-      const adapter = isPathway
-        ? this.onlineMeetingAdapter.getPathwayAdapter()
-        : this.onlineMeetingAdapter.getAdapter();
       const meetingType = createEventDto.meetingType || MeetingType.meeting;
+      // Pathway meetings go to the Pathway Zoom account; pathway webinars and all
+      // non-pathway events stay on the main Zoom account.
+      const adapter = this.onlineMeetingAdapter.getAdapterFor(
+        isPathway,
+        meetingType,
+        'createMeeting',
+      );
       const startTime = new Date(createEventDto.startDatetime);
       const endTime = new Date(createEventDto.endDatetime);
       const durationMinutes = Math.ceil(
@@ -2040,9 +2044,11 @@ export class EventService {
     isPathway: boolean = false,
   ): Promise<any> {
     try {
-      const adapter = isPathway
-        ? this.onlineMeetingAdapter.getPathwayAdapter()
-        : this.onlineMeetingAdapter.getAdapter();
+      const adapter = this.onlineMeetingAdapter.getAdapterFor(
+        isPathway,
+        meetingType,
+        `updateMeeting:${meetingId}`,
+      );
 
       // Only calculate duration if both start and end times are provided
       let durationMinutes: number | undefined;
@@ -2818,11 +2824,16 @@ export class EventService {
       const onlineDetails = event.eventDetail.meetingDetails as any;
       const meetingId = onlineDetails?.id;
       const meetingType = onlineDetails?.meetingType || 'meeting';
-      const provider = onlineDetails?.onlineProvider || 'Zoom';
+      const isPathway = (event.eventDetail.metadata as any)?.isPathway === true;
 
       if (meetingId) {
         try {
-          const adapter = this.onlineMeetingAdapter.getProvider(provider);
+          // Resolve the same account the meeting was created on
+          const adapter = this.onlineMeetingAdapter.getAdapterFor(
+            isPathway,
+            meetingType,
+            `deleteMeeting:${meetingId}`,
+          );
           await adapter.deleteMeeting(meetingId, meetingType);
         } catch (error) {
           // console.log('error', error); // Removed for production

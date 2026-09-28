@@ -4,6 +4,7 @@ import { ZoomService } from './zoom/zoom.adapter';
 import { PathwayZoomService } from './zoom/pathway-zoom.adapter';
 import { MockZoomService } from './mock/mock-zoom.adapter';
 import { ConfigService } from '@nestjs/config';
+import { MeetingType } from 'src/common/utils/types';
 
 export interface ProviderConfig {
   name: string;
@@ -112,6 +113,37 @@ export class OnlineMeetingAdapter {
   getPathwayAdapter(): IOnlineMeetingLocator {
     return this.getProvider('pathway-zoom');
   }
+
+  /**
+   * Resolves which Zoom account a given event belongs to.
+   *
+   * - Non-pathway events always use the main Zoom account (unchanged behaviour).
+   * - Pathway events use the main Zoom account for webinars, because the webinar
+   *   licence lives on that account.
+   * - Pathway events use the dedicated Pathway Zoom account for meetings.
+   *
+   * The rule is deterministic from (isPathway, meetingType), so create, update,
+   * delete, registrant and attendance calls all resolve to the same account.
+   */
+  getAdapterFor(
+    isPathway: boolean,
+    meetingType: MeetingType | string = MeetingType.meeting,
+    context = '',
+  ): IOnlineMeetingLocator {
+    const usePathwayAccount = isPathway && meetingType !== MeetingType.webinar;
+    const adapter = usePathwayAccount
+      ? this.getPathwayAdapter()
+      : this.getAdapter();
+
+    this.logger.log(
+      `[ZOOM ACCOUNT]${context ? ` [${context}]` : ''} ` +
+        `isPathway=${isPathway} meetingType=${meetingType} => ` +
+        `${usePathwayAccount ? 'NEW (PATHWAY) ACCOUNT SELECTED' : 'MAIN ACCOUNT SELECTED'}`,
+    );
+
+    return adapter;
+  }
+
 
   /**
    * Get adapter with optional mock data file
