@@ -45,7 +45,8 @@ interface EventInfo {
   zoomId: string;
   meetingType: 'meeting' | 'webinar';
   attendanceMarked: boolean;
-  isPathway: boolean;
+  /** eventDetail.metadata, passed through to AspireAccountRules. */
+  metadata?: Record<string, any> | null;
 }
 
 /**
@@ -148,13 +149,11 @@ export class AttendanceService implements OnModuleInit {
     const meetingType = (eventRepetition.onlineDetails as any)?.meetingType || MeetingType.meeting;
 
     // Resolve the same Zoom account the meeting was created on
-    const isPathway =
-      (eventRepetition.eventDetail?.metadata as any)?.isPathway === true;
-    const meetingAdapter = this.onlineMeetingAdapter.getAdapterFor(
-      isPathway,
-      meetingType as MeetingType,
-      `markAttendance:${markMeetingAttendanceDto.meetingId}`,
-    );
+    const meetingAdapter = this.onlineMeetingAdapter.getAdapterFor({
+      metadata: eventRepetition.eventDetail?.metadata as Record<string, any>,
+      meetingType: meetingType as MeetingType,
+      operation: `markAttendance:${markMeetingAttendanceDto.meetingId}`,
+    });
 
     // get meeting participants (supports both meetings and webinars)
     const participantIdentifiers = await meetingAdapter
@@ -391,7 +390,7 @@ export class AttendanceService implements OnModuleInit {
           zoomId: (event.onlineDetails as any)?.id || '',
           meetingType: (event.onlineDetails as any)?.meetingType || 'meeting',
           attendanceMarked: event.attendanceMarked,
-          isPathway: (event.eventDetail?.metadata as any)?.isPathway === true,
+          metadata: event.eventDetail?.metadata as Record<string, any>,
         };
 
         // Skip if already processed and not forcing reprocess
@@ -633,7 +632,7 @@ export class AttendanceService implements OnModuleInit {
   ): Promise<ProcessingResult> {
     const zoomId = eventInfo.zoomId;
     const meetingType = eventInfo.meetingType as MeetingType;
-    const isPathway = eventInfo.isPathway === true;
+    const eventMetadata = eventInfo.metadata;
 
     let totalParticipants = checkpoint.totalParticipants;
     let participantsProcessed = checkpoint.participantsProcessed;
@@ -664,11 +663,11 @@ export class AttendanceService implements OnModuleInit {
           
           const adapter = useMockData && mockDataFile
             ? this.onlineMeetingAdapter.getAdapterWithMockData(useMockData, mockDataFile)
-            : this.onlineMeetingAdapter.getAdapterFor(
-                isPathway,
+            : this.onlineMeetingAdapter.getAdapterFor({
+                metadata: eventMetadata,
                 meetingType,
-                `participantList:${zoomId}`,
-              );
+                operation: `participantList:${zoomId}`,
+              });
           
           if (useMockData && mockDataFile) {
             this.logger.log(
@@ -785,11 +784,11 @@ export class AttendanceService implements OnModuleInit {
           // Get adapter (mock or real based on parameters)
           const adapter = useMockData && mockDataFile
             ? this.onlineMeetingAdapter.getAdapterWithMockData(useMockData, mockDataFile)
-            : this.onlineMeetingAdapter.getAdapterFor(
-                isPathway,
+            : this.onlineMeetingAdapter.getAdapterFor({
+                metadata: eventMetadata,
                 meetingType,
-                `participantList:${zoomId}`,
-              );
+                operation: `participantList:${zoomId}`,
+              });
 
           if (useMockData && mockDataFile) {
             this.logger.log(
@@ -1403,7 +1402,7 @@ export class AttendanceService implements OnModuleInit {
       zoomId: (event.onlineDetails as any)?.id || '',
       meetingType: (event.onlineDetails as any)?.meetingType || 'meeting',
       attendanceMarked: event.attendanceMarked,
-      isPathway: (event.eventDetail?.metadata as any)?.isPathway === true,
+      metadata: event.eventDetail?.metadata as Record<string, any>,
     };
 
     if (eventInfo.attendanceMarked) {

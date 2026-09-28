@@ -682,16 +682,13 @@ export class AttendeesService {
         (eventRepetition.onlineDetails as any).meetingType ||
         MeetingType.meeting;
 
-      // Resolve the same Zoom account the meeting was created on, so registrants
-      // are added where the meeting actually lives (pathway meetings sit on the
-      // Pathway Zoom account; pathway webinars and everything else on the main one).
-      const isPathway =
-        (eventRepetition.eventDetail?.metadata as any)?.isPathway === true;
-      const adapter = this.onlineMeetingAdapter.getAdapterFor(
-        isPathway,
+      // Registrants must be added on the account the meeting actually lives on.
+      // Project Specific decides which one from the event's own metadata.
+      const adapter = this.onlineMeetingAdapter.getAdapterFor({
+        metadata: eventRepetition.eventDetail?.metadata as Record<string, any>,
         meetingType,
-        `addRegistrant:${meetingId}`,
-      );
+        operation: `addRegistrant:${meetingId}`,
+      });
 
       // Prepare attendee data for provider API
       const attendeeData = {
@@ -883,14 +880,14 @@ export class AttendeesService {
         if (meetingId) {
           try {
             // Resolve the same Zoom account the meeting was created on
-            const isPathway =
-              (eventRepetition.eventDetail?.metadata as any)?.isPathway ===
-              true;
-            const adapter = this.onlineMeetingAdapter.getAdapterFor(
-              isPathway,
+            const adapter = this.onlineMeetingAdapter.getAdapterFor({
+              metadata: eventRepetition.eventDetail?.metadata as Record<
+                string,
+                any
+              >,
               meetingType,
-              `removeRegistrant:${meetingId}`,
-            );
+              operation: `removeRegistrant:${meetingId}`,
+            });
 
             // Remove registrant from provider meeting
             await adapter.removeRegistrantFromMeeting(

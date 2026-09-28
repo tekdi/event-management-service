@@ -1636,8 +1636,7 @@ export class EventService {
           createEventDto.meetingType || MeetingType.meeting;
       } else {
         // Create new meeting automatically
-        const isPathway = createEventDto.metaData?.isPathway === true;
-        createEventDto = await this.createNewMeeting(createEventDto, isPathway);
+        createEventDto = await this.createNewMeeting(createEventDto);
       }
     }
 
@@ -1932,17 +1931,15 @@ export class EventService {
 
   private async createNewMeeting(
     createEventDto: CreateEventDto,
-    isPathway: boolean = false,
   ): Promise<CreateEventDto> {
     try {
       const meetingType = createEventDto.meetingType || MeetingType.meeting;
-      // Pathway meetings go to the Pathway Zoom account; pathway webinars and all
-      // non-pathway events stay on the main Zoom account.
-      const adapter = this.onlineMeetingAdapter.getAdapterFor(
-        isPathway,
+      // Account is chosen by AspireAccountRules from the event's own metadata.
+      const adapter = this.onlineMeetingAdapter.getAdapterFor({
+        metadata: createEventDto.metaData,
         meetingType,
-        'createMeeting',
-      );
+        operation: 'createMeeting',
+      });
       const startTime = new Date(createEventDto.startDatetime);
       const endTime = new Date(createEventDto.endDatetime);
       const durationMinutes = Math.ceil(
@@ -2041,14 +2038,14 @@ export class EventService {
     updateBody: UpdateEventDto,
     meetingType: MeetingType,
     onlineProvider: string,
-    isPathway: boolean = false,
+    metadata?: Record<string, any> | null,
   ): Promise<any> {
     try {
-      const adapter = this.onlineMeetingAdapter.getAdapterFor(
-        isPathway,
+      const adapter = this.onlineMeetingAdapter.getAdapterFor({
+        metadata,
         meetingType,
-        `updateMeeting:${meetingId}`,
-      );
+        operation: `updateMeeting:${meetingId}`,
+      });
 
       // Only calculate duration if both start and end times are provided
       let durationMinutes: number | undefined;
@@ -2558,13 +2555,12 @@ export class EventService {
     try {
       // Reuse existing updateMeeting method
       const meetingDetails = eventDetail.meetingDetails as any;
-      const isPathway = (eventDetail.metadata as any)?.isPathway === true;
       const platformResult = await this.updateMeeting(
         meetingDetails.id,
         updateEventByIdDto as UpdateEventDto,
         meetingDetails.meetingType || MeetingType.meeting,
         eventDetail.onlineProvider,
-        isPathway,
+        eventDetail.metadata as Record<string, any>,
       );
       result.platformIntegrationResult = platformResult;
     } catch (error) {
@@ -2834,16 +2830,15 @@ export class EventService {
       // const onlineDetails = event.eventDetail.meetingDetails as any;
       // const meetingId = onlineDetails?.id;
       // const meetingType = onlineDetails?.meetingType || 'meeting';
-      // const isPathway = (event.eventDetail.metadata as any)?.isPathway === true;
 
       // if (meetingId) {
       //   try {
       //     // Resolve the same account the meeting was created on
-      //     const adapter = this.onlineMeetingAdapter.getAdapterFor(
-      //       isPathway,
+      //     const adapter = this.onlineMeetingAdapter.getAdapterFor({
+      //       metadata: event.eventDetail.metadata as Record<string, any>,
       //       meetingType,
-      //       `deleteMeeting:${meetingId}`,
-      //     );
+      //       operation: `deleteMeeting:${meetingId}`,
+      //     });
       //     await adapter.deleteMeeting(meetingId, meetingType);
       //   } catch (error) {
       //     // console.log('error', error); // Removed for production
