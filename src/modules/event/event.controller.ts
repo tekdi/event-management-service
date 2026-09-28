@@ -174,7 +174,7 @@ export class EventController {
 
   @UseFilters(new AllExceptionsFilter(API_ID.DELETE_EVENT))
   @Delete('/:id') // eventId
-  @ApiOperation({ summary: 'Delete Event by Event ID - Archives Event Detail and Deletes All Repetitions with Online Meeting Cleanup' })
+  @ApiOperation({ summary: 'Delete Event by Event ID - Archives Event Detail only (status set to archived); no online meeting cleanup and no data removed' })
   @ApiResponse({ status: 200, description: SUCCESS_MESSAGES.EVENT_DELETED })
   @ApiInternalServerErrorResponse({
     description: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,

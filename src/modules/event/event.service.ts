@@ -2797,7 +2797,8 @@ export class EventService {
   }
 
   /**
-   * Delete event by eventId - Archives event detail and deletes all repetitions with online meeting cleanup
+   * Delete event by eventId - Archive only: flips the event detail status to 'archived'.
+   * No online meeting cleanup and no rows removed from Events / EventRepetition.
    * @param eventId - The event ID to delete
    * @param response - Express response object
    * @returns Promise<Response>
@@ -2821,28 +2822,37 @@ export class EventService {
         throw new NotFoundException(ERROR_MESSAGES.EVENT_NOT_FOUND);
       }
 
-      const onlineDetails = event.eventDetail.meetingDetails as any;
-      const meetingId = onlineDetails?.id;
-      const meetingType = onlineDetails?.meetingType || 'meeting';
-      const isPathway = (event.eventDetail.metadata as any)?.isPathway === true;
+      // NOTE: Delete is now archive-only - the event detail status is flipped from
+      // 'live' to 'archived' and nothing else is touched. The online meeting is left
+      // in place on the provider and no rows are removed from Events / EventRepetition,
+      // so the event and all its related data (attendees, attendance) stay intact.
+      // The original online-meeting cleanup and hard-delete logic is kept below,
+      // commented out, in case it needs to be restored. If it is restored, it must
+      // keep using getAdapterFor() so the meeting is deleted from the same Zoom
+      // account it was created on (pathway meetings live on the Pathway account).
 
-      if (meetingId) {
-        try {
-          // Resolve the same account the meeting was created on
-          const adapter = this.onlineMeetingAdapter.getAdapterFor(
-            isPathway,
-            meetingType,
-            `deleteMeeting:${meetingId}`,
-          );
-          await adapter.deleteMeeting(meetingId, meetingType);
-        } catch (error) {
-          // console.log('error', error); // Removed for production
-          throw new BadRequestException(
-            ERROR_MESSAGES.CANNOT_DELETE_ONLINE_MEETING,
-            error.message,
-          );
-        }
-      }
+      // const onlineDetails = event.eventDetail.meetingDetails as any;
+      // const meetingId = onlineDetails?.id;
+      // const meetingType = onlineDetails?.meetingType || 'meeting';
+      // const isPathway = (event.eventDetail.metadata as any)?.isPathway === true;
+
+      // if (meetingId) {
+      //   try {
+      //     // Resolve the same account the meeting was created on
+      //     const adapter = this.onlineMeetingAdapter.getAdapterFor(
+      //       isPathway,
+      //       meetingType,
+      //       `deleteMeeting:${meetingId}`,
+      //     );
+      //     await adapter.deleteMeeting(meetingId, meetingType);
+      //   } catch (error) {
+      //     // console.log('error', error); // Removed for production
+      //     throw new BadRequestException(
+      //       ERROR_MESSAGES.CANNOT_DELETE_ONLINE_MEETING,
+      //       error.message,
+      //     );
+      //   }
+      // }
 
       // Archive the event detail by updating status to 'archived'
       if (event.eventDetail) {
@@ -2854,22 +2864,24 @@ export class EventService {
       }
 
       // Delete all repetitions for this event
-      const deleteRepetitionsResult =
-        await this.eventRepetitionRepository.delete({ eventId });
-      this.logger.log(
-        `Deleted ${deleteRepetitionsResult.affected} repetitions for event ${eventId}`,
-      );
+      // const deleteRepetitionsResult =
+      //   await this.eventRepetitionRepository.delete({ eventId });
+      // this.logger.log(
+      //   `Deleted ${deleteRepetitionsResult.affected} repetitions for event ${eventId}`,
+      // );
 
       // Delete the main event
-      const deleteEventResult = await this.eventRepository.delete({ eventId });
-      this.logger.log(`Deleted main event ${eventId}`);
+      // const deleteEventResult = await this.eventRepository.delete({ eventId });
+      // this.logger.log(`Deleted main event ${eventId}`);
 
       // Prepare response data
+      // deletedRepetitions / deletedMainEvent are kept in the payload for response
+      // shape compatibility, but are always 0 now that nothing is hard-deleted.
       const responseData = {
         eventId,
         archivedEventDetail: event.eventDetail ? true : false,
-        deletedRepetitions: deleteRepetitionsResult.affected || 0,
-        deletedMainEvent: deleteEventResult.affected || 0,
+        deletedRepetitions: 0,
+        deletedMainEvent: 0,
       };
 
       return response
