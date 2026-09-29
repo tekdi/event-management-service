@@ -4,6 +4,10 @@ import { ZoomService } from './zoom/zoom.adapter';
 import { PathwayZoomService } from './zoom/pathway-zoom.adapter';
 import { MockZoomService } from './mock/mock-zoom.adapter';
 import { ConfigService } from '@nestjs/config';
+import {
+  AccountRules,
+  MeetingAccountContext,
+} from './zoom/zoom-account-rules';
 
 export interface ProviderConfig {
   name: string;
@@ -21,6 +25,7 @@ export class OnlineMeetingAdapter {
     private readonly pathwayZoomProvider: PathwayZoomService,
     private readonly mockZoomProvider: MockZoomService,
     private readonly configService: ConfigService,
+    private readonly accountRules: AccountRules,
   ) {
     this.initializeProviderRegistry();
   }
@@ -109,8 +114,23 @@ export class OnlineMeetingAdapter {
     return this.getProvider(source);
   }
 
-  getPathwayAdapter(): IOnlineMeetingLocator {
-    return this.getProvider('pathway-zoom');
+  /**
+   * Resolves which Zoom account an event belongs to and returns that adapter.
+   *
+   * The decision itself lives in AccountRules - this method only turns the
+   * resolved provider key into an adapter and logs the choice. To change or add
+   * routing rules, edit zoom/zoom-account-rules.ts, not this file.
+   */
+  getAdapterFor(ctx: MeetingAccountContext): IOnlineMeetingLocator {
+    const account = this.accountRules.getAccountDetails(ctx);
+
+    this.logger.log(
+      `[ZOOM ACCOUNT]${ctx.operation ? ` [${ctx.operation}]` : ''} ` +
+        `meetingType=${ctx.meetingType} => ${account.label} ` +
+        `(${account.provider}) | reason: ${account.reason}`,
+    );
+
+    return this.getProvider(account.provider);
   }
 
   /**

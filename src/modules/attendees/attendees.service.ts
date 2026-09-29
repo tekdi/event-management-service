@@ -677,13 +677,18 @@ export class AttendeesService {
       const provider =
         (eventRepetition.onlineDetails as any).provider || 'Zoom';
 
-      // Get the appropriate adapter for the provider
-      const adapter = this.onlineMeetingAdapter.getAdapter();
-
       // Determine meeting type (default to meeting, can be enhanced based on provider)
       const meetingType =
         (eventRepetition.onlineDetails as any).meetingType ||
         MeetingType.meeting;
+
+      // Registrants must be added on the account the meeting actually lives on.
+      // Project Specific decides which one from the event's own metadata.
+      const adapter = this.onlineMeetingAdapter.getAdapterFor({
+        metadata: eventRepetition.eventDetail?.metadata as Record<string, any>,
+        meetingType,
+        operation: `addRegistrant:${meetingId}`,
+      });
 
       // Prepare attendee data for provider API
       const attendeeData = {
@@ -847,6 +852,7 @@ export class AttendeesService {
       // Get event repetition details to find meeting information
       const eventRepetition = await this.eventRepetitionRepository.findOne({
         where: { eventRepetitionId },
+        relations: ['eventDetail'],
       });
 
       if (!eventRepetition) {
@@ -873,8 +879,15 @@ export class AttendeesService {
 
         if (meetingId) {
           try {
-            // Get the appropriate adapter for the provider
-            const adapter = this.onlineMeetingAdapter.getAdapter();
+            // Resolve the same Zoom account the meeting was created on
+            const adapter = this.onlineMeetingAdapter.getAdapterFor({
+              metadata: eventRepetition.eventDetail?.metadata as Record<
+                string,
+                any
+              >,
+              meetingType,
+              operation: `removeRegistrant:${meetingId}`,
+            });
 
             // Remove registrant from provider meeting
             await adapter.removeRegistrantFromMeeting(

@@ -1636,8 +1636,7 @@ export class EventService {
           createEventDto.meetingType || MeetingType.meeting;
       } else {
         // Create new meeting automatically
-        const isPathway = createEventDto.metaData?.isPathway === true;
-        createEventDto = await this.createNewMeeting(createEventDto, isPathway);
+        createEventDto = await this.createNewMeeting(createEventDto);
       }
     }
 
@@ -1932,13 +1931,15 @@ export class EventService {
 
   private async createNewMeeting(
     createEventDto: CreateEventDto,
-    isPathway: boolean = false,
   ): Promise<CreateEventDto> {
     try {
-      const adapter = isPathway
-        ? this.onlineMeetingAdapter.getPathwayAdapter()
-        : this.onlineMeetingAdapter.getAdapter();
       const meetingType = createEventDto.meetingType || MeetingType.meeting;
+      // Account is chosen by AccountRules from the event's own metadata.
+      const adapter = this.onlineMeetingAdapter.getAdapterFor({
+        metadata: createEventDto.metaData,
+        meetingType,
+        operation: 'createMeeting',
+      });
       const startTime = new Date(createEventDto.startDatetime);
       const endTime = new Date(createEventDto.endDatetime);
       const durationMinutes = Math.ceil(
@@ -2037,12 +2038,14 @@ export class EventService {
     updateBody: UpdateEventDto,
     meetingType: MeetingType,
     onlineProvider: string,
-    isPathway: boolean = false,
+    metadata?: Record<string, any> | null,
   ): Promise<any> {
     try {
-      const adapter = isPathway
-        ? this.onlineMeetingAdapter.getPathwayAdapter()
-        : this.onlineMeetingAdapter.getAdapter();
+      const adapter = this.onlineMeetingAdapter.getAdapterFor({
+        metadata,
+        meetingType,
+        operation: `updateMeeting:${meetingId}`,
+      });
 
       // Only calculate duration if both start and end times are provided
       let durationMinutes: number | undefined;
@@ -2552,13 +2555,12 @@ export class EventService {
     try {
       // Reuse existing updateMeeting method
       const meetingDetails = eventDetail.meetingDetails as any;
-      const isPathway = (eventDetail.metadata as any)?.isPathway === true;
       const platformResult = await this.updateMeeting(
         meetingDetails.id,
         updateEventByIdDto as UpdateEventDto,
         meetingDetails.meetingType || MeetingType.meeting,
         eventDetail.onlineProvider,
-        isPathway,
+        eventDetail.metadata as Record<string, any>,
       );
       result.platformIntegrationResult = platformResult;
     } catch (error) {
@@ -2821,16 +2823,22 @@ export class EventService {
       // in place on the provider and no rows are removed from Events / EventRepetition,
       // so the event and all its related data (attendees, attendance) stay intact.
       // The original online-meeting cleanup and hard-delete logic is kept below,
-      // commented out, in case it needs to be restored.
+      // commented out, in case it needs to be restored. If it is restored, it must
+      // keep using getAdapterFor() so the meeting is deleted from the same Zoom
+      // account it was created on (pathway meetings live on the Pathway account).
 
       // const onlineDetails = event.eventDetail.meetingDetails as any;
       // const meetingId = onlineDetails?.id;
       // const meetingType = onlineDetails?.meetingType || 'meeting';
-      // const provider = onlineDetails?.onlineProvider || 'Zoom';
 
       // if (meetingId) {
       //   try {
-      //     const adapter = this.onlineMeetingAdapter.getProvider(provider);
+      //     // Resolve the same account the meeting was created on
+      //     const adapter = this.onlineMeetingAdapter.getAdapterFor({
+      //       metadata: event.eventDetail.metadata as Record<string, any>,
+      //       meetingType,
+      //       operation: `deleteMeeting:${meetingId}`,
+      //     });
       //     await adapter.deleteMeeting(meetingId, meetingType);
       //   } catch (error) {
       //     // console.log('error', error); // Removed for production

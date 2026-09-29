@@ -5,6 +5,7 @@ import { PathwayZoomService } from './zoom/pathway-zoom.adapter';
 import { MockZoomService } from './mock/mock-zoom.adapter';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { AccountRules } from './zoom/zoom-account-rules';
 
 @Module({
   imports: [HttpModule, ConfigModule],
@@ -16,9 +17,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       inject: [ConfigService],
     },
     PathwayZoomService,
+    AccountRules,
     OnlineMeetingAdapter,
     MockZoomService,
   ],
-  exports: [OnlineMeetingAdapter, ZoomService, PathwayZoomService, MockZoomService],
+  exports: [
+    OnlineMeetingAdapter,
+    ZoomService,
+    PathwayZoomService,
+    MockZoomService,
+    AccountRules,
+  ],
 })
 export class OnlineMeetingModule {}

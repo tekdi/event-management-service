@@ -294,8 +294,6 @@ export class ZoomService implements IOnlineMeetingLocator {
         },
       };
 
-      this.logger.log(`Creating ${meetingType} with endpoint: ${endpoint}`);
-
       const response: AxiosResponse<any> = await axios.post(
         endpoint,
         meetingData,
