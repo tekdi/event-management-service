@@ -78,6 +78,7 @@ export class AttendanceService implements OnModuleInit {
         eventRepetitionId: true,
         eventDetail: {
           onlineProvider: true,
+          metadata: true as unknown as object,
         },
       },
     });
@@ -119,9 +120,32 @@ export class AttendanceService implements OnModuleInit {
       throw new BadRequestException(ERROR_MESSAGES.NO_USERS_FOUND);
     }
 
+    // Restrict attendance to this event's cohort - the same Zoom link can be shared across
+    // events/cohorts (e.g. via WhatsApp), so userDetailList may contain valid users who are
+    // not actually enrolled in this event's cohort.
+    const metadata = eventRepetition.eventDetail.metadata as
+      | { cohortId?: string | string[] }
+      | undefined;
+    const cohortId = Array.isArray(metadata?.cohortId)
+      ? metadata.cohortId.find(Boolean)
+      : metadata?.cohortId;
+
+    let scopedAttendanceList = userDetailList;
+    if (cohortId) {
+      const cohortMemberIds = await this.getCohortMemberIds(
+        cohortId,
+        markMeetingAttendanceDto.tenantId,
+        authToken,
+      );
+      scopedAttendanceList = this.buildCohortScopedAttendance(
+        cohortMemberIds,
+        userDetailList,
+      );
+    }
+
     // mark attendance for each user
     const res = await this.markUsersAttendance(
-      userDetailList,
+      scopedAttendanceList,
       markMeetingAttendanceDto,
       userId,
       authToken,
@@ -233,5 +257,90 @@ export class AttendanceService implements OnModuleInit {
         ERROR_MESSAGES.ATTENDANCE_SERVICE_ERROR,
       );
     }
+  }
+
+  // Restricts meeting attendance to the event's cohort members - meeting participants who
+  // are valid users but not part of this cohort (e.g. joined a Zoom link shared outside their
+  // batch) are dropped, and cohort members who did not join the meeting are marked absent.
+  buildCohortScopedAttendance(
+    cohortMemberIds: string[],
+    meetingAttendance: AttendanceRecord[],
+  ): AttendanceRecord[] {
+    const meetingByUser = new Map(
+      meetingAttendance.map((record) => [record.userId, record]),
+    );
+
+    return cohortMemberIds.map((userId) => {
+      const record = meetingByUser.get(userId);
+      if (record && record.attendance === 'present') {
+        return record;
+      }
+      return {
+        userId,
+        attendance: 'absent',
+        metaData: {
+          autoMarked: true,
+          duration: 0,
+          joinTime: null,
+          leaveTime: null,
+        },
+      };
+    });
+  }
+
+  async getActiveAcademicYearId(
+    tenantId: string,
+    authToken: string,
+  ): Promise<string | undefined> {
+    const response = await this.httpService.axiosRef.post(
+      `${this.userServiceUrl}/user/v1/academicyears/list`,
+      { isActive: true },
+      {
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          tenantid: tenantId,
+          Authorization: authToken,
+        },
+      },
+    );
+    return response.data?.result?.[0]?.id;
+  }
+
+  async getCohortMemberIds(
+    cohortId: string,
+    tenantId: string,
+    authToken: string,
+  ): Promise<string[]> {
+    const academicYearId = await this.getActiveAcademicYearId(
+      tenantId,
+      authToken,
+    );
+
+    const response = await this.httpService.axiosRef.post(
+      `${this.userServiceUrl}/user/v1/cohortmember/list`,
+      {
+        limit: 1000,
+        offset: 0,
+        filters: {
+          cohortId,
+          academicYearIds: academicYearId ? [academicYearId] : [],
+          status: ['active'],
+          role: 'Learner',
+        },
+      },
+      {
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          academicyearid: academicYearId,
+          tenantid: tenantId,
+          Authorization: authToken,
+        },
+      },
+    );
+
+    const userDetails = response.data?.result?.userDetails || [];
+    return userDetails.map((member) => member.userId);
   }
 }
