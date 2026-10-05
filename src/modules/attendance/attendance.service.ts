@@ -124,11 +124,15 @@ export class AttendanceService implements OnModuleInit {
     // events/cohorts (e.g. via WhatsApp), so userDetailList may contain valid users who are
     // not actually enrolled in this event's cohort.
     const metadata = eventRepetition.eventDetail.metadata as
-      | { cohortId?: string | string[] }
+      | { cohortId?: string | string[]; cohortIds?: string[] }
       | undefined;
-    const cohortId = Array.isArray(metadata?.cohortId)
-      ? metadata.cohortId.find(Boolean)
-      : metadata?.cohortId;
+    // cohortIds (plural) is the canonical field since multi-cohort support was added;
+    // cohortId (singular) is a legacy fallback kept only for events predating that migration.
+    const cohortId = Array.isArray(metadata?.cohortIds) && metadata.cohortIds.length
+      ? metadata.cohortIds.find(Boolean)
+      : Array.isArray(metadata?.cohortId)
+        ? metadata.cohortId.find(Boolean)
+        : metadata?.cohortId;
 
     let scopedAttendanceList = userDetailList;
     if (cohortId) {
