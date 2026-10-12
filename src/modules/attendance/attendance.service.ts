@@ -120,31 +120,37 @@ export class AttendanceService implements OnModuleInit {
       throw new BadRequestException(ERROR_MESSAGES.NO_USERS_FOUND);
     }
 
-    // Restrict attendance to this event's cohort - the same Zoom link can be shared across
+    // Restrict attendance to this event's cohort(s) - the same Zoom link can be shared across
     // events/cohorts (e.g. via WhatsApp), so userDetailList may contain valid users who are
-    // not actually enrolled in this event's cohort.
+    // not actually enrolled in any of this event's cohorts.
     const metadata = eventRepetition.eventDetail.metadata as
       | { cohortId?: string | string[]; cohortIds?: string[] }
       | undefined;
-    // cohortIds (plural) is the canonical field since multi-cohort support was added;
-    // cohortId (singular) is a legacy fallback kept only for events predating that migration.
-    const cohortId = Array.isArray(metadata?.cohortIds) && metadata.cohortIds.length
-      ? metadata.cohortIds.find(Boolean)
+    // cohortIds (plural) is the canonical field since multi-cohort support was added - an
+    // event can be mapped to more than one cohort and every one of them must be processed,
+    // not just the first. cohortId (singular) is a legacy fallback for older events.
+    const cohortIds = Array.isArray(metadata?.cohortIds) && metadata.cohortIds.length
+      ? metadata.cohortIds.filter(Boolean)
       : Array.isArray(metadata?.cohortId)
-        ? metadata.cohortId.find(Boolean)
-        : metadata?.cohortId;
+        ? metadata.cohortId.filter(Boolean)
+        : [metadata?.cohortId].filter(Boolean);
 
     let scopedAttendanceList = userDetailList;
-    if (cohortId) {
-      const cohortMemberIds = await this.getCohortMemberIds(
-        cohortId,
-        markMeetingAttendanceDto.tenantId,
-        authToken,
+    if (cohortIds.length) {
+      const scopedPerCohort = await Promise.all(
+        cohortIds.map(async (cohortId) => {
+          const cohortMemberIds = await this.getCohortMemberIds(
+            cohortId,
+            markMeetingAttendanceDto.tenantId,
+            authToken,
+          );
+          return this.buildCohortScopedAttendance(
+            cohortMemberIds,
+            userDetailList,
+          );
+        }),
       );
-      scopedAttendanceList = this.buildCohortScopedAttendance(
-        cohortMemberIds,
-        userDetailList,
-      );
+      scopedAttendanceList = scopedPerCohort.flat();
     }
 
     // mark attendance for each user
