@@ -159,8 +159,9 @@ export class EventService {
     const limit = requestBody.limit ? requestBody.limit : 1000;
     const offset = requestBody.offset ? requestBody.offset : 0;
 
-    // Append LIMIT and OFFSET to the query
-    finalquery += ` LIMIT ${limit} OFFSET ${offset}`;
+    // Deterministic order is required for LIMIT/OFFSET paging: without it Postgres may return
+    // overlapping/missing rows across pages. eventRepetitionId is unique, so it alone gives a stable order.
+    finalquery += ` ORDER BY er."eventRepetitionId" ASC LIMIT ${limit} OFFSET ${offset}`;
 
     const result = await this.eventRepetitionRepository.query(finalquery);
     const totalCount = result[0]?.total_count;
