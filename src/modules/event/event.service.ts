@@ -5,6 +5,7 @@ import {
   NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { CreateEventDto, RecurrencePatternDto } from './dto/create-event.dto';
 import { UpdateEventDto, UpdateResult } from './dto/update-event.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -252,11 +253,28 @@ export class EventService {
     }
 
     // Handle cohortIds filter (event matches if it has any of the given cohorts).
-    // Also checks the legacy singular 'cohortId' key for events created before
-    // the multi-cohort migration/backfill. cohortIds is validated as UUIDs by
-    // FilterDto, so safe to inline into the array literal below.
-    if (filters?.cohortIds && filters.cohortIds.length > 0) {
-      const cohortIdsLiteral = filters.cohortIds
+    // Also checks the legacy singular 'metadata.cohortId' key on the stored event for
+    // events created before the multi-cohort migration/backfill.
+    //
+    // Request-side backward compatibility: FilterDto no longer declares 'cohortId'
+    // (the old singular filter field some clients, e.g. the mobile app, still send),
+    // but since ValidationPipe here doesn't whitelist-strip unknown properties, it
+    // survives on `filters` untouched. If the caller didn't send the new `cohortIds`
+    // array, fall back to that raw `filters.cohortId` so older clients keep working.
+    // It isn't DTO-validated, so it's explicitly checked with isUUID() here before
+    // being inlined into the raw SQL below.
+    let cohortIds: string[] = filters?.cohortIds;
+    if ((!cohortIds || cohortIds.length === 0) && filters?.cohortId) {
+      const legacyCohortIds = Array.isArray(filters.cohortId)
+        ? filters.cohortId
+        : [filters.cohortId];
+      cohortIds = legacyCohortIds.filter(
+        (cohortId) => typeof cohortId === 'string' && isUUID(cohortId, '4'),
+      );
+    }
+
+    if (cohortIds && cohortIds.length > 0) {
+      const cohortIdsLiteral = cohortIds
         .map((cohortId: string) => `'${cohortId}'`)
         .join(',');
       whereClauses.push(

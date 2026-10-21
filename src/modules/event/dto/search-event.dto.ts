@@ -80,7 +80,9 @@ export class FilterDto {
       '9c8a9d3e-6b3a-4b3a-9f3a-1a2b3c4d5e6f',
     ],
     description:
-      'Cohort ids — event matches if it belongs to any of the given cohorts',
+      'Cohort ids — event matches if it belongs to any of the given cohorts. ' +
+      '(A legacy singular filters.cohortId is also still accepted as a fallback — see ' +
+      'event.service.ts createSearchQuery.)',
   })
   @IsOptional()
   @IsArray()
