@@ -28,7 +28,7 @@ import kafkaConfig from "./kafka/kafka.config";
   providers: [AppService],
 })
 export class AppModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(PermissionMiddleware).forRoutes('*'); // Apply middleware to the all routes
-  }
+  // configure(consumer: MiddlewareConsumer) {
+  //   consumer.apply(PermissionMiddleware).forRoutes('*'); // Apply middleware to the all routes
+  // }
 }
