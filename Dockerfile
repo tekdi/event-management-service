@@ -1,4 +1,4 @@
-FROM node:16 as dependencies
+FROM node:22.23.4-alpine as dependencies
 WORKDIR /app
 COPY . ./
 RUN npm i
